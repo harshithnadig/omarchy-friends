@@ -1,65 +1,76 @@
-import os
-import sys
 import unittest
 import tempfile
+import shutil
 import json
 from pathlib import Path
+import sys
 
-class TestOmarchyPaperPlane(unittest.TestCase):
+# Add bin to sys.path
+bin_dir = Path(__file__).parent.parent / "bin"
+sys.path.insert(0, str(bin_dir))
+
+from importlib.machinery import SourceFileLoader
+friends_module = SourceFileLoader("friends_engine", str(bin_dir / "omarchy-friends")).load_module()
+
+
+class TestFriendsEngine(unittest.TestCase):
     def setUp(self):
-        self.tmp_dir = tempfile.TemporaryDirectory()
-        self.orig_state = os.environ.get("XDG_STATE_HOME")
-        os.environ["XDG_STATE_HOME"] = self.tmp_dir.name
-        
-        import importlib.util
-        import importlib.machinery
-        bin_path = str(Path(__file__).parent.parent / "bin" / "omarchy-friends")
-        loader = importlib.machinery.SourceFileLoader("omarchy_friends", bin_path)
-        spec = importlib.util.spec_from_loader("omarchy_friends", loader)
-        global friends
-        friends = importlib.util.module_from_spec(spec)
-        loader.exec_module(friends)
-        friends.STATE_DIR = Path(self.tmp_dir.name) / "omarchy-friends"
+        self.test_dir = tempfile.mkdtemp()
+        self.engine = friends_module.FriendsEngine(state_dir=self.test_dir)
 
     def tearDown(self):
-        self.tmp_dir.cleanup()
-        if self.orig_state is not None:
-            os.environ["XDG_STATE_HOME"] = self.orig_state
-        else:
-            os.environ.pop("XDG_STATE_HOME", None)
+        shutil.rmtree(self.test_dir, ignore_errors=True)
 
-    def test_anonymous_hangar_id(self):
-        hangar_id = friends.get_or_create_hangar_id()
-        self.assertTrue(hangar_id.startswith("AERO-"))
-        self.assertEqual(len(hangar_id), 9)
+    def test_initial_state(self):
+        status = self.engine.get_full_status()
+        self.assertTrue(status["profile"]["code"].startswith("OMAR-"))
+        self.assertEqual(status["profile"]["handle"], "OmarchyHacker")
+        self.assertGreaterEqual(status["online_count"], 1)
 
-    def test_haversine_distance(self):
-        # Distance between Tokyo (35.6762, 139.6503) and London (51.5074, -0.1278) ~9,560 km
-        dist = friends.haversine_km(35.6762, 139.6503, 51.5074, -0.1278)
-        self.assertGreater(dist, 9000)
-        self.assertLess(dist, 10000)
+    def test_set_status_and_handle(self):
+        self.assertTrue(self.engine.set_status("coffee"))
+        status = self.engine.get_full_status()
+        self.assertEqual(status["profile"]["status"], "coffee")
 
-    def test_fold_and_seal_setting(self):
-        friends.action_set_fold("concorde")
-        friends.action_set_seal("midnight")
-        state = friends.load_state()
-        self.assertEqual(state.get("active_fold"), "concorde")
-        self.assertEqual(state.get("active_seal"), "midnight")
+        self.assertTrue(self.engine.set_handle("CyberVoxel"))
+        status = self.engine.get_full_status()
+        self.assertEqual(status["profile"]["handle"], "CyberVoxel")
 
-    def test_launch_and_cooldown(self):
-        state = friends.load_state()
-        state["last_launch_time"] = 0
-        friends.save_state(state)
-        
-        self.assertEqual(friends.get_cooldown_remaining(state), 0)
+    def test_add_and_remove_friend(self):
+        # Invalid code
+        ok, msg = self.engine.add_friend("INVALID")
+        self.assertFalse(ok)
 
-        # Launch flight
-        friends.action_launch("crane", "coffee")
-        state = friends.load_state()
-        self.assertGreater(friends.get_cooldown_remaining(state), 500)
-        self.assertEqual(state.get("total_planes_launched"), 1)
-        self.assertEqual(state.get("total_planes_caught"), 1)
-        self.assertGreater(len(state.get("flight_log", [])), 0)
+        # Valid code
+        ok, msg = self.engine.add_friend("OMAR-9999-XYZ", "Alice")
+        self.assertTrue(ok)
+        friends = [f["code"] for f in self.engine.get_full_status()["friends"]]
+        self.assertIn("OMAR-9999-XYZ", friends)
+
+        # Remove friend
+        ok, msg = self.engine.remove_friend("OMAR-9999-XYZ")
+        self.assertTrue(ok)
+        friends_after = [f["code"] for f in self.engine.get_full_status()["friends"]]
+        self.assertNotIn("OMAR-9999-XYZ", friends_after)
+
+    def test_interaction_and_events(self):
+        ok, msg = self.engine.interact("OMAR-4192-RST", "high-five")
+        self.assertTrue(ok)
+        events = self.engine.pop_events()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["action"], "high-five")
+        self.assertIn("Elena", events[0]["from_name"])
+
+        # Pop should clear events
+        empty = self.engine.pop_events()
+        self.assertEqual(len(empty), 0)
+
+    def test_privacy_toggles(self):
+        val = self.engine.toggle_privacy("share_window")
+        self.assertFalse(val)
+        val2 = self.engine.toggle_privacy("share_window")
+        self.assertTrue(val2)
+
 
 if __name__ == "__main__":
     unittest.main()

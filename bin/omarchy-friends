@@ -1,387 +1,622 @@
 #!/usr/bin/env python3
 """
-Omarchy Paper Plane - Global Jetstream Skyway & Flight Engine
-Anonymous, zero-telemetry paper plane flights catching the Earth's jetstream.
+Omarchy Friends — Engine & Daemon
+Manages developer presence, active tool/window detection, music detection,
+LAN peer discovery over UDP broadcast, friend codes, and tactile interactions.
+Zero external dependencies (pure Python 3 standard library).
 """
 
 import os
 import sys
 import json
 import time
-import math
-import secrets
+import uuid
+import socket
+import select
+import random
+import hashlib
 import subprocess
 from pathlib import Path
 
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))) / "omarchy-friends"
+BROADCAST_PORT = 42424
+PROTOCOL_VERSION = "omarchy-friends/v1"
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "omarchy-friends"
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "omarchy-friends"
 
-FOLDS = {
-    "dart": {"name": "Classic Dart", "speed_boost": 1.15, "icon": "✈️"},
-    "concorde": {"name": "Concorde Delta", "speed_boost": 1.25, "icon": "🚀"},
-    "crane": {"name": "Origami Crane", "speed_boost": 0.90, "icon": "🕊️"},
-    "strato": {"name": "Stratocaster", "speed_boost": 1.05, "icon": "📐"}
+AVAILABLE_STATUSES = {
+    "coding": {"id": "coding", "name": "In The Zone", "emoji": "🚀", "desc": "Writing code in deep focus"},
+    "vibe": {"id": "vibe", "name": "Vibe Coding", "emoji": "🎧", "desc": "Headphones on, flow state"},
+    "coffee": {"id": "coffee", "name": "Coffee Break", "emoji": "☕", "desc": "Stepped away for a warm brew"},
+    "debug": {"id": "debug", "name": "Debugging Hell", "emoji": "🐛", "desc": "Tracking down an elusive bug"},
+    "night": {"id": "night", "name": "Late Night Hack", "emoji": "🌙", "desc": "Burning the midnight oil"},
+    "rice": {"id": "rice", "name": "Ricing Dotfiles", "emoji": "🛠️", "desc": "Polishing desktop aesthetics"},
+    "idle": {"id": "idle", "name": "Away", "emoji": "💤", "desc": "AFK from desk"}
 }
 
-SEALS = {
-    "focus": {"icon": "🌿", "label": "Deep Focus", "desc": "Quiet deep work in the clouds"},
-    "coffee": {"icon": "☕", "label": "Coffee Break", "desc": "Warm brew at cruising altitude"},
-    "flow": {"icon": "🎧", "label": "In the Flow", "desc": "Headphones on, drifting through the wind"},
-    "midnight": {"icon": "🌙", "label": "Midnight Code", "desc": "Stargazing over the dark side of Earth"},
-    "shipping": {"icon": "⚡", "label": "Shipping Fast", "desc": "Supersonic delivery to production"},
-    "tinkering": {"icon": "🛠️", "label": "Tinkering", "desc": "Tuning configs between mountain passes"}
-}
+AVAILABLE_AVATARS = ["👾", "🦊", "🤖", "🐱", "🚀", "🧙", "🦉", "🐙", "⚡", "☕", "🎮", "🐧"]
 
-HUBS = [
-    {"city": "Tokyo", "country": "Japan", "flag": "🇯🇵", "lat": 35.6762, "lon": 139.6503},
-    {"city": "Reykjavik", "country": "Iceland", "flag": "🇮🇸", "lat": 64.1466, "lon": -21.9426},
-    {"city": "Stockholm", "country": "Sweden", "flag": "🇸🇪", "lat": 59.3293, "lon": 18.0686},
-    {"city": "Berlin", "country": "Germany", "flag": "🇩🇪", "lat": 52.5200, "lon": 13.4050},
-    {"city": "Zurich", "country": "Switzerland", "flag": "🇨🇭", "lat": 47.3769, "lon": 8.5417},
-    {"city": "Helsinki", "country": "Finland", "flag": "🇫🇮", "lat": 60.1699, "lon": 24.9384},
-    {"city": "Oslo", "country": "Norway", "flag": "🇳🇴", "lat": 59.9139, "lon": 10.7522},
-    {"city": "Amsterdam", "country": "Netherlands", "flag": "🇳🇱", "lat": 52.3676, "lon": 4.9041},
-    {"city": "Toronto", "country": "Canada", "flag": "🇨🇦", "lat": 43.6532, "lon": -79.3832},
-    {"city": "Seattle", "country": "United States", "flag": "🇺🇸", "lat": 47.6062, "lon": -122.3321},
-    {"city": "London", "country": "United Kingdom", "flag": "🇬🇧", "lat": 51.5074, "lon": -0.1278},
-    {"city": "Seoul", "country": "South Korea", "flag": "🇰🇷", "lat": 37.5665, "lon": 126.9780},
-    {"city": "Singapore", "country": "Singapore", "flag": "🇸🇬", "lat": 1.3521, "lon": 103.8198},
-    {"city": "Sydney", "country": "Australia", "flag": "🇦🇺", "lat": -33.8688, "lon": 151.2093},
-    {"city": "Dublin", "country": "Ireland", "flag": "🇮🇪", "lat": 53.3498, "lon": -6.2603}
+DEFAULT_AMBIENT_PEERS = [
+    {
+        "code": "OMAR-4192-RST",
+        "handle": "Elena",
+        "avatar": "🦊",
+        "status": "coding",
+        "status_text": "In The Zone",
+        "status_emoji": "🚀",
+        "activity": "Neovim (Rust)",
+        "music": "Tycho - Awake",
+        "location": "Zurich",
+        "focus_mins": 54,
+        "is_ambient": True
+    },
+    {
+        "code": "OMAR-8831-ZED",
+        "handle": "Kaito",
+        "avatar": "🤖",
+        "status": "vibe",
+        "status_text": "Vibe Coding",
+        "status_emoji": "🎧",
+        "activity": "Zed (main.go)",
+        "music": "Nujabes - Feather",
+        "location": "Tokyo",
+        "focus_mins": 38,
+        "is_ambient": True
+    },
+    {
+        "code": "OMAR-2045-COF",
+        "handle": "Marco",
+        "avatar": "☕",
+        "status": "coffee",
+        "status_text": "Coffee Break",
+        "status_emoji": "☕",
+        "activity": "Espresso Bar",
+        "music": "",
+        "location": "Milan",
+        "focus_mins": 12,
+        "is_ambient": True
+    }
 ]
 
-COOLDOWN_SECONDS = 600  # 10 minutes between launches
 
-def haversine_km(lat1, lon1, lat2, lon2):
-    """Calculate the great circle distance in kilometers between two points."""
-    r = 6371.0  # Earth's radius in km
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    delta_phi = math.radians(lat2 - lat1)
-    delta_lambda = math.radians(lon2 - lon1)
+def generate_friend_code():
+    h = hashlib.sha256(str(uuid.getnode()).encode() + os.urandom(8)).hexdigest().upper()
+    return f"OMAR-{h[:4]}-{h[4:7]}"
 
-    a = math.sin(delta_phi / 2.0) ** 2 + \
-        math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
-    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
-    return int(r * c)
 
-def ensure_state_dir():
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-
-def get_or_create_hangar_id():
-    ensure_state_dir()
-    id_file = STATE_DIR / "hangar_id"
-    if id_file.exists():
-        try:
-            val = id_file.read_text().strip()
-            if len(val) == 8:
-                return val
-        except Exception:
-            pass
-    new_id = f"AERO-{secrets.token_hex(2).upper()}"
-    id_file.write_text(new_id)
-    id_file.chmod(0o600)
-    return new_id
-
-def load_state():
-    ensure_state_dir()
-    state_file = STATE_DIR / "state.json"
-    default_state = {
-        "active_fold": "dart",
-        "active_seal": "focus",
-        "last_launch_time": 0,
-        "total_planes_launched": 0,
-        "total_planes_caught": 0,
-        "total_km_drifted": 28450,
-        "passport_stamps": ["🇯🇵", "🇩🇪", "🇸🇪", "🇨🇭"],
-        "flight_log": [
-            {
-                "flight_id": "FL-9042",
-                "origin_city": "Tokyo",
-                "origin_country": "Japan",
-                "flag": "🇯🇵",
-                "destination_city": "Stockholm",
-                "distance_km": 8170,
-                "altitude_ft": 32000,
-                "jetstream_speed": 210,
-                "fold": "crane",
-                "seal": "midnight",
-                "seal_icon": "🌙",
-                "timestamp": int(time.time()) - 420,
-                "status": "Landed softly in your airspace"
-            },
-            {
-                "flight_id": "FL-8119",
-                "origin_city": "Zurich",
-                "origin_country": "Switzerland",
-                "flag": "🇨🇭",
-                "destination_city": "Toronto",
-                "distance_km": 6450,
-                "altitude_ft": 29500,
-                "jetstream_speed": 195,
-                "fold": "concorde",
-                "seal": "coffee",
-                "seal_icon": "☕",
-                "timestamp": int(time.time()) - 1860,
-                "status": "Caught polar jetstream, drifted past"
-            },
-            {
-                "flight_id": "FL-7430",
-                "origin_city": "Berlin",
-                "origin_country": "Germany",
-                "flag": "🇩🇪",
-                "destination_city": "Seattle",
-                "distance_km": 8120,
-                "altitude_ft": 34000,
-                "jetstream_speed": 235,
-                "fold": "dart",
-                "seal": "flow",
-                "seal_icon": "🎧",
-                "timestamp": int(time.time()) - 4100,
-                "status": "Glided silently over your desktop"
-            }
-        ]
-    }
-    if state_file.exists():
-        try:
-            with open(state_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                default_state.update(data)
-        except Exception:
-            pass
-    return default_state
-
-def save_state(state):
-    ensure_state_dir()
-    state_file = STATE_DIR / "state.json"
-    temp_file = STATE_DIR / "state.json.tmp"
-    with open(temp_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
-    temp_file.replace(state_file)
-
-def get_cooldown_remaining(state):
-    last = state.get("last_launch_time", 0)
-    elapsed = time.time() - last
-    return max(0, int(COOLDOWN_SECONDS - elapsed))
-
-def get_cooldown_progress(state):
-    last = state.get("last_launch_time", 0)
-    elapsed = time.time() - last
-    if elapsed >= COOLDOWN_SECONDS:
-        return 1.0
-    return max(0.0, min(1.0, elapsed / COOLDOWN_SECONDS))
-
-def format_time_ago(ts):
-    now = time.time()
-    diff = int(now - ts)
-    if diff < 60:
-        return "Just now"
-    elif diff < 3600:
-        return f"{diff // 60}m ago"
-    elif diff < 86400:
-        return f"{diff // 3600}h ago"
-    else:
-        return f"{diff // 86400}d ago"
-
-def get_atmospheric_jetstream():
-    """Simulate realistic troposphere jetstream data based on current hour and day of year."""
-    hour = time.localtime().tm_hour
-    day = time.localtime().tm_yday
-    speed = int(170 + 45 * math.sin((day / 365.0) * 2 * math.pi) + 15 * math.cos((hour / 24.0) * 2 * math.pi))
-    altitude = int(28000 + 4000 * math.sin((hour / 24.0) * 2 * math.pi))
-    directions = ["Westerly", "North-Westerly", "South-Westerly", "Polar Express", "Subtropical Stream"]
-    direction = directions[hour % len(directions)]
-    return {
-        "speed_kmh": speed,
-        "altitude_ft": altitude,
-        "direction": direction,
-        "pressure_hpa": 250
-    }
-
-def estimate_planes_aloft():
-    hour = time.localtime().tm_hour
-    base = 32 + int(18 * math.sin((hour / 24.0) * math.pi))
-    jitter = (time.localtime().tm_min % 5) - 2
-    return max(24, base + jitter)
-
-def action_status():
-    state = load_state()
-    hangar_id = get_or_create_hangar_id()
-    cooldown = get_cooldown_remaining(state)
-    cooldown_prog = get_cooldown_progress(state)
-    active_fold = state.get("active_fold", "dart")
-    active_seal = state.get("active_seal", "focus")
-    
-    fold_meta = FOLDS.get(active_fold, FOLDS["dart"])
-    seal_meta = SEALS.get(active_seal, SEALS["focus"])
-    jetstream = get_atmospheric_jetstream()
-    
-    formatted_logs = []
-    for f in state.get("flight_log", []):
-        formatted_logs.append({
-            "flight_id": f.get("flight_id", "FL-0000"),
-            "origin": f.get("origin_city", "Unknown"),
-            "country": f.get("origin_country", "Skyway"),
-            "flag": f.get("flag", "✨"),
-            "destination": f.get("destination_city", "Local"),
-            "distance_km": f.get("distance_km", 5000),
-            "altitude_ft": f.get("altitude_ft", 30000),
-            "speed_kmh": f.get("jetstream_speed", 200),
-            "seal": f.get("seal", "focus"),
-            "seal_icon": f.get("seal_icon", "🌿"),
-            "status": f.get("status", "In flight"),
-            "time_ago": format_time_ago(f.get("timestamp", time.time()))
-        })
-
-    out = {
-        "hangar_id": hangar_id,
-        "active_fold": active_fold,
-        "fold_name": fold_meta["name"],
-        "fold_icon": fold_meta["icon"],
-        "active_seal": active_seal,
-        "seal_label": seal_meta["label"],
-        "seal_icon": seal_meta["icon"],
-        "seal_desc": seal_meta["desc"],
-        "can_launch": cooldown == 0,
-        "cooldown_seconds": cooldown,
-        "cooldown_progress": cooldown_prog,
-        "planes_aloft": estimate_planes_aloft(),
-        "jetstream": jetstream,
-        "total_launched": state.get("total_planes_launched", 0),
-        "total_caught": state.get("total_planes_caught", 0),
-        "total_km": state.get("total_km_drifted", 0),
-        "passport_stamps": list(set(state.get("passport_stamps", [])))[:12],
-        "flight_log": formatted_logs[:8],
-        "available_folds": [
-            {"id": k, "name": v["name"], "icon": v["icon"]}
-            for k, v in FOLDS.items()
-        ],
-        "available_seals": [
-            {"id": k, "icon": v["icon"], "label": v["label"], "desc": v["desc"]}
-            for k, v in SEALS.items()
-        ]
-    }
-    print(json.dumps(out))
-
-def action_set_fold(fold_id):
-    if fold_id not in FOLDS:
-        fold_id = "dart"
-    state = load_state()
-    state["active_fold"] = fold_id
-    save_state(state)
-    action_status()
-
-def action_set_seal(seal_id):
-    if seal_id not in SEALS:
-        seal_id = "focus"
-    state = load_state()
-    state["active_seal"] = seal_id
-    save_state(state)
-    action_status()
-
-def action_launch(fold_id=None, seal_id=None):
-    state = load_state()
-    cooldown = get_cooldown_remaining(state)
-    if cooldown > 0:
-        print(json.dumps({"error": "cooldown_active", "remaining_seconds": cooldown}))
-        sys.exit(1)
-
-    if fold_id and fold_id in FOLDS:
-        state["active_fold"] = fold_id
-    if seal_id and seal_id in SEALS:
-        state["active_seal"] = seal_id
-
-    current_fold = state.get("active_fold", "dart")
-    current_seal = state.get("active_seal", "focus")
-    seal_meta = SEALS.get(current_seal, SEALS["focus"])
-    jetstream = get_atmospheric_jetstream()
-
-    now = int(time.time())
-    state["last_launch_time"] = now
-    state["total_planes_launched"] = state.get("total_planes_launched", 0) + 1
-
-    # Simulate reciprocal flight caught from another developer across the world
-    origin_hub = secrets.choice(HUBS)
-    dest_hub = secrets.choice([h for h in HUBS if h != origin_hub])
-    distance = haversine_km(origin_hub["lat"], origin_hub["lon"], dest_hub["lat"], dest_hub["lon"])
-
-    peer_seal_key = secrets.choice(list(SEALS.keys()))
-    peer_seal = SEALS[peer_seal_key]
-    peer_fold_key = secrets.choice(list(FOLDS.keys()))
-
-    new_flight = {
-        "flight_id": f"FL-{secrets.randbelow(9000) + 1000}",
-        "origin_city": origin_hub["city"],
-        "origin_country": origin_hub["country"],
-        "flag": origin_hub["flag"],
-        "destination_city": dest_hub["city"],
-        "distance_km": distance,
-        "altitude_ft": jetstream["altitude_ft"],
-        "jetstream_speed": int(jetstream["speed_kmh"] * FOLDS[peer_fold_key]["speed_boost"]),
-        "fold": peer_fold_key,
-        "seal": peer_seal_key,
-        "seal_icon": peer_seal["icon"],
-        "timestamp": now,
-        "status": f"Caught in {jetstream['direction']}, glided smoothly into your airspace"
-    }
-
-    logs = state.get("flight_log", [])
-    logs.insert(0, new_flight)
-    state["flight_log"] = logs[:50]
-    state["total_planes_caught"] = state.get("total_planes_caught", 0) + 1
-    state["total_km_drifted"] = state.get("total_km_drifted", 0) + distance
-
-    stamps = state.get("passport_stamps", [])
-    if origin_hub["flag"] not in stamps:
-        stamps.append(origin_hub["flag"])
-    state["passport_stamps"] = stamps
-
-    save_state(state)
-
-    # Optional desktop notification
-    notif_msg = f"{new_flight['flag']} Plane from {new_flight['origin_city']} ({new_flight['distance_km']:,} km) landed softly! {new_flight['seal_icon']}"
+def get_active_window():
+    """Detect current active application and context via Hyprland IPC."""
     try:
-        subprocess.run(
-            ["omarchy-notification-send", "-g", "✈️", "Paper Plane Skyway", notif_msg],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2
+        res = subprocess.run(
+            ["hyprctl", "activewindow", "-j"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1
         )
+        if res.returncode == 0 and res.stdout.strip():
+            data = json.loads(res.stdout)
+            wclass = data.get("class", "").lower()
+            initial_class = data.get("initialClass", "").lower()
+            title = data.get("title", "")
+
+            # Common development editors and tools
+            if any(k in wclass or k in initial_class for k in ["nvim", "neovim"]):
+                return f"Neovim ({title})" if title and len(title) < 25 else "Neovim"
+            if "zed" in wclass or "zed" in initial_class:
+                return f"Zed ({title})" if title and len(title) < 25 else "Zed Editor"
+            if any(k in wclass for k in ["code", "vscodium"]):
+                return "VS Code"
+            if "emacs" in wclass:
+                return "Emacs"
+            if any(k in wclass for k in ["foot", "kitty", "alacritty", "ghostty", "wezterm", "terminal"]):
+                if "cargo" in title or "build" in title:
+                    return "Terminal (Compiling)"
+                if "test" in title:
+                    return "Terminal (Running Tests)"
+                return "Terminal"
+            if "blender" in wclass:
+                return "Blender 3D"
+            if "obsidian" in wclass:
+                return "Obsidian Notes"
+            if any(k in wclass for k in ["firefox", "chromium", "chrome", "zen", "brave"]):
+                return "Web Browser"
+            if any(k in wclass for k in ["spotify", "cider"]):
+                return "Music Player"
+
+            if wclass:
+                # Clean up reverse domain classes like org.omarchy.agent
+                clean_name = wclass.split(".")[-1].capitalize()
+                return clean_name
     except Exception:
         pass
+    return "Desktop"
 
-    action_status()
 
-def action_invite():
-    text = (
-        "Fold a paper plane and launch it into the global jetstream! ✈️\n"
-        "Anonymous peer presence and kinetic skyway connections across Omarchy.\n\n"
-        "Install via:\n"
-        "  omarchy plugin add https://github.com/harshithnadig/omarchy-friends.git --enable\n"
-        "  omarchy bar put community.omarchy-friends --section right"
-    )
+def get_active_music():
+    """Detect playing track via busctl / MPRIS DBus."""
     try:
-        proc = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE)
-        proc.communicate(input=text.encode("utf-8"))
-        print("Copied Paper Plane Skyway invite to clipboard!")
+        res = subprocess.run(
+            ["busctl", "--user", "list"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1
+        )
+        if res.returncode == 0:
+            for line in res.stdout.splitlines():
+                if "org.mpris.MediaPlayer2." in line:
+                    service = line.split()[0]
+                    # Query PlaybackStatus
+                    status_res = subprocess.run(
+                        ["busctl", "--user", "get-property", service, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        timeout=1
+                    )
+                    if status_res.returncode == 0 and "Playing" in status_res.stdout:
+                        # Query Metadata
+                        meta_res = subprocess.run(
+                            ["busctl", "--user", "get-property", service, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Metadata"],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL,
+                            text=True,
+                            timeout=1
+                        )
+                        if meta_res.returncode == 0:
+                            meta_out = meta_res.stdout
+                            artist = ""
+                            title = ""
+                            for mline in meta_out.splitlines():
+                                if "xesam:title" in mline and "s \"" in mline:
+                                    title = mline.split("s \"", 1)[1].rstrip('"')
+                                if "xesam:artist" in mline and "s \"" in mline:
+                                    artist = mline.split("s \"", 1)[1].rstrip('"')
+                            if title:
+                                return f"{artist} - {title}" if artist else title
     except Exception:
-        print(text)
+        pass
+    return ""
+
+
+class FriendsEngine:
+    def __init__(self, state_dir=None):
+        self.state_dir = Path(state_dir) if state_dir else STATE_DIR
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.state_file = self.state_dir / "friends_state.json"
+        self.state = self.load_state()
+
+    def load_state(self):
+        if self.state_file.exists():
+            try:
+                with open(self.state_file, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
+        # Generate default fresh state
+        code = generate_friend_code()
+        initial_state = {
+            "profile": {
+                "handle": "OmarchyHacker",
+                "avatar": "👾",
+                "code": code,
+                "status": "coding",
+                "focus_started_at": int(time.time()),
+                "privacy": {
+                    "share_window": True,
+                    "share_music": True,
+                    "share_lan": True,
+                    "ambient_peers": True
+                }
+            },
+            "friends": DEFAULT_AMBIENT_PEERS.copy(),
+            "lan_peers": {},
+            "events": [],
+            "stats": {
+                "high_fives_sent": 0,
+                "high_fives_received": 0,
+                "coffee_breaks_shared": 0
+            }
+        }
+        self.save_state(initial_state)
+        return initial_state
+
+    def save_state(self, state=None):
+        if state is not None:
+            self.state = state
+        tmp_file = self.state_file.with_suffix(".tmp")
+        with open(tmp_file, "w") as f:
+            json.dump(self.state, f, indent=2)
+        os.replace(tmp_file, self.state_file)
+
+    def get_focus_minutes(self):
+        started = self.state["profile"].get("focus_started_at", int(time.time()))
+        elapsed = max(0, int(time.time()) - started)
+        return elapsed // 60
+
+    def get_public_payload(self):
+        p = self.state["profile"]
+        status_info = AVAILABLE_STATUSES.get(p.get("status", "coding"), AVAILABLE_STATUSES["coding"])
+        
+        act = get_active_window() if p.get("privacy", {}).get("share_window", True) else ""
+        mus = get_active_music() if p.get("privacy", {}).get("share_music", True) else ""
+
+        return {
+            "protocol": PROTOCOL_VERSION,
+            "type": "presence",
+            "code": p["code"],
+            "handle": p["handle"],
+            "avatar": p["avatar"],
+            "status": p.get("status", "coding"),
+            "status_text": status_info["name"],
+            "status_emoji": status_info["emoji"],
+            "activity": act,
+            "music": mus,
+            "focus_mins": self.get_focus_minutes(),
+            "timestamp": int(time.time())
+        }
+
+    def set_status(self, status_id):
+        if status_id in AVAILABLE_STATUSES:
+            self.state["profile"]["status"] = status_id
+            self.state["profile"]["focus_started_at"] = int(time.time())
+            self.save_state()
+            return True
+        return False
+
+    def set_handle(self, handle):
+        clean = handle.strip()[:24]
+        if clean:
+            self.state["profile"]["handle"] = clean
+            self.save_state()
+            return True
+        return False
+
+    def set_avatar(self, avatar):
+        if avatar in AVAILABLE_AVATARS:
+            self.state["profile"]["avatar"] = avatar
+            self.save_state()
+            return True
+        return False
+
+    def toggle_privacy(self, key):
+        priv = self.state["profile"].setdefault("privacy", {})
+        if key in priv:
+            priv[key] = not priv[key]
+            self.save_state()
+            return priv[key]
+        return None
+
+    def add_friend(self, code, handle=None, avatar="👾"):
+        code = code.strip().upper()
+        if not code.startswith("OMAR-") or len(code) < 9:
+            return False, "Invalid Friend Code format (expected OMAR-XXXX-XXX)"
+        if code == self.state["profile"]["code"]:
+            return False, "Cannot add your own Friend Code"
+
+        for f in self.state.get("friends", []):
+            if f.get("code") == code:
+                return False, f"{f.get('handle', 'Friend')} is already in your friends list"
+
+        name = handle.strip() if handle else f"Hacker_{code[-3:]}"
+        new_friend = {
+            "code": code,
+            "handle": name,
+            "avatar": avatar,
+            "status": "coding",
+            "status_text": "In The Zone",
+            "status_emoji": "🚀",
+            "activity": "Hacking",
+            "music": "",
+            "focus_mins": 5,
+            "last_seen": int(time.time()),
+            "is_ambient": False
+        }
+        self.state.setdefault("friends", []).append(new_friend)
+        self.save_state()
+        return True, f"Added {name} to friends!"
+
+    def remove_friend(self, code):
+        code = code.strip().upper()
+        initial_len = len(self.state.get("friends", []))
+        self.state["friends"] = [f for f in self.state.get("friends", []) if f.get("code") != code]
+        if len(self.state["friends"]) < initial_len:
+            self.save_state()
+            return True, f"Removed {code}"
+        return False, "Friend code not found"
+
+    def interact(self, target_code, action="high-five"):
+        """Perform an interaction: high-five, coffee, or kudos."""
+        target_code = target_code.strip().upper()
+        target_friend = None
+        for f in self.state.get("friends", []):
+            if f.get("code") == target_code:
+                target_friend = f
+                break
+
+        # Check LAN peers as well
+        if not target_friend and target_code in self.state.get("lan_peers", {}):
+            target_friend = self.state["lan_peers"][target_code]
+
+        if not target_friend:
+            return False, "Target friend not found"
+
+        friend_name = target_friend.get("handle", "Friend")
+        avatar = target_friend.get("avatar", "👾")
+
+        # Update stats
+        if action == "high-five":
+            self.state["stats"]["high_fives_sent"] += 1
+            icon = "✋"
+            action_desc = f"Sent a high-five to {friend_name}!"
+            reply_desc = f"{friend_name} {avatar} bumped your fist back! 'Let's crush this build! 👊'"
+        elif action == "coffee":
+            self.state["stats"]["coffee_breaks_shared"] += 1
+            icon = "☕"
+            action_desc = f"Invited {friend_name} to a 5-min coffee break!"
+            reply_desc = f"{friend_name} {avatar} accepted! 'Grabbed an espresso. Cheers! ☕'"
+        elif action == "kudos":
+            icon = "⚡"
+            action_desc = f"Sent a spark of kudos to {friend_name}!"
+            reply_desc = f"{friend_name} {avatar} caught the spark! 'Appreciate the energy! ⚡'"
+        else:
+            return False, f"Unknown action: {action}"
+
+        # If ambient, add automatic delightful reply event
+        if target_friend.get("is_ambient", False):
+            event = {
+                "id": str(uuid.uuid4())[:8],
+                "action": action,
+                "icon": icon,
+                "from_name": friend_name,
+                "from_avatar": avatar,
+                "message": reply_desc,
+                "timestamp": int(time.time())
+            }
+            self.state.setdefault("events", []).append(event)
+
+        # Broadcast interaction over UDP if LAN sharing is enabled
+        if self.state["profile"].get("privacy", {}).get("share_lan", True):
+            packet = {
+                "protocol": PROTOCOL_VERSION,
+                "type": "interaction",
+                "action": action,
+                "from_code": self.state["profile"]["code"],
+                "from_handle": self.state["profile"]["handle"],
+                "from_avatar": self.state["profile"]["avatar"],
+                "to_code": target_code,
+                "timestamp": int(time.time())
+            }
+            self._send_udp_packet(packet)
+
+        self.save_state()
+        return True, action_desc
+
+    def _send_udp_packet(self, packet):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.settimeout(0.5)
+            data = json.dumps(packet).encode("utf-8")
+            sock.sendto(data, ("255.255.255.255", BROADCAST_PORT))
+            sock.close()
+        except Exception:
+            pass
+
+    def pop_events(self):
+        events = self.state.get("events", [])
+        self.state["events"] = []
+        self.save_state()
+        return events
+
+    def cleanup_lan_peers(self):
+        now = int(time.time())
+        cleaned = {}
+        for code, peer in self.state.get("lan_peers", {}).items():
+            if now - peer.get("last_seen", 0) < 90:
+                cleaned[code] = peer
+        self.state["lan_peers"] = cleaned
+        self.save_state()
+
+    def get_full_status(self):
+        """Assemble complete UI status model for BarWidget and Panel."""
+        self.cleanup_lan_peers()
+        p = self.state["profile"]
+        cur_status = AVAILABLE_STATUSES.get(p.get("status", "coding"), AVAILABLE_STATUSES["coding"])
+
+        # Live detection
+        active_app = get_active_window()
+        active_music = get_active_music()
+        focus_mins = self.get_focus_minutes()
+
+        # Ambient peers simulation
+        ambient_enabled = p.get("privacy", {}).get("ambient_peers", True)
+        all_friends = []
+        for f in self.state.get("friends", []):
+            if f.get("is_ambient") and not ambient_enabled:
+                continue
+            item = f.copy()
+            item["online"] = True
+            all_friends.append(item)
+
+        lan_peers = list(self.state.get("lan_peers", {}).values())
+        online_count = len(all_friends) + len(lan_peers)
+
+        return {
+            "profile": {
+                "handle": p["handle"],
+                "avatar": p["avatar"],
+                "code": p["code"],
+                "status": p.get("status", "coding"),
+                "status_name": cur_status["name"],
+                "status_emoji": cur_status["emoji"],
+                "status_desc": cur_status["desc"],
+                "activity": active_app if p.get("privacy", {}).get("share_window", True) else "Hidden",
+                "music": active_music if p.get("privacy", {}).get("share_music", True) else "",
+                "focus_mins": focus_mins,
+                "privacy": p.get("privacy", {})
+            },
+            "friends": all_friends,
+            "lan_peers": lan_peers,
+            "online_count": online_count,
+            "stats": self.state.get("stats", {}),
+            "available_statuses": list(AVAILABLE_STATUSES.values()),
+            "available_avatars": AVAILABLE_AVATARS
+        }
+
+    def run_daemon(self):
+        """Run background LAN discovery listener and periodic broadcaster."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        try:
+            sock.bind(("", BROADCAST_PORT))
+        except Exception as e:
+            sys.stderr.write(f"Omarchy Friends: Could not bind UDP port {BROADCAST_PORT}: {e}\n")
+            return
+
+        sock.setblocking(False)
+        last_broadcast = 0
+
+        while True:
+            now = time.time()
+            # Broadcast our presence every 15 seconds if enabled
+            if now - last_broadcast >= 15:
+                if self.state["profile"].get("privacy", {}).get("share_lan", True):
+                    payload = self.get_public_payload()
+                    try:
+                        data = json.dumps(payload).encode("utf-8")
+                        sock.sendto(data, ("255.255.255.255", BROADCAST_PORT))
+                    except Exception:
+                        pass
+                last_broadcast = now
+
+            # Poll for incoming LAN packets with 1s select timeout
+            r, _, _ = select.select([sock], [], [], 1.0)
+            if r:
+                try:
+                    raw, addr = sock.recvfrom(4096)
+                    packet = json.loads(raw.decode("utf-8"))
+                    if packet.get("protocol") != PROTOCOL_VERSION:
+                        continue
+
+                    # Ignore self packets
+                    my_code = self.state["profile"]["code"]
+                    sender_code = packet.get("code") or packet.get("from_code")
+                    if sender_code == my_code:
+                        continue
+
+                    ptype = packet.get("type")
+                    if ptype == "presence":
+                        # Record LAN peer
+                        self.state.setdefault("lan_peers", {})[sender_code] = {
+                            "code": sender_code,
+                            "handle": packet.get("handle", "LAN Peer"),
+                            "avatar": packet.get("avatar", "👾"),
+                            "status": packet.get("status", "coding"),
+                            "status_text": packet.get("status_text", "In The Zone"),
+                            "status_emoji": packet.get("status_emoji", "🚀"),
+                            "activity": packet.get("activity", ""),
+                            "music": packet.get("music", ""),
+                            "focus_mins": packet.get("focus_mins", 0),
+                            "ip": addr[0],
+                            "last_seen": int(time.time()),
+                            "is_ambient": False
+                        }
+                        self.save_state()
+
+                    elif ptype == "interaction":
+                        # Incoming interaction addressed to us
+                        if packet.get("to_code") == my_code:
+                            act = packet.get("action", "high-five")
+                            from_h = packet.get("from_handle", "A friend")
+                            from_av = packet.get("from_avatar", "✋")
+                            if act == "high-five":
+                                icon = "✋"
+                                msg = f"{from_h} gave you a High Five! ✋"
+                                self.state["stats"]["high_fives_received"] += 1
+                            elif act == "coffee":
+                                icon = "☕"
+                                msg = f"{from_h} invited you to a coffee break! ☕"
+                                self.state["stats"]["coffee_breaks_shared"] += 1
+                            else:
+                                icon = "⚡"
+                                msg = f"{from_h} sent you kudos! ⚡"
+
+                            event = {
+                                "id": str(uuid.uuid4())[:8],
+                                "action": act,
+                                "icon": icon,
+                                "from_name": from_h,
+                                "from_avatar": from_av,
+                                "message": msg,
+                                "timestamp": int(time.time())
+                            }
+                            self.state.setdefault("events", []).append(event)
+                            self.save_state()
+
+                            # Trigger desktop notification
+                            try:
+                                subprocess.run(
+                                    ["omarchy-notification-send", "--app-name", "Omarchy Friends", "-i", "dialog-information", msg, "Keep up the great momentum!"],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL
+                                )
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
 
 def main():
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    if cmd == "status":
-        action_status()
-    elif cmd in ("fold", "set-fold"):
-        fold_id = sys.argv[2] if len(sys.argv) > 2 else "dart"
-        action_set_fold(fold_id)
-    elif cmd in ("seal", "vibe", "set-seal"):
-        seal_id = sys.argv[2] if len(sys.argv) > 2 else "focus"
-        action_set_seal(seal_id)
-    elif cmd in ("launch", "spark", "fly"):
-        fold_id = sys.argv[2] if len(sys.argv) > 2 else None
-        seal_id = sys.argv[3] if len(sys.argv) > 3 else None
-        action_launch(fold_id, seal_id)
-    elif cmd == "invite":
-        action_invite()
+    engine = FriendsEngine()
+
+    if len(sys.argv) < 2 or sys.argv[1] == "status":
+        print(json.dumps(engine.get_full_status()))
+        return
+
+    cmd = sys.argv[1]
+
+    if cmd == "set-status" and len(sys.argv) >= 3:
+        ok = engine.set_status(sys.argv[2])
+        print(json.dumps({"ok": ok, "status": sys.argv[2]}))
+    elif cmd == "set-handle" and len(sys.argv) >= 3:
+        ok = engine.set_handle(" ".join(sys.argv[2:]))
+        print(json.dumps({"ok": ok}))
+    elif cmd == "set-avatar" and len(sys.argv) >= 3:
+        ok = engine.set_avatar(sys.argv[2])
+        print(json.dumps({"ok": ok}))
+    elif cmd == "toggle-privacy" and len(sys.argv) >= 3:
+        val = engine.toggle_privacy(sys.argv[2])
+        print(json.dumps({"ok": val is not None, "value": val}))
+    elif cmd == "add-friend" and len(sys.argv) >= 3:
+        code = sys.argv[2]
+        handle = sys.argv[3] if len(sys.argv) >= 4 else None
+        ok, msg = engine.add_friend(code, handle)
+        print(json.dumps({"ok": ok, "message": msg}))
+    elif cmd == "remove-friend" and len(sys.argv) >= 3:
+        ok, msg = engine.remove_friend(sys.argv[2])
+        print(json.dumps({"ok": ok, "message": msg}))
+    elif cmd == "interact" and len(sys.argv) >= 3:
+        target = sys.argv[2]
+        action = sys.argv[3] if len(sys.argv) >= 4 else "high-five"
+        ok, msg = engine.interact(target, action)
+        print(json.dumps({"ok": ok, "message": msg}))
+    elif cmd == "poll-events":
+        events = engine.pop_events()
+        print(json.dumps({"events": events}))
+    elif cmd == "daemon":
+        engine.run_daemon()
     else:
-        print("Usage: omarchy-friends {status|fold <id>|seal <id>|launch [fold] [seal]|invite}")
+        print(f"Unknown command: {cmd}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

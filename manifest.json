@@ -1,28 +1,25 @@
 {
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
-  "name": "Paper Plane Skyway",
+  "name": "Omarchy Friends",
   "version": "1.0.0",
-  "author": "Paper Plane Project Contributors",
+  "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "Global jetstream skyway for Omarchy: fold origami paper planes, catch Earth's real-time atmospheric wind currents, and share quiet serendipity across desktops worldwide.",
+  "description": "Peer-to-peer developer presence, live activity, LAN discovery, and tactile buddy network for Omarchy.",
+  "homepage": "https://github.com/harshithnadig/omarchy-friends",
+  "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
+    "service",
     "bar-widget"
   ],
   "entryPoints": {
+    "service": "FriendsService.qml",
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Paper Plane Skyway",
-    "description": "Fold and launch origami paper planes into the global atmospheric jetstream.",
-    "category": "Productivity",
-    "aliases": [
-      "paper-plane",
-      "friends",
-      "skyway",
-      "jetstream",
-      "origami"
-    ],
+    "displayName": "Friends",
+    "description": "Live buddy presence, active editor/music ticker, and tactile high-fives",
+    "category": "Social",
     "allowMultiple": false,
     "defaultSection": "right"
   }

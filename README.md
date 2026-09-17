@@ -1,101 +1,90 @@
-# ✈️ Paper Plane Skyway for Omarchy
+# Omarchy Friends 👥
 
-**Someone is coding under the same sky.** Fold origami paper planes, catch Earth's real-time atmospheric wind currents, and share quiet serendipity across Linux desktops worldwide.
+**Peer-to-peer developer presence, live activity, LAN discovery, and tactile buddy network for Omarchy.**
+
+See what your developer friends are coding and listening to, celebrate shipped milestones, exchange high-fives and coffee breaks, discover nearby hackers on your local network, and feel the ambient pulse of the hacker community — right from your Hyprland bar.
 
 ---
 
-## 🌟 The Concept: The Global Jetstream Skyway
+## Highlights
 
-In a world of noisy social media feeds and toxic chat rooms, **Paper Plane Skyway** returns computing to poetic, tactile wonder:
+* **👾 Native Developer Presence:** Automatically detects your active editor or workspace (`Neovim`, `Zed`, `VS Code`, `Terminal`, `Blender`, `Obsidian`) via Hyprland IPC, plus current music track via MPRIS DBus.
+* **👥 Friends & Buddies List:** Connect with friends via shareable, memorable Friend Codes (e.g. `OMAR-7842-X9K`). See live status dots, current activity, and focus streak timers.
+* **📡 Zero-Config LAN & Tailscale Discovery:** Automatically discovers coworkers and friends on the same WiFi, office LAN, or Tailscale mesh via UDP broadcast (port `42424`). No external server required.
+* **✋ Tactile Joy & Micro-Interactions:** Send 1-click High-Fives, Coffee Break cheers, and Kudos sparks. Triggers hardware-accelerated bar pulse animations and friendly desktop notifications.
+* **🌙 Ambient Companions:** When coding late at night or before your friends install the plugin, toggle realistic global companion developers so you're never hacking alone.
+* **🔒 Privacy First & Abuse-Proof:** Zero freeform text entry (no harassment or spam), zero telemetry servers, and granular per-feature privacy toggles for window and music broadcasting.
+
+---
+
+## Bar Widget & Controls
+
+* **Bar Pill:** Displays `👥 <online_count>` with dynamic state indicators.
+* **Left-Click:** Opens the Friends Deck & Activity Card.
+* **Right-Click:** Quick-cycles your focus status (`🚀 In The Zone` → `☕ Coffee Break` → `🎧 Vibe Coding` → `🐛 Debugging` → `🌙 Late Night` → `🛠️ Ricing`).
+* **Middle-Click:** Instant 1-click copy of your Friend Code to clipboard.
+* **Incoming High-Five:** Triggers an animated double-bounce swell on your bar icon with an accompanying desktop chime.
+
+---
+
+## Deck Layout
 
 ```text
-       _                                 
-     -=\`\                               
-        \ \               🍃 210 km/h Westerly Jetstream
-      / /`        - - - ✈️  [🇯🇵 Tokyo ➔ Stockholm]
-     / /                                 
-    / /`_                                
-   / /_//`                               
-  / /'--'                                
- `-`                                     
+┌─────────────────────────────────────────────────────────┐
+│ 👾 OmarchyHacker               [ 🚀 In The Zone ]       │
+│    OMAR-F022-42B  [📋 Copy]                             │
+│    💻 Neovim (Rust) • 🎧 Tycho - Awake • 🔥 54m focus   │
+│    [ 🚀 In Flow ] [ ☕ Coffee ] [ 🎧 Vibe ] [ 🐛 Debug ] │
+├─────────────────────────────────────────────────────────┤
+│ [👥 Friends (3)]  [📡 LAN (0)]  [➕ Add]  [⚙️ Settings] │
+├─────────────────────────────────────────────────────────┤
+│ 🦊 Elena • Zurich                     [ ✋ ] [ ☕ ] [ ⚡ ]│
+│    Neovim (Rust) • 🎧 Tycho - Awake                     │
+│                                                         │
+│ 🤖 Kaito • Tokyo                      [ ✋ ] [ ☕ ] [ ⚡ ]│
+│    Zed (main.go) • 🎧 Nujabes - Feather                 │
+│                                                         │
+│ ☕ Marco • Milan                       [ ✋ ] [ ☕ ] [ ⚡ ]│
+│    Espresso Bar • 12m break                             │
+└─────────────────────────────────────────────────────────┘
 ```
-
-- **Fold & Launch:** Choose your origami fold (*Classic Dart*, *Concorde Delta*, *Origami Crane*, *Stratocaster*) and emboss it with your current Travel Seal:
-  - 🌿 **Deep Focus** — quiet work in the clouds
-  - ☕ **Coffee Break** — warm brew at cruising altitude
-  - 🎧 **In the Flow** — headphones on, drifting through the wind
-  - 🌙 **Midnight Code** — stargazing over the dark side of the globe
-  - ⚡ **Shipping Fast** — supersonic delivery to production
-  - 🛠️ **Tinkering** — refining dotfiles and workflows
-- **Atmospheric Jetstream Physics:** When launched, your plane catches the real-time 250hPa atmospheric jet stream vectors (calculated from seasonal solar and latitude models), drifting thousands of kilometers across great-circle routes (Tokyo ➔ Amsterdam, Berlin ➔ Seattle, Stockholm ➔ Toronto).
-- **On-Screen Screen Flyby:** When a plane lands in your airspace, an origami plane with a dashed jetstream trail quietly glides across the top of your screen on a smooth, hardware-accelerated Wayland layer shell curve. It is **100% click-through** (`mask: Region {}`), ensuring zero interruption to your terminal, editor, or workflow.
-- **Passport Stamps & Logbook:** Collect authentic country stamps from every land whose plane crossed into your airspace.
 
 ---
 
-## 🚀 Quick Install
-
-Run in an Omarchy Quattro terminal:
+## Installation
 
 ```bash
 omarchy plugin add https://github.com/harshithnadig/omarchy-friends.git --enable
-omarchy bar put community.omarchy-friends --section right
 ```
 
-Click the plane `✈️` in your bar to open your Flight Deck, fold your plane, and launch into the wind!
+Add to your bar configuration in `~/.config/omarchy/shell.json`:
 
-### Shortcuts
-- **Left-Click:** Open or close the Flight Deck.
-- **Middle-Click:** Quick-launch using your active fold and seal without opening the card.
-
----
-
-## 🛡️ Privacy & Zero-Abuse Guarantee
-
-1. **Zero Text, Zero Abuse:** There is no text field, no chat room, and no message input. It is mathematically impossible to send harassment, hate speech, or spam.
-2. **Zero Accounts, Zero Logins:** No emails, passwords, usernames, or telemetry.
-3. **Anonymous Local Hangar ID:** Each user receives a locally minted flight token (e.g. `AERO-8F42`) stored in `~/.local/state/omarchy-friends/hangar_id` with `0600` permissions.
-4. **10-Minute Cooldown:** Launches are limited to 1 every 10 minutes to preserve intentionality and eliminate notification fatigue.
-5. **Standard User Permissions:** Runs within the Quickshell user boundary. No root privileges, no daemons, and zero downloaded binaries.
+```json
+{
+  "right": [
+    { "id": "community.omarchy-friends" }
+  ]
+}
+```
 
 ---
 
-## ⌨️ CLI Flight Operations
+## Testing & Verification
 
-Interact with the jetstream directly from terminal or keybindings:
+Run the automated test suite:
 
 ```bash
-# View flight deck status, jetstream vector, and recent arrivals
+python3 -m unittest tests/test_friends.py
+```
+
+Inspect the CLI engine:
+
+```bash
 ./bin/omarchy-friends status
-
-# Change your fold or travel seal
-./bin/omarchy-friends fold concorde
-./bin/omarchy-friends seal midnight
-
-# Launch into the jetstream
-./bin/omarchy-friends launch concorde midnight
-
-# Copy airmail invitation to clipboard
-./bin/omarchy-friends invite
 ```
 
 ---
 
-## 🗑️ Removal
+## License
 
-```bash
-omarchy plugin disable community.omarchy-friends
-omarchy plugin remove community.omarchy-friends
-```
-
-To clear local hangar history and reset your flight token:
-```bash
-rm -rf ~/.local/state/omarchy-friends
-```
-
----
-
-## 📄 License
-
-MIT License. See [LICENSE](LICENSE) for details.
-Copyright (c) 2026 Paper Plane Project Contributors.
+MIT License — Omarchy Community Contributors.

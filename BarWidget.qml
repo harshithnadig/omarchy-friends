@@ -1,66 +1,111 @@
+pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Controls
+import Quickshell
 import qs.Commons
 import qs.Ui
 
 BarWidget {
-  id: root
-  moduleName: "community.omarchy-friends"
+    id: root
+    moduleName: "community.omarchy-friends"
 
-  function injectPanel() {
-    var target = panelLoader.item
-    if (!target) return
-    if ("bar" in target) target.bar = root.bar
-    if ("settings" in target) target.settings = root.settings
-    if ("anchorItem" in target) target.anchorItem = pill
-    if ("hostWidget" in target) target.hostWidget = root
-    if ("overlay" in target) target.overlay = overlayLoader.item
-  }
+    property var service: null
+    property bool cardOpen: false
+    readonly property Item button: buttonItem
 
-  function open() { if (panelLoader.item) panelLoader.item.open() }
-  function close() { if (panelLoader.item) panelLoader.item.close() }
-  function togglePanel() { if (panelLoader.item) panelLoader.item.toggle() }
-
-  implicitWidth: pill.implicitWidth
-  implicitHeight: pill.implicitHeight
-
-  onBarChanged: injectPanel()
-  onSettingsChanged: injectPanel()
-
-  Loader {
-    id: overlayLoader
-    active: true
-    source: Qt.resolvedUrl("FlybyOverlay.qml")
-  }
-
-  Loader {
-    id: panelLoader
-    active: true
-    source: Qt.resolvedUrl("Panel.qml")
-    visible: false
-    onLoaded: {
-      root.injectPanel()
-      Qt.callLater(root.injectPanel)
+    function resolveService() {
+        if (!service && bar && bar.shell && typeof bar.shell.serviceFor === "function") {
+            service = bar.shell.serviceFor(moduleName)
+            if (service) {
+                service.eventReceived.connect(function(ev) {
+                    pulseAnimation.restart()
+                })
+                service.friendInteracted.connect(function(action, target) {
+                    tapAnimation.restart()
+                })
+            }
+        }
+        return service
     }
-  }
 
-  BarPill {
-    id: pill
-    bar: root.bar
-    active: root.opened
-    useActiveColor: true
-    activeColor: Color.accent
+    onBarChanged: resolveService()
+    Component.onCompleted: resolveService()
 
-    leftIcon: "✈️"
-    text: panelLoader.item ? (panelLoader.item.sealIcon + " " + panelLoader.item.planesAloft) : "✈️"
-    tooltipText: panelLoader.item ? 
-      ("Paper Plane Skyway: " + panelLoader.item.planesAloft + " planes aloft\nActive fold: " + panelLoader.item.foldName + " • Seal: " + panelLoader.item.sealIcon + " " + panelLoader.item.sealLabel + "\nClick for Flight Deck • Middle-click to launch") : 
-      "Omarchy Paper Plane Skyway"
-
-    onClicked: root.togglePanel()
-    onMiddleClicked: {
-      if (panelLoader.item) {
-        panelLoader.item.launchPlane()
-      }
+    Timer {
+        interval: 400
+        repeat: true
+        running: !root.service
+        onTriggered: root.resolveService()
     }
-  }
+
+    implicitWidth: buttonItem.implicitWidth
+    implicitHeight: barSize
+
+    function toggleCard() {
+        cardOpen = !cardOpen
+    }
+
+    function cycleStatus() {
+        if (!service) return
+        var statuses = ["coding", "coffee", "vibe", "debug", "night", "rice"]
+        var cur = service.profile && service.profile.status ? service.profile.status : "coding"
+        var idx = statuses.indexOf(cur)
+        var next = statuses[(idx + 1) % statuses.length]
+        service.setStatus(next)
+    }
+
+    WidgetButton {
+        id: buttonItem
+        anchors.fill: parent
+        bar: root.bar
+        horizontalMargin: 6
+        text: {
+            var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
+            var av = root.service && root.service.profile && root.service.profile.avatar ? root.service.profile.avatar : "👥"
+            return "👥 " + count
+        }
+        tooltipText: {
+            var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
+            var handle = root.service && root.service.profile ? root.service.profile.handle : "Me"
+            var stName = root.service && root.service.profile ? root.service.profile.status_name : "Ready"
+            return "Omarchy Friends (" + count + " online)\n" + handle + ": " + stName + "\nLeft-click: Friends Deck • Right-click: Cycle Status"
+        }
+
+        onPressed: function(button) {
+            if (button === Qt.LeftButton) {
+                root.toggleCard()
+            } else if (button === Qt.RightButton) {
+                root.cycleStatus()
+            } else if (button === Qt.MiddleButton && root.service) {
+                root.service.copyFriendCode()
+            }
+        }
+    }
+
+    // High-Five incoming pulse animation (double swell)
+    SequentialAnimation {
+        id: pulseAnimation
+        loops: 2
+        NumberAnimation { target: buttonItem; property: "scale"; to: 1.35; duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { target: buttonItem; property: "scale"; to: 1.0;  duration: 220; easing.type: Easing.OutBack }
+    }
+
+    // Outgoing tap animation
+    SequentialAnimation {
+        id: tapAnimation
+        NumberAnimation { target: buttonItem; property: "scale"; to: 0.85; duration: 90 }
+        NumberAnimation { target: buttonItem; property: "scale"; to: 1.0;  duration: 150; easing.type: Easing.OutBack }
+    }
+
+    Loader {
+        id: panelLoader
+        active: true
+        source: Qt.resolvedUrl("Panel.qml")
+        visible: false
+        onLoaded: {
+            if (item) {
+                item.hostWidget = root
+            }
+        }
+    }
 }
