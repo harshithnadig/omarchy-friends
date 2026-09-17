@@ -851,12 +851,12 @@ PopupCard {
                 }
             }
         }
-    }
 
-    Timer {
-        id: copyResetTimer
-        interval: 2500
-        repeat: false
-        onTriggered: root.copyFeedback = ""
+        Timer {
+            id: copyResetTimer
+            interval: 2500
+            repeat: false
+            onTriggered: root.copyFeedback = ""
+        }
     }
 }
