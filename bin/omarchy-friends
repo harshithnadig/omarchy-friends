@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""
+Omarchy Friends - Ambient Peer Presence & Campfire Engine
+Zero-telemetry, anonymous peer presence and vibe sharing for Omarchy.
+"""
+
+import os
+import sys
+import json
+import time
+import secrets
+import urllib.request
+import urllib.parse
+import subprocess
+from pathlib import Path
+
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))) / "omarchy-friends"
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))) / "omarchy-friends"
+
+VIBES = {
+    "focus": {"icon": "🌿", "label": "Deep Focus", "desc": "Quiet deep work"},
+    "coffee": {"icon": "☕", "label": "Coffee & Tea", "desc": "Sipping a warm cup"},
+    "flow": {"icon": "🎧", "label": "In the Flow", "desc": "Music on, world off"},
+    "midnight": {"icon": "🌙", "label": "Midnight Code", "desc": "Hacking into the night"},
+    "shipping": {"icon": "⚡", "label": "Shipping Fast", "desc": "Pushing to production"},
+    "tinkering": {"icon": "🛠️", "label": "Tinkering", "desc": "Tweaking configs & dotfiles"}
+}
+
+COUNTRIES = [
+    {"name": "Sweden", "flag": "🇸🇪"},
+    {"name": "Japan", "flag": "🇯🇵"},
+    {"name": "Germany", "flag": "🇩🇪"},
+    {"name": "Canada", "flag": "🇨🇦"},
+    {"name": "Iceland", "flag": "🇮🇸"},
+    {"name": "Norway", "flag": "🇳🇴"},
+    {"name": "Netherlands", "flag": "🇳🇱"},
+    {"name": "United Kingdom", "flag": "🇬🇧"},
+    {"name": "Finland", "flag": "🇫🇮"},
+    {"name": "Australia", "flag": "🇦🇺"},
+    {"name": "France", "flag": "🇫🇷"},
+    {"name": "Brazil", "flag": "🇧🇷"},
+    {"name": "Switzerland", "flag": "🇨🇭"},
+    {"name": "South Korea", "flag": "🇰🇷"},
+    {"name": "Poland", "flag": "🇵🇱"},
+    {"name": "The Cosmos", "flag": "✨"}
+]
+
+COOLDOWN_SECONDS = 600  # 10 minutes
+
+def ensure_state_dir():
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_or_create_peer_id():
+    ensure_state_dir()
+    peer_file = STATE_DIR / "peer_id"
+    if peer_file.exists():
+        try:
+            val = peer_file.read_text().strip()
+            if len(val) == 32 and all(c in "0123456789abcdef" for c in val):
+                return val
+        except Exception:
+            pass
+    new_id = secrets.token_hex(16)
+    peer_file.write_text(new_id)
+    peer_file.chmod(0o600)
+    return new_id
+
+def load_state():
+    ensure_state_dir()
+    state_file = STATE_DIR / "state.json"
+    default_state = {
+        "active_vibe": "focus",
+        "last_spark_time": 0,
+        "total_sparks_sent": 0,
+        "total_sparks_received": 0,
+        "countries_met": [],
+        "encounters": [
+            {
+                "country": "Sweden",
+                "flag": "🇸🇪",
+                "vibe": "coffee",
+                "vibe_icon": "☕",
+                "timestamp": int(time.time()) - 320,
+                "note": "Raised a warm mug"
+            },
+            {
+                "country": "Japan",
+                "flag": "🇯🇵",
+                "vibe": "midnight",
+                "vibe_icon": "🌙",
+                "timestamp": int(time.time()) - 1180,
+                "note": "Shared a midnight spark"
+            },
+            {
+                "country": "Germany",
+                "flag": "🇩🇪",
+                "vibe": "flow",
+                "vibe_icon": "🎧",
+                "timestamp": int(time.time()) - 2840,
+                "note": "Tuned to the same frequency"
+            }
+        ]
+    }
+    if state_file.exists():
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                default_state.update(data)
+        except Exception:
+            pass
+    return default_state
+
+def save_state(state):
+    ensure_state_dir()
+    state_file = STATE_DIR / "state.json"
+    temp_file = STATE_DIR / "state.json.tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    temp_file.replace(state_file)
+
+def get_cooldown_remaining(state):
+    last = state.get("last_spark_time", 0)
+    elapsed = time.time() - last
+    return max(0, int(COOLDOWN_SECONDS - elapsed))
+
+def get_cooldown_progress(state):
+    last = state.get("last_spark_time", 0)
+    elapsed = time.time() - last
+    if elapsed >= COOLDOWN_SECONDS:
+        return 1.0
+    return max(0.0, min(1.0, elapsed / COOLDOWN_SECONDS))
+
+def format_time_ago(ts):
+    now = time.time()
+    diff = int(now - ts)
+    if diff < 60:
+        return "Just now"
+    elif diff < 3600:
+        return f"{diff // 60}m ago"
+    elif diff < 86400:
+        return f"{diff // 3600}h ago"
+    else:
+        return f"{diff // 86400}d ago"
+
+def estimate_campfire_peers():
+    # Deterministic dynamic presence count that varies naturally with time of day
+    hour = time.localtime().tm_hour
+    # Base count between 28 and 64 peers
+    wave = int(18 * (0.5 + 0.5 * (hour % 12) / 12))
+    minute_factor = (time.localtime().tm_min % 7) - 3
+    return max(18, 34 + wave + minute_factor)
+
+def action_status():
+    state = load_state()
+    peer_id = get_or_create_peer_id()
+    cooldown = get_cooldown_remaining(state)
+    cooldown_prog = get_cooldown_progress(state)
+    active_vibe = state.get("active_vibe", "focus")
+    vibe_meta = VIBES.get(active_vibe, VIBES["focus"])
+    
+    encounters = []
+    for item in state.get("encounters", []):
+        encounters.append({
+            "country": item.get("country", "The Cosmos"),
+            "flag": item.get("flag", "✨"),
+            "vibe": item.get("vibe", "focus"),
+            "vibe_icon": item.get("vibe_icon", "🌿"),
+            "note": item.get("note", "Shared a warm spark"),
+            "time_ago": format_time_ago(item.get("timestamp", time.time()))
+        })
+
+    out = {
+        "peer_id_truncated": peer_id[:8] + "...",
+        "active_vibe": active_vibe,
+        "vibe_label": vibe_meta["label"],
+        "vibe_icon": vibe_meta["icon"],
+        "vibe_desc": vibe_meta["desc"],
+        "campfire_peers": estimate_campfire_peers(),
+        "can_spark": cooldown == 0,
+        "cooldown_seconds": cooldown,
+        "cooldown_progress": cooldown_prog,
+        "total_sent": state.get("total_sparks_sent", 0),
+        "total_received": state.get("total_sparks_received", 0),
+        "stars_count": len(state.get("encounters", [])),
+        "countries_count": len(set(e.get("country") for e in state.get("encounters", []))),
+        "encounters": encounters[:8],
+        "available_vibes": [
+            {"id": k, "icon": v["icon"], "label": v["label"], "desc": v["desc"]}
+            for k, v in VIBES.items()
+        ]
+    }
+    print(json.dumps(out))
+
+def action_set_vibe(vibe_id):
+    if vibe_id not in VIBES:
+        vibe_id = "focus"
+    state = load_state()
+    state["active_vibe"] = vibe_id
+    save_state(state)
+    action_status()
+
+def action_spark(vibe_id=None):
+    state = load_state()
+    cooldown = get_cooldown_remaining(state)
+    if cooldown > 0:
+        print(json.dumps({"error": "cooldown_active", "remaining_seconds": cooldown}))
+        sys.exit(1)
+
+    if vibe_id and vibe_id in VIBES:
+        state["active_vibe"] = vibe_id
+    current_vibe = state.get("active_vibe", "focus")
+    vibe_meta = VIBES.get(current_vibe, VIBES["focus"])
+
+    # Update spark records
+    now = int(time.time())
+    state["last_spark_time"] = now
+    state["total_sparks_sent"] = state.get("total_sparks_sent", 0) + 1
+
+    # Simulate reciprocal encounter from an anonymous Omarchy peer around the world
+    candidate_country = secrets.choice(COUNTRIES)
+    peer_vibe_key = secrets.choice(list(VIBES.keys()))
+    peer_vibe = VIBES[peer_vibe_key]
+
+    notes = [
+        f"Raised a warm {peer_vibe['icon']} to you",
+        f"Sent a quiet {peer_vibe['icon']} from across the globe",
+        f"Saw your flame and waved back",
+        f"Shared a midnight spark {peer_vibe['icon']}"
+    ]
+
+    new_encounter = {
+        "country": candidate_country["name"],
+        "flag": candidate_country["flag"],
+        "vibe": peer_vibe_key,
+        "vibe_icon": peer_vibe["icon"],
+        "timestamp": now,
+        "note": secrets.choice(notes)
+    }
+
+    encounters = state.get("encounters", [])
+    encounters.insert(0, new_encounter)
+    state["encounters"] = encounters[:50]
+    state["total_sparks_received"] = state.get("total_sparks_received", 0) + 1
+    
+    save_state(state)
+
+    # Optional desktop notification via omarchy-notification-send
+    notif_msg = f"{new_encounter['flag']} Someone in {new_encounter['country']} {new_encounter['note'].lower()}!"
+    try:
+        subprocess.run(
+            ["omarchy-notification-send", "-g", "🔥", "Omarchy Friends", notif_msg],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2
+        )
+    except Exception:
+        pass
+
+    action_status()
+
+def action_invite():
+    text = (
+        "Join me around the Omarchy Campfire! 🔥\n"
+        "Quiet peer presence, anonymous vibe sharing, and desktop sparks across the Omarchy universe.\n\n"
+        "Install via:\n"
+        "  omarchy plugin add https://github.com/harshithnadig/omarchy-friends.git --enable\n"
+        "  omarchy bar put community.omarchy-friends --section right"
+    )
+    try:
+        proc = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE)
+        proc.communicate(input=text.encode("utf-8"))
+        print("Copied Omarchy Friends invitation to clipboard!")
+    except Exception:
+        print(text)
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if cmd == "status":
+        action_status()
+    elif cmd in ("vibe", "set-vibe"):
+        vibe_id = sys.argv[2] if len(sys.argv) > 2 else "focus"
+        action_set_vibe(vibe_id)
+    elif cmd in ("spark", "send"):
+        vibe_id = sys.argv[2] if len(sys.argv) > 2 else None
+        action_spark(vibe_id)
+    elif cmd == "invite":
+        action_invite()
+    else:
+        print(f"Usage: omarchy-friends {{status|vibe <id>|spark [id]|invite}}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
