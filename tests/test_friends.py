@@ -5,11 +5,7 @@ import tempfile
 import json
 from pathlib import Path
 
-# Add bin to sys.path
-sys.path.insert(0, str(Path(__file__).parent.parent / "bin"))
-import importlib
-
-class TestOmarchyFriends(unittest.TestCase):
+class TestOmarchyPaperPlane(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.orig_state = os.environ.get("XDG_STATE_HOME")
@@ -32,47 +28,38 @@ class TestOmarchyFriends(unittest.TestCase):
         else:
             os.environ.pop("XDG_STATE_HOME", None)
 
-    def test_anonymous_peer_id(self):
-        peer_id = friends.get_or_create_peer_id()
-        self.assertEqual(len(peer_id), 32)
-        self.assertTrue(all(c in "0123456789abcdef" for c in peer_id))
-        
-        # Subsequent call returns same peer_id
-        peer_id2 = friends.get_or_create_peer_id()
-        self.assertEqual(peer_id, peer_id2)
+    def test_anonymous_hangar_id(self):
+        hangar_id = friends.get_or_create_hangar_id()
+        self.assertTrue(hangar_id.startswith("AERO-"))
+        self.assertEqual(len(hangar_id), 9)
 
-    def test_vibe_setting(self):
-        friends.action_set_vibe("coffee")
-        state = friends.load_state()
-        self.assertEqual(state.get("active_vibe"), "coffee")
+    def test_haversine_distance(self):
+        # Distance between Tokyo (35.6762, 139.6503) and London (51.5074, -0.1278) ~9,560 km
+        dist = friends.haversine_km(35.6762, 139.6503, 51.5074, -0.1278)
+        self.assertGreater(dist, 9000)
+        self.assertLess(dist, 10000)
 
-        # Unknown vibe falls back safely to focus
-        friends.action_set_vibe("non_existent_vibe")
+    def test_fold_and_seal_setting(self):
+        friends.action_set_fold("concorde")
+        friends.action_set_seal("midnight")
         state = friends.load_state()
-        self.assertEqual(state.get("active_vibe"), "focus")
+        self.assertEqual(state.get("active_fold"), "concorde")
+        self.assertEqual(state.get("active_seal"), "midnight")
 
-    def test_cooldown_enforcement(self):
+    def test_launch_and_cooldown(self):
         state = friends.load_state()
-        state["last_spark_time"] = 0
+        state["last_launch_time"] = 0
         friends.save_state(state)
         
         self.assertEqual(friends.get_cooldown_remaining(state), 0)
-        self.assertEqual(friends.get_cooldown_progress(state), 1.0)
 
-        # Send spark
-        friends.action_spark("midnight")
+        # Launch flight
+        friends.action_launch("crane", "coffee")
         state = friends.load_state()
         self.assertGreater(friends.get_cooldown_remaining(state), 500)
-        self.assertLessEqual(friends.get_cooldown_remaining(state), 600)
-
-    def test_encounter_generation(self):
-        friends.action_spark("shipping")
-        state = friends.load_state()
-        self.assertGreater(len(state.get("encounters", [])), 0)
-        latest = state["encounters"][0]
-        self.assertIn("country", latest)
-        self.assertIn("flag", latest)
-        self.assertIn("vibe", latest)
+        self.assertEqual(state.get("total_planes_launched"), 1)
+        self.assertEqual(state.get("total_planes_caught"), 1)
+        self.assertGreater(len(state.get("flight_log", [])), 0)
 
 if __name__ == "__main__":
     unittest.main()

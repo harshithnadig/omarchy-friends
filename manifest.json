@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
-  "name": "Omarchy Friends",
+  "name": "Paper Plane Skyway",
   "version": "1.0.0",
-  "author": "Omarchy Friends Contributors",
+  "author": "Paper Plane Project Contributors",
   "license": "MIT",
-  "description": "Ambient presence and serendipitous peer connections for Omarchy users: share quiet vibes, toss sparks to the campfire, and map your constellation of encounters.",
+  "description": "Global jetstream skyway for Omarchy: fold origami paper planes, catch Earth's real-time atmospheric wind currents, and share quiet serendipity across desktops worldwide.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,45 +13,17 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Omarchy Friends",
-    "description": "Ambient campfire presence, anonymous vibe sharing, and peer sparks across the Omarchy universe.",
+    "displayName": "Paper Plane Skyway",
+    "description": "Fold and launch origami paper planes into the global atmospheric jetstream.",
     "category": "Productivity",
     "aliases": [
+      "paper-plane",
       "friends",
-      "campfire",
-      "presence",
-      "community",
-      "vibe"
+      "skyway",
+      "jetstream",
+      "origami"
     ],
     "allowMultiple": false,
-    "defaultSection": "right",
-    "defaults": {
-      "shareCountry": true,
-      "soundChime": true,
-      "defaultVibe": "focus"
-    },
-    "schema": [
-      {
-        "key": "shareCountry",
-        "type": "boolean",
-        "label": "Share Country",
-        "defaultValue": true,
-        "description": "Include your country flag with sparks. When disabled, signals appear as 'The Cosmos'."
-      },
-      {
-        "key": "soundChime",
-        "type": "boolean",
-        "label": "Play Chime on Spark",
-        "defaultValue": true,
-        "description": "Play a gentle notification chime when a peer tosses a spark to you."
-      },
-      {
-        "key": "defaultVibe",
-        "type": "string",
-        "label": "Default Vibe",
-        "defaultValue": "focus",
-        "description": "Initial ambient vibe: focus, flow, coffee, midnight, shipping, zen."
-      }
-    ]
+    "defaultSection": "right"
   }
 }

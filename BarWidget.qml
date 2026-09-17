@@ -13,6 +13,7 @@ BarWidget {
     if ("settings" in target) target.settings = root.settings
     if ("anchorItem" in target) target.anchorItem = pill
     if ("hostWidget" in target) target.hostWidget = root
+    if ("overlay" in target) target.overlay = overlayLoader.item
   }
 
   function open() { if (panelLoader.item) panelLoader.item.open() }
@@ -24,6 +25,12 @@ BarWidget {
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
+
+  Loader {
+    id: overlayLoader
+    active: true
+    source: Qt.resolvedUrl("FlybyOverlay.qml")
+  }
 
   Loader {
     id: panelLoader
@@ -43,16 +50,16 @@ BarWidget {
     useActiveColor: true
     activeColor: Color.accent
 
-    leftIcon: "🔥"
-    text: panelLoader.item ? (panelLoader.item.vibeIcon + " " + panelLoader.item.campfirePeers) : "🔥"
+    leftIcon: "✈️"
+    text: panelLoader.item ? (panelLoader.item.sealIcon + " " + panelLoader.item.planesAloft) : "✈️"
     tooltipText: panelLoader.item ? 
-      ("Omarchy Friends: " + panelLoader.item.campfirePeers + " around the campfire\nVibe: " + panelLoader.item.vibeIcon + " " + panelLoader.item.vibeLabel + "\nClick to open campfire card • Middle-click to toss spark") : 
-      "Omarchy Friends Campfire"
+      ("Paper Plane Skyway: " + panelLoader.item.planesAloft + " planes aloft\nActive fold: " + panelLoader.item.foldName + " • Seal: " + panelLoader.item.sealIcon + " " + panelLoader.item.sealLabel + "\nClick for Flight Deck • Middle-click to launch") : 
+      "Omarchy Paper Plane Skyway"
 
     onClicked: root.togglePanel()
     onMiddleClicked: {
       if (panelLoader.item) {
-        panelLoader.item.sendSpark()
+        panelLoader.item.launchPlane()
       }
     }
   }

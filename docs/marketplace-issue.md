@@ -1,6 +1,6 @@
-# Marketplace Submission Draft: Omarchy Friends
+# Marketplace Submission: Paper Plane Skyway
 
-Title: `[Plugin]: Omarchy Friends`
+Title: `[Plugin]: Paper Plane Skyway`
 
 ```markdown
 ### Repository URL
@@ -13,7 +13,7 @@ Widgets
 
 ### Tags
 
-bar, quickshell
+bar, quickshell, atmosphere, wayland
 
 ### Suggest a missing tag
 
@@ -21,9 +21,16 @@ _No response_
 
 ### Maintainer notes
 
-Ambient campfire presence, anonymous vibe sharing, and desktop sparks across the Omarchy universe. Bar widget that lets users feel the quiet presence of fellow Omarchy wanderers, select an ambient vibe (Deep Focus, Coffee, Flow, Midnight, Shipping, Tinkering), and toss anonymous sparks to the digital campfire.
+Global atmospheric jetstream skyway for Omarchy. Bar widget and flight deck allowing users to fold origami paper planes, catch Earth's real-time 250hPa jetstream wind vectors, and share quiet serendipity across Linux desktops worldwide.
 
-Includes a local-only encounter constellation log in ~/.local/state/omarchy-friends/. Zero surveillance, zero accounts, zero personal telemetry: identities use locally minted 32-character random hex tokens (0600 permissions), locations are coarse country flags or 'The Cosmos', and spark actions are strictly rate-limited to 1 every 10 minutes to prevent spam. Runs entirely within the Quickshell user boundary without root or downloaded binaries. Placement is `omarchy bar put community.omarchy-friends --section right`. MIT licensed.
+Features:
+- Tactile origami fold selection (Classic Dart, Concorde Delta, Origami Crane, Stratocaster).
+- Travel Seals (Deep Focus, Coffee Break, Flow State, Midnight Code, Shipping Fast, Tinkering).
+- Click-through Wayland layer-shell screen flyby animation (smooth, hardware-accelerated, zero pointer event interception via `mask: Region {}`).
+- Great-circle Haversine flight distance and atmospheric wind calculations.
+- Passport stamp collection tracking encounters across global developer hubs.
+
+Zero surveillance, zero accounts, zero personal telemetry: identities use locally minted 8-character anonymous hangar IDs (0600 permissions), locations are coarse country flags, and launches are strictly rate-limited to 1 every 10 minutes to prevent spam. Runs entirely within the Quickshell user boundary without root or downloaded binaries. Placement is `omarchy bar put community.omarchy-friends --section right`. MIT licensed.
 
 ### Submission checklist
 
