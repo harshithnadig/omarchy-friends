@@ -13,7 +13,7 @@
     "bar-widget"
   ],
   "entryPoints": {
-    "service": "FriendsService.qml",
+    "service": "Service.qml",
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
