@@ -689,7 +689,7 @@ class FriendsEngine:
         if not isinstance(peer, dict):
             return None
         public_key = trim_text(peer.get("public_key") or peer.get("pubkey"), 64).lower()
-        if not is_valid_public_key(public_key) or public_key == self.state.get("global_identity", {}).get("public_key"):
+        if not is_valid_public_key(public_key):
             return None
         status = peer.get("status")
         if not isinstance(status, str) or status not in AVAILABLE_STATUSES:
@@ -956,6 +956,8 @@ class FriendsEngine:
 
     def _global_peer_from_event(self, event):
         if not verify_event(event) or int(event.get("kind", -1)) != GLOBAL_PRESENCE_KIND:
+            return None
+        if event.get("pubkey") == self._global_identity()["public_key"]:
             return None
         if GLOBAL_PRESENCE_TAG not in self._event_tag_values(event, "d"):
             return None

@@ -151,6 +151,19 @@ class TestFriendsEngine(unittest.TestCase):
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)
 
+    def test_global_cache_migrates_after_restart(self):
+        remote_dir = tempfile.mkdtemp()
+        try:
+            remote = friends_module.FriendsEngine(state_dir=remote_dir)
+            with patch.object(friends_module, "get_active_window", return_value="Kitty"):
+                peer = self.engine._global_peer_from_event(remote._global_presence_event())
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            self.engine.save_state()
+            restarted = friends_module.FriendsEngine(state_dir=self.test_dir)
+            self.assertEqual(len(restarted.get_full_status()["global_peers"]), 1)
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
     def test_presence_match_and_trusted_friend(self):
         self.engine.set_interests(["linux", "music", "invalid", "linux", "design", "games"])
         self.prime_peer()
