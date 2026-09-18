@@ -22,19 +22,34 @@ Item {
         status_desc: "Writing code in deep focus",
         activity: "Ready",
         music: "",
+        theme: "",
+        wallpaper: "",
         focus_mins: 0,
-        privacy: { share_window: true, share_music: true, share_lan: true, ambient_peers: true }
+        project_name: "",
+        project_desc: "",
+        project_url: "",
+        interests: [],
+        room: "",
+        privacy: { share_window: true, share_music: true, share_lan: true, share_project: true, share_theme: false, share_interests: true, share_room: true }
     })
+    property var matchedPeer: null
     property var friends: []
     property var lanPeers: []
+    property var worldPulse: []
+    property var cowork: ({ active: false, mode: "", remaining_seconds: 0, buddy_code: "", buddy_name: "", buddy_avatar: "", total_seconds: 0 })
+    property var coworkInvites: []
     property int onlineCount: 0
-    property var stats: ({ high_fives_sent: 0, high_fives_received: 0, coffee_breaks_shared: 0 })
+    property var stats: ({ hackers_met: 0, friends_made: 0, cowork_completed: 0, high_fives_sent: 0, high_fives_received: 0, rices_shared: 0 })
     property var availableStatuses: []
     property var availableAvatars: []
+    property var availableInterests: []
     property string lastNotice: ""
 
     signal eventReceived(var event)
     signal friendInteracted(string action, string targetCode)
+    signal coworkCompleted(string buddyName)
+    signal friendCodeResult(bool ok, string message)
+    signal actionResult(bool ok, string message)
 
     function refresh() {
         if (!statusProc.running) {
@@ -48,36 +63,150 @@ Item {
         }
     }
 
+    function matchNext() {
+        runAction([root.binPath, "match-next"], function(output) {
+            var result = {}
+            try { result = JSON.parse(output || "{}") } catch (e) { result = {} }
+            var message = result.peer && result.peer.handle ? "Matched with " + result.peer.handle : "No nearby peer yet"
+            root.lastNotice = message
+            root.actionResult(result.ok === true, message)
+            root.refresh()
+        })
+    }
+
+    function addMatchedFriend() {
+        runAction([root.binPath, "add-matched"], function(output) {
+            root.reportResult(output, "Friend saved")
+            root.refresh()
+        })
+    }
+
+    function shareRice(targetCode) {
+        var args = [root.binPath, "share-rice"]
+        if (targetCode) args.push(targetCode)
+        runAction(args, function(output) {
+            root.reportResult(output, "Setup signal sent")
+            root.refresh()
+            root.pollEvents()
+        })
+    }
+
+    function startCowork(mins, targetCode) {
+        var m = mins ? String(mins) : "25"
+        var args = [root.binPath, "start-cowork", m]
+        if (targetCode) args.push(targetCode)
+        runAction(args, function(output) {
+            root.reportResult(output, "Focus session started")
+            root.refresh()
+        })
+    }
+
+    function acceptCowork(inviteId) {
+        runAction([root.binPath, "accept-cowork", inviteId], function(output) {
+            root.reportResult(output, "Joined the co-work session")
+            root.refresh()
+        })
+    }
+
+    function dismissCowork(inviteId) {
+        runAction([root.binPath, "dismiss-cowork", inviteId], function(output) {
+            root.reportResult(output, "Invite dismissed")
+            root.refresh()
+        })
+    }
+
+    function cancelCowork() {
+        runAction([root.binPath, "cancel-cowork"], function(output) {
+            root.reportResult(output, "Focus session ended")
+            root.refresh()
+        })
+    }
+
+    function cheerFeed(itemId) {
+        runAction([root.binPath, "cheer-feed", itemId], function(output) {
+            root.reportResult(output, "Cheer sent")
+            root.refresh()
+        })
+    }
+
+    function setProject(name, desc, url) {
+        runAction([root.binPath, "set-project", name, desc || "", url || ""], function(output) {
+            root.reportResult(output, "Beacon updated")
+            root.refresh()
+        })
+    }
+
+    function setInterests(interests) {
+        var args = [root.binPath, "set-interests"]
+        var selected = interests || []
+        for (var i = 0; i < selected.length; i++) args.push(selected[i])
+        runAction(args, function() { root.refresh() })
+    }
+
+    function setRoom(room) {
+        runAction([root.binPath, "set-room", room || ""], function(output) {
+            root.reportResult(output, "Gathering room updated")
+            root.refresh()
+        })
+    }
+
     function setStatus(statusId) {
-        runAction([root.binPath, "set-status", statusId], function() { root.refresh() })
+        runAction([root.binPath, "set-status", statusId], function(output) {
+            root.reportResult(output, "Status updated")
+            root.refresh()
+        })
     }
 
     function setHandle(newHandle) {
         if (!newHandle || newHandle.trim() === "") return
-        runAction([root.binPath, "set-handle", newHandle.trim()], function() { root.refresh() })
+        runAction([root.binPath, "set-handle", newHandle.trim()], function(output) {
+            root.reportResult(output, "Name updated")
+            root.refresh()
+        })
     }
 
     function setAvatar(newAvatar) {
-        runAction([root.binPath, "set-avatar", newAvatar], function() { root.refresh() })
+        runAction([root.binPath, "set-avatar", newAvatar], function(output) {
+            root.reportResult(output, "Avatar updated")
+            root.refresh()
+        })
     }
 
     function togglePrivacy(key) {
-        runAction([root.binPath, "toggle-privacy", key], function() { root.refresh() })
+        runAction([root.binPath, "toggle-privacy", key], function(output) {
+            root.reportResult(output, "Privacy setting updated")
+            root.refresh()
+        })
     }
 
     function addFriend(code, handle) {
+        if (!code || code.trim() === "") {
+            root.friendCodeResult(false, "Enter a Friend Code first")
+            return
+        }
         var args = [root.binPath, "add-friend", code]
         if (handle) args.push(handle)
-        runAction(args, function() { root.refresh() })
+        runAction(args, function(output) {
+            var result = {}
+            try { result = JSON.parse(output || "{}") } catch (e) { result = {} }
+            root.friendCodeResult(result.ok === true, result.message || "Friend Code was not saved")
+            root.lastNotice = result.message || "Friend Code was not saved"
+            root.actionResult(result.ok === true, root.lastNotice)
+            root.refresh()
+        })
     }
 
     function removeFriend(code) {
-        runAction([root.binPath, "remove-friend", code], function() { root.refresh() })
+        runAction([root.binPath, "remove-friend", code], function(output) {
+            root.reportResult(output, "Friend removed")
+            root.refresh()
+        })
     }
 
     function interact(targetCode, action) {
         root.friendInteracted(action, targetCode)
-        runAction([root.binPath, "interact", targetCode, action || "high-five"], function() {
+        runAction([root.binPath, "interact", targetCode, action || "high-five"], function(output) {
+            root.reportResult(output, "Signal sent")
             root.refresh()
             root.pollEvents()
         })
@@ -93,12 +222,27 @@ Item {
         proc.running = true
     }
 
+    function reportResult(output, fallback) {
+        var result = {}
+        try { result = JSON.parse(output || "{}") } catch (e) { result = {} }
+        var ok = result.ok === true
+        var message = result.message || fallback
+        root.lastNotice = message
+        root.actionResult(ok, message)
+        return result
+    }
+
     Component {
         id: actionComponent
         Process {
+            id: actionProcess
             property var callback: null
+            property string resultText: ""
+            stdout: StdioCollector {
+                onStreamFinished: actionProcess.resultText = this.text
+            }
             onExited: function(exitCode) {
-                if (callback) callback()
+                if (callback) callback(resultText)
                 destroy()
             }
         }
@@ -128,12 +272,17 @@ Item {
                 try {
                     var data = JSON.parse(this.text)
                     if (data.profile) root.profile = data.profile
+                    if (data.matched_peer !== undefined) root.matchedPeer = data.matched_peer
                     if (data.friends) root.friends = data.friends
                     if (data.lan_peers) root.lanPeers = data.lan_peers
+                    if (data.world_pulse) root.worldPulse = data.world_pulse
+                    if (data.cowork) root.cowork = data.cowork
+                    if (data.cowork_invites) root.coworkInvites = data.cowork_invites
                     root.onlineCount = data.online_count !== undefined ? data.online_count : 0
                     if (data.stats) root.stats = data.stats
                     if (data.available_statuses) root.availableStatuses = data.available_statuses
                     if (data.available_avatars) root.availableAvatars = data.available_avatars
+                    if (data.available_interests) root.availableInterests = data.available_interests
                 } catch (e) {
                     console.log("FriendsService status parse error:", e)
                 }
@@ -185,9 +334,9 @@ Item {
         onTriggered: daemonProc.running = true
     }
 
-    // Status refresh timer (every 6 seconds)
+    // Status refresh timer (every 4 seconds)
     Timer {
-        interval: 6000
+        interval: 4000
         running: true
         repeat: true
         onTriggered: root.refresh()

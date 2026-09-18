@@ -58,16 +58,30 @@ BarWidget {
         anchors.fill: parent
         bar: root.bar
         horizontalMargin: 6
+        active: root.service && root.service.cowork && root.service.cowork.active
+        activeColor: "#f59e0b"
         text: {
+            if (root.service && root.service.cowork && root.service.cowork.active) {
+                var s = root.service.cowork.remaining_seconds || 0
+                var mins = Math.floor(s / 60)
+                var secs = s % 60
+                var padSecs = secs < 10 ? "0" + secs : String(secs)
+                return "🍅 " + mins + ":" + padSecs
+            }
             var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
-            var av = root.service && root.service.profile && root.service.profile.avatar ? root.service.profile.avatar : "👥"
             return "👥 " + count
         }
         tooltipText: {
+            if (root.service && root.service.cowork && root.service.cowork.active) {
+                var s = root.service.cowork.remaining_seconds || 0
+                var bName = root.service.cowork.buddy_name || "yourself"
+                var title = root.service.cowork.mode === "solo" ? "🍅 Quiet focus" : "🍅 Co-Working with " + bName
+                return title + " (" + Math.ceil(s / 60) + "m left)\nClick to open Friends Deck"
+            }
             var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
             var handle = root.service && root.service.profile ? root.service.profile.handle : "Me"
             var stName = root.service && root.service.profile ? root.service.profile.status_name : "Ready"
-            return "Omarchy Friends (" + count + " online)\n" + handle + ": " + stName + "\nLeft-click: Friends Deck • Right-click: Cycle Status"
+            return "Omarchy Friends · local radar (" + count + " online)\n" + handle + ": " + stName + "\nLeft-click: Friends Deck • Right-click: Cycle Status • Middle: Copy Code"
         }
 
         onPressed: function(button) {

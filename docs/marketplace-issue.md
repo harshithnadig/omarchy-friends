@@ -1,20 +1,42 @@
-### Plugin Submission: Omarchy Friends
+# Marketplace submission draft
 
-**Plugin ID:** `community.omarchy-friends`  
-**Repository:** `https://github.com/harshithnadig/omarchy-friends`  
-**Kinds:** `service`, `bar-widget`  
-**License:** `MIT`  
+Title:
 
-#### Description
-Omarchy Friends brings native developer presence, live workspace activity, LAN peer discovery, and tactile buddy interactions to Omarchy Linux.
+    [Plugin]: Omarchy Friends
 
-#### Key Capabilities
-1. **Developer Presence:** Automatic active editor detection (`Neovim`, `Zed`, `VS Code`, `Terminal`, `Obsidian`) via Hyprland IPC and current audio track via MPRIS DBus.
-2. **Friends & Buddies:** Shareable Friend Codes (`OMAR-XXXX-XXX`), online activity indicators, and focus streak tracking.
-3. **LAN Auto-Discovery:** Peer-to-peer discovery across local WiFi, office networks, and Tailscale mesh via lightweight UDP broadcast on port 42424.
-4. **Tactile Micro-Interactions:** 1-click High-Fives, Coffee Break cheers, and Kudos sparks with hardware-accelerated bar bounce animations.
-5. **Privacy by Design:** Zero external telemetry servers, zero freeform chat, and granular toggles for window and music sharing.
+The owner must review and explicitly approve this completed body before it is
+posted to the Omarchy plugin marketplace. This file is only a local draft.
 
-#### Verification
-- Passes `omarchy plugin validate` (SchemaVersion 1 compliant).
-- Comprehensive unit test suite (`tests/test_friends.py`) passing.
+### Repository URL
+
+https://github.com/harshithnadig/omarchy-friends
+
+### Category
+
+Developer Tools
+
+### Tags
+
+bar, quickshell, system
+
+### Suggest a missing tag
+
+_No response_
+
+### Maintainer notes
+
+Omarchy Friends is deliberately local-first: it discovers only opted-in peers
+on the local broadcast network, supports manual gathering rooms for meetups,
+uses bounded interests to surface shared ground, shows real signals rather than
+a global feed, and has no hosted relay or simulated users. LAN packets are
+plaintext and unauthenticated; the README documents that boundary. The
+repository contains the manifest, installation and removal instructions,
+license, tests, and Quickshell validation commands.
+
+### Submission checklist
+
+- [x] The repository is public and contains installation and removal instructions.
+- [x] I have documented the plugin license and any external dependencies.
+- [x] I confirm that I own or have permission to submit this plugin and its preview assets.
+- [x] The plugin does not overwrite user configuration without explicit consent.
+- [x] I understand that approval is for listing and is not a security review.

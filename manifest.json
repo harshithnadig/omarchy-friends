@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
   "name": "Omarchy Friends",
-  "version": "1.0.0",
+  "version": "2.2.0",
   "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "Peer-to-peer developer presence, live activity, LAN discovery, and tactile buddy network for Omarchy.",
+  "description": "A local-first human layer for Omarchy: gathering rooms, shared interests, opt-in peer presence, small signals, and real co-work invites.",
   "homepage": "https://github.com/harshithnadig/omarchy-friends",
   "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
@@ -18,8 +18,8 @@
   },
   "barWidget": {
     "displayName": "Friends",
-    "description": "Live buddy presence, active editor/music ticker, and tactile high-fives",
-    "category": "Social",
+    "description": "Meetup rooms, shared-ground matching, opt-in presence, and explicit co-work invites",
+    "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right"
   }

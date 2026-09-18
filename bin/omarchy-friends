@@ -1,181 +1,344 @@
 #!/usr/bin/env python3
 """
-Omarchy Friends — Engine & Daemon
-Manages developer presence, active tool/window detection, music detection,
-LAN peer discovery over UDP broadcast, friend codes, and tactile interactions.
-Zero external dependencies (pure Python 3 standard library).
+Omarchy Friends — a small, local-first human layer for Omarchy.
+
+The daemon only discovers peers that explicitly broadcast an opt-in presence
+on the local network.  It never invents users, replies, locations, or feed
+activity, and it has no hosted service dependency.
 """
 
-import os
-import sys
+import hashlib
 import json
+import os
+import re
+import select
+import socket
+import subprocess
+import sys
 import time
 import uuid
-import socket
-import select
-import random
-import hashlib
-import subprocess
 from pathlib import Path
 
+
 BROADCAST_PORT = 42424
-PROTOCOL_VERSION = "omarchy-friends/v1"
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "omarchy-friends"
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "omarchy-friends"
+PROTOCOL_VERSION = "omarchy-friends/v2"
+PEER_TTL_SECONDS = 90
+MAX_PACKET_BYTES = 4096
+MAX_EVENTS = 48
+MAX_PULSE_ITEMS = 24
+MAX_INVITES = 8
+MAX_SEEN_EVENT_IDS = 128
+MAX_ROOM_LENGTH = 24
+MAX_INCOMING_SIGNALS_PER_MINUTE = 12
+MAX_SIGNAL_RECEIPTS = 96
+STATE_DIR = (
+    Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    / "omarchy-friends"
+)
+
+FRIEND_CODE_RE = re.compile(r"^OMAR-[A-Z0-9]{4}-[A-Z0-9]{3}$")
+ROOM_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,23}$")
 
 AVAILABLE_STATUSES = {
-    "coding": {"id": "coding", "name": "In The Zone", "emoji": "🚀", "desc": "Writing code in deep focus"},
-    "vibe": {"id": "vibe", "name": "Vibe Coding", "emoji": "🎧", "desc": "Headphones on, flow state"},
-    "coffee": {"id": "coffee", "name": "Coffee Break", "emoji": "☕", "desc": "Stepped away for a warm brew"},
-    "debug": {"id": "debug", "name": "Debugging Hell", "emoji": "🐛", "desc": "Tracking down an elusive bug"},
-    "night": {"id": "night", "name": "Late Night Hack", "emoji": "🌙", "desc": "Burning the midnight oil"},
-    "rice": {"id": "rice", "name": "Ricing Dotfiles", "emoji": "🛠️", "desc": "Polishing desktop aesthetics"},
-    "idle": {"id": "idle", "name": "Away", "emoji": "💤", "desc": "AFK from desk"}
+    "coding": {
+        "id": "coding",
+        "name": "In The Zone",
+        "emoji": "🚀",
+        "desc": "Writing code in deep focus",
+    },
+    "vibe": {
+        "id": "vibe",
+        "name": "Vibe Coding",
+        "emoji": "🎧",
+        "desc": "Headphones on, flow state",
+    },
+    "coffee": {
+        "id": "coffee",
+        "name": "Coffee Break",
+        "emoji": "☕",
+        "desc": "Stepped away for a warm brew",
+    },
+    "debug": {
+        "id": "debug",
+        "name": "Debugging Hell",
+        "emoji": "🐛",
+        "desc": "Tracking down an elusive bug",
+    },
+    "night": {
+        "id": "night",
+        "name": "Late Night Hack",
+        "emoji": "🌙",
+        "desc": "Burning the midnight oil",
+    },
+    "rice": {
+        "id": "rice",
+        "name": "Ricing Dotfiles",
+        "emoji": "🛠️",
+        "desc": "Polishing desktop aesthetics",
+    },
+    "idle": {
+        "id": "idle",
+        "name": "Away",
+        "emoji": "💤",
+        "desc": "AFK from desk",
+    },
 }
 
-AVAILABLE_AVATARS = ["👾", "🦊", "🤖", "🐱", "🚀", "🧙", "🦉", "🐙", "⚡", "☕", "🎮", "🐧"]
-
-DEFAULT_AMBIENT_PEERS = [
-    {
-        "code": "OMAR-4192-RST",
-        "handle": "Elena",
-        "avatar": "🦊",
-        "status": "coding",
-        "status_text": "In The Zone",
-        "status_emoji": "🚀",
-        "activity": "Neovim (Rust)",
-        "music": "Tycho - Awake",
-        "location": "Zurich",
-        "focus_mins": 54,
-        "is_ambient": True
-    },
-    {
-        "code": "OMAR-8831-ZED",
-        "handle": "Kaito",
-        "avatar": "🤖",
-        "status": "vibe",
-        "status_text": "Vibe Coding",
-        "status_emoji": "🎧",
-        "activity": "Zed (main.go)",
-        "music": "Nujabes - Feather",
-        "location": "Tokyo",
-        "focus_mins": 38,
-        "is_ambient": True
-    },
-    {
-        "code": "OMAR-2045-COF",
-        "handle": "Marco",
-        "avatar": "☕",
-        "status": "coffee",
-        "status_text": "Coffee Break",
-        "status_emoji": "☕",
-        "activity": "Espresso Bar",
-        "music": "",
-        "location": "Milan",
-        "focus_mins": 12,
-        "is_ambient": True
-    }
+AVAILABLE_AVATARS = [
+    "👾",
+    "🦊",
+    "🤖",
+    "🐱",
+    "🚀",
+    "🧙",
+    "🦉",
+    "🐙",
+    "⚡",
+    "☕",
+    "🎮",
+    "🐧",
 ]
+
+AVAILABLE_INTERESTS = [
+    {"id": "linux", "name": "Linux", "emoji": "🐧"},
+    {"id": "open-source", "name": "Open source", "emoji": "🧩"},
+    {"id": "coding", "name": "Coding", "emoji": "💻"},
+    {"id": "design", "name": "Design", "emoji": "🎨"},
+    {"id": "hardware", "name": "Hardware", "emoji": "🔧"},
+    {"id": "music", "name": "Music", "emoji": "🎧"},
+    {"id": "writing", "name": "Writing", "emoji": "✍️"},
+    {"id": "games", "name": "Games", "emoji": "🎮"},
+]
+INTEREST_BY_ID = {item["id"]: item for item in AVAILABLE_INTERESTS}
+
+PRIVACY_DEFAULTS = {
+    "share_window": True,
+    "share_music": True,
+    "share_lan": True,
+    "share_project": True,
+    "share_theme": False,
+    "share_interests": True,
+    "share_room": True,
+}
+
+INTERACTION_META = {
+    "hello": ("👋", "a warm hello"),
+    "high-five": ("✋", "high-five"),
+    "coffee": ("☕", "coffee break"),
+    "kudos": ("⚡", "kudos"),
+}
+
+ICEBREAKERS = {
+    "linux": "What are you ricing or tweaking lately?",
+    "open-source": "What are you hoping to ship next?",
+    "coding": "What are you building today?",
+    "design": "What interface or idea has your attention?",
+    "hardware": "What are you building with?",
+    "music": "What are you coding to?",
+    "writing": "What are you writing about?",
+    "games": "What are you playing or making?",
+}
+
+# Records from the old demo build must not survive an upgrade as if they were
+# real people or real activity.
+LEGACY_DEMO_CODES = {
+    "OMAR-4192-RST",
+    "OMAR-8831-ZED",
+    "OMAR-2045-COF",
+    "OMAR-6712-ZIG",
+    "OMAR-9934-PYT",
+    "OMAR-5310-DOT",
+    "OMAR-3209-AI",
+}
+LEGACY_DEMO_PULSE_IDS = {"p-1", "p-2", "p-3", "p-4"}
+
+
+def now_seconds():
+    return int(time.time())
+
+
+def trim_text(value, limit):
+    return str(value or "").strip()[:limit]
+
+
+def safe_int(value, default=0, minimum=None, maximum=None):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        parsed = default
+    if minimum is not None:
+        parsed = max(minimum, parsed)
+    if maximum is not None:
+        parsed = min(maximum, parsed)
+    return parsed
+
+
+def normalize_code(value):
+    return trim_text(value, 16).upper()
+
+
+def is_valid_friend_code(value):
+    return bool(FRIEND_CODE_RE.fullmatch(normalize_code(value)))
+
+
+def safe_url(value):
+    value = trim_text(value, 160)
+    if value and not value.startswith(("https://", "http://")):
+        return ""
+    return value
+
+
+def normalize_interests(value):
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, (list, tuple)):
+        return []
+    result = []
+    for item in value:
+        interest_id = trim_text(item, 24).lower()
+        if interest_id in INTEREST_BY_ID and interest_id not in result:
+            result.append(interest_id)
+    return result[:4]
+
+
+def normalize_room(value):
+    """Return a short, human-entered gathering name or an empty value."""
+    room = " ".join(trim_text(value, MAX_ROOM_LENGTH).split())
+    if room and not ROOM_NAME_RE.fullmatch(room):
+        return ""
+    return room
+
+
+def format_age(timestamp):
+    age = max(0, now_seconds() - safe_int(timestamp))
+    if age < 60:
+        return "now"
+    if age < 3600:
+        return f"{age // 60}m ago"
+    if age < 86400:
+        return f"{age // 3600}h ago"
+    return f"{age // 86400}d ago"
 
 
 def generate_friend_code():
-    h = hashlib.sha256(str(uuid.getnode()).encode() + os.urandom(8)).hexdigest().upper()
-    return f"OMAR-{h[:4]}-{h[4:7]}"
+    # The code is an identifier, not an authentication token.  It is stable
+    # because it is stored locally, but a fresh install gets a new code.
+    seed = f"{uuid.getnode()}:{uuid.uuid4().hex}".encode("utf-8")
+    digest = hashlib.sha256(seed).hexdigest().upper()
+    return f"OMAR-{digest[:4]}-{digest[4:7]}"
+
+
+def run_text_command(command, timeout=1):
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return ""
+
+
+def get_current_theme():
+    return run_text_command(["omarchy-theme-current"]) or ""
+
+
+def get_current_wallpaper():
+    return run_text_command(["omarchy-theme-bg-current"]) or ""
 
 
 def get_active_window():
-    """Detect current active application and context via Hyprland IPC."""
+    """Return a coarse application label without sharing a window title."""
+    raw = run_text_command(["hyprctl", "activewindow", "-j"])
+    if not raw:
+        return "Desktop"
     try:
-        res = subprocess.run(
-            ["hyprctl", "activewindow", "-j"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=1
-        )
-        if res.returncode == 0 and res.stdout.strip():
-            data = json.loads(res.stdout)
-            wclass = data.get("class", "").lower()
-            initial_class = data.get("initialClass", "").lower()
-            title = data.get("title", "")
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return "Desktop"
 
-            # Common development editors and tools
-            if any(k in wclass or k in initial_class for k in ["nvim", "neovim"]):
-                return f"Neovim ({title})" if title and len(title) < 25 else "Neovim"
-            if "zed" in wclass or "zed" in initial_class:
-                return f"Zed ({title})" if title and len(title) < 25 else "Zed Editor"
-            if any(k in wclass for k in ["code", "vscodium"]):
-                return "VS Code"
-            if "emacs" in wclass:
-                return "Emacs"
-            if any(k in wclass for k in ["foot", "kitty", "alacritty", "ghostty", "wezterm", "terminal"]):
-                if "cargo" in title or "build" in title:
-                    return "Terminal (Compiling)"
-                if "test" in title:
-                    return "Terminal (Running Tests)"
-                return "Terminal"
-            if "blender" in wclass:
-                return "Blender 3D"
-            if "obsidian" in wclass:
-                return "Obsidian Notes"
-            if any(k in wclass for k in ["firefox", "chromium", "chrome", "zen", "brave"]):
-                return "Web Browser"
-            if any(k in wclass for k in ["spotify", "cider"]):
-                return "Music Player"
+    wclass = trim_text(data.get("class"), 80).lower()
+    initial_class = trim_text(data.get("initialClass"), 80).lower()
+    title = trim_text(data.get("title"), 80).lower()
+    classes = f"{wclass} {initial_class}"
 
-            if wclass:
-                # Clean up reverse domain classes like org.omarchy.agent
-                clean_name = wclass.split(".")[-1].capitalize()
-                return clean_name
-    except Exception:
-        pass
-    return "Desktop"
+    if "nvim" in classes or "neovim" in classes:
+        return "Neovim"
+    if "zed" in classes:
+        return "Zed"
+    if "vscodium" in classes or "code" in wclass:
+        return "VS Code"
+    if "helix" in classes:
+        return "Helix"
+    if "emacs" in classes:
+        return "Emacs"
+    if any(term in classes for term in ("foot", "kitty", "alacritty", "ghostty", "wezterm", "terminal")):
+        if "cargo" in title or "build" in title:
+            return "Terminal · build"
+        if "test" in title:
+            return "Terminal · tests"
+        return "Terminal"
+    if "blender" in classes:
+        return "Blender"
+    if "obsidian" in classes:
+        return "Obsidian"
+    if any(term in classes for term in ("firefox", "chromium", "chrome", "zen", "brave")):
+        return "Web browser"
+    if any(term in classes for term in ("spotify", "cider")):
+        return "Music player"
+    return trim_text(wclass.split(".")[-1].capitalize(), 32) or "Desktop"
 
 
 def get_active_music():
-    """Detect playing track via busctl / MPRIS DBus."""
-    try:
-        res = subprocess.run(
-            ["busctl", "--user", "list"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=1
+    """Return a playing MPRIS track, if one is available."""
+    services = run_text_command(["busctl", "--user", "list"])
+    if not services:
+        return ""
+    for line in services.splitlines():
+        if "org.mpris.MediaPlayer2." not in line:
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        service = parts[0]
+        status = run_text_command(
+            [
+                "busctl",
+                "--user",
+                "get-property",
+                service,
+                "/org/mpris/MediaPlayer2",
+                "org.mpris.MediaPlayer2.Player",
+                "PlaybackStatus",
+            ]
         )
-        if res.returncode == 0:
-            for line in res.stdout.splitlines():
-                if "org.mpris.MediaPlayer2." in line:
-                    service = line.split()[0]
-                    # Query PlaybackStatus
-                    status_res = subprocess.run(
-                        ["busctl", "--user", "get-property", service, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "PlaybackStatus"],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL,
-                        text=True,
-                        timeout=1
-                    )
-                    if status_res.returncode == 0 and "Playing" in status_res.stdout:
-                        # Query Metadata
-                        meta_res = subprocess.run(
-                            ["busctl", "--user", "get-property", service, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Metadata"],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL,
-                            text=True,
-                            timeout=1
-                        )
-                        if meta_res.returncode == 0:
-                            meta_out = meta_res.stdout
-                            artist = ""
-                            title = ""
-                            for mline in meta_out.splitlines():
-                                if "xesam:title" in mline and "s \"" in mline:
-                                    title = mline.split("s \"", 1)[1].rstrip('"')
-                                if "xesam:artist" in mline and "s \"" in mline:
-                                    artist = mline.split("s \"", 1)[1].rstrip('"')
-                            if title:
-                                return f"{artist} - {title}" if artist else title
-    except Exception:
-        pass
+        if "Playing" not in status:
+            continue
+        metadata = run_text_command(
+            [
+                "busctl",
+                "--user",
+                "get-property",
+                service,
+                "/org/mpris/MediaPlayer2",
+                "org.mpris.MediaPlayer2.Player",
+                "Metadata",
+            ]
+        )
+        artist = ""
+        title = ""
+        for metadata_line in metadata.splitlines():
+            if "xesam:title" in metadata_line and 's "' in metadata_line:
+                title = metadata_line.split('s "', 1)[1].rstrip('"')
+            elif "xesam:artist" in metadata_line and 's "' in metadata_line:
+                artist = metadata_line.split('s "', 1)[1].rstrip('"')
+        if title:
+            return trim_text(f"{artist} - {title}" if artist else title, 100)
     return ""
 
 
@@ -186,223 +349,1008 @@ class FriendsEngine:
         self.state_file = self.state_dir / "friends_state.json"
         self.state = self.load_state()
 
-    def load_state(self):
-        if self.state_file.exists():
-            try:
-                with open(self.state_file, "r") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-
-        # Generate default fresh state
-        code = generate_friend_code()
-        initial_state = {
+    def _default_state(self):
+        return {
             "profile": {
                 "handle": "OmarchyHacker",
                 "avatar": "👾",
-                "code": code,
+                "code": generate_friend_code(),
                 "status": "coding",
-                "focus_started_at": int(time.time()),
-                "privacy": {
-                    "share_window": True,
-                    "share_music": True,
-                    "share_lan": True,
-                    "ambient_peers": True
-                }
+                "focus_started_at": now_seconds(),
+                "project_name": "",
+                "project_desc": "",
+                "project_url": "",
+                "interests": [],
+                "room": "",
+                "privacy": dict(PRIVACY_DEFAULTS),
             },
-            "friends": DEFAULT_AMBIENT_PEERS.copy(),
+            "matched_peer": None,
+            "friends": [],
             "lan_peers": {},
+            "world_pulse": [],
+            "cowork": {
+                "active": False,
+                "mode": "",
+                "invite_id": "",
+                "buddy_code": "",
+                "buddy_name": "",
+                "buddy_avatar": "",
+                "started_at": 0,
+                "ends_at": 0,
+                "total_seconds": 0,
+            },
+            "cowork_invites": [],
             "events": [],
+            "seen_event_ids": [],
+            "signal_receipts": [],
             "stats": {
+                "hackers_met": 0,
+                "friends_made": 0,
+                "cowork_completed": 0,
                 "high_fives_sent": 0,
                 "high_fives_received": 0,
-                "coffee_breaks_shared": 0
-            }
+                "rices_shared": 0,
+                "signals_received": 0,
+            },
         }
-        self.save_state(initial_state)
-        return initial_state
+
+    def load_state(self):
+        data = {}
+        if self.state_file.exists():
+            try:
+                with self.state_file.open("r", encoding="utf-8") as state_file:
+                    data = json.load(state_file)
+            except (OSError, TypeError, ValueError):
+                data = {}
+        state = self._migrate_state(data)
+        if not self.state_file.exists() or state != data:
+            self.save_state(state)
+        return state
+
+    def _migrate_state(self, data):
+        state = self._default_state()
+        if not isinstance(data, dict):
+            return state
+
+        old_profile = data.get("profile")
+        if isinstance(old_profile, dict):
+            profile = state["profile"]
+            profile["handle"] = trim_text(old_profile.get("handle"), 24) or profile["handle"]
+            profile["avatar"] = (
+                old_profile.get("avatar")
+                if old_profile.get("avatar") in AVAILABLE_AVATARS
+                else profile["avatar"]
+            )
+            profile["code"] = normalize_code(old_profile.get("code"))
+            if not is_valid_friend_code(profile["code"]):
+                profile["code"] = generate_friend_code()
+            profile["status"] = (
+                old_profile.get("status")
+                if old_profile.get("status") in AVAILABLE_STATUSES
+                else profile["status"]
+            )
+            profile["focus_started_at"] = safe_int(
+                old_profile.get("focus_started_at"), profile["focus_started_at"]
+            )
+            for key, limit in (
+                ("project_name", 32),
+                ("project_desc", 80),
+            ):
+                profile[key] = trim_text(old_profile.get(key), limit)
+            profile["project_url"] = safe_url(old_profile.get("project_url"))
+            profile["interests"] = normalize_interests(old_profile.get("interests"))
+            profile["room"] = normalize_room(old_profile.get("room"))
+            old_privacy = old_profile.get("privacy")
+            if isinstance(old_privacy, dict):
+                for key in PRIVACY_DEFAULTS:
+                    if key in old_privacy:
+                        profile["privacy"][key] = bool(old_privacy[key])
+                # The old demo's global matching switch was never a real
+                # transport feature.  Do not carry it forward.
+
+        valid_friends = []
+        for friend in data.get("friends", []):
+            normalized = self._normalize_peer(friend)
+            if normalized and normalized["code"] not in LEGACY_DEMO_CODES:
+                valid_friends.append(normalized)
+        state["friends"] = self._unique_peers(valid_friends)
+
+        for code, peer in (data.get("lan_peers") or {}).items():
+            normalized = self._normalize_peer(peer)
+            if normalized and normalized["code"] not in LEGACY_DEMO_CODES:
+                state["lan_peers"][normalized["code"]] = normalized
+
+        pulse = []
+        for item in data.get("world_pulse", []):
+            if not isinstance(item, dict) or item.get("id") in LEGACY_DEMO_PULSE_IDS:
+                continue
+            normalized = self._normalize_pulse(item)
+            if normalized:
+                pulse.append(normalized)
+        state["world_pulse"] = pulse[-MAX_PULSE_ITEMS:]
+
+        cowork = data.get("cowork")
+        if isinstance(cowork, dict):
+            state["cowork"].update(
+                {
+                    "active": bool(cowork.get("active")),
+                    "mode": trim_text(cowork.get("mode"), 12),
+                    "invite_id": trim_text(cowork.get("invite_id"), 40),
+                    "buddy_code": normalize_code(cowork.get("buddy_code")),
+                    "buddy_name": trim_text(cowork.get("buddy_name"), 24),
+                    "buddy_avatar": trim_text(cowork.get("buddy_avatar"), 4),
+                    "started_at": safe_int(cowork.get("started_at")),
+                    "ends_at": safe_int(cowork.get("ends_at")),
+                    "total_seconds": safe_int(cowork.get("total_seconds"), maximum=7200),
+                }
+            )
+        state["cowork_invites"] = self._normalize_invites(data.get("cowork_invites"))
+
+        events = []
+        for event in data.get("events", []):
+            normalized = self._normalize_event(event)
+            if normalized:
+                events.append(normalized)
+        state["events"] = events[-MAX_EVENTS:]
+        state["seen_event_ids"] = [
+            trim_text(event_id, 40)
+            for event_id in data.get("seen_event_ids", [])
+            if trim_text(event_id, 40)
+        ][-MAX_SEEN_EVENT_IDS:]
+        signal_receipts = []
+        for receipt in data.get("signal_receipts", []):
+            if not isinstance(receipt, dict):
+                continue
+            receipt_code = normalize_code(receipt.get("code"))
+            receipt_timestamp = safe_int(receipt.get("timestamp"))
+            if is_valid_friend_code(receipt_code) and receipt_timestamp:
+                signal_receipts.append(
+                    {"code": receipt_code, "timestamp": receipt_timestamp}
+                )
+        state["signal_receipts"] = signal_receipts[-MAX_SIGNAL_RECEIPTS:]
+
+        old_stats = data.get("stats")
+        if isinstance(old_stats, dict):
+            for key in state["stats"]:
+                try:
+                    state["stats"][key] = max(0, int(old_stats.get(key, 0)))
+                except (TypeError, ValueError):
+                    pass
+        state["stats"]["friends_made"] = max(
+            state["stats"]["friends_made"], len(state["friends"])
+        )
+        matched = self._normalize_peer(data.get("matched_peer"))
+        if matched and matched["code"] not in LEGACY_DEMO_CODES:
+            state["matched_peer"] = matched
+        return state
+
+    def _normalize_peer(self, peer):
+        if not isinstance(peer, dict):
+            return None
+        code = normalize_code(peer.get("code"))
+        if not is_valid_friend_code(code):
+            return None
+        status = peer.get("status")
+        if status not in AVAILABLE_STATUSES:
+            status = "coding"
+        status_info = AVAILABLE_STATUSES[status]
+        return {
+            "code": code,
+            "handle": trim_text(peer.get("handle"), 24) or "Omarchy Peer",
+            "avatar": peer.get("avatar") if peer.get("avatar") in AVAILABLE_AVATARS else "👾",
+            "status": status,
+            "status_text": status_info["name"],
+            "status_emoji": status_info["emoji"],
+            "activity": trim_text(peer.get("activity"), 32),
+            "music": trim_text(peer.get("music"), 100),
+            "focus_mins": safe_int(peer.get("focus_mins"), maximum=1440),
+            "project_name": trim_text(peer.get("project_name"), 32),
+            "project_desc": trim_text(peer.get("project_desc"), 80),
+            "project_url": safe_url(peer.get("project_url")),
+            "theme": trim_text(peer.get("theme"), 48),
+            "wallpaper": trim_text(peer.get("wallpaper"), 100),
+            "interests": normalize_interests(peer.get("interests")),
+            "room": normalize_room(peer.get("room")),
+            "common_ground": [],
+            "icebreaker": "",
+            "last_seen": safe_int(peer.get("last_seen")),
+            "source": trim_text(peer.get("source"), 12) or "lan",
+            "online": bool(peer.get("online", False)),
+        }
+
+    def _normalize_pulse(self, item):
+        if not isinstance(item, dict):
+            return None
+        pulse_id = trim_text(item.get("id"), 40)
+        if not pulse_id:
+            return None
+        timestamp = safe_int(item.get("timestamp"), now_seconds())
+        return {
+            "id": pulse_id,
+            "user": trim_text(item.get("user"), 24) or "A nearby builder",
+            "avatar": trim_text(item.get("avatar"), 4) or "👾",
+            "action": trim_text(item.get("action"), 16) or "signal",
+            "text": trim_text(item.get("text"), 140),
+            "timestamp": timestamp,
+            "time_ago": format_age(timestamp),
+            "cheers": safe_int(item.get("cheers"), maximum=999),
+            "remote": bool(item.get("remote", False)),
+            "peer_code": normalize_code(item.get("peer_code")),
+        }
+
+    def _normalize_event(self, event):
+        if not isinstance(event, dict):
+            return None
+        event_id = trim_text(event.get("id"), 40)
+        if not event_id:
+            return None
+        return {
+            "id": event_id,
+            "action": trim_text(event.get("action"), 16) or "signal",
+            "icon": trim_text(event.get("icon"), 4) or "✦",
+            "from_name": trim_text(event.get("from_name"), 24) or "A nearby builder",
+            "from_avatar": trim_text(event.get("from_avatar"), 4) or "👾",
+            "message": trim_text(event.get("message"), 180),
+            "timestamp": safe_int(event.get("timestamp"), now_seconds()),
+        }
+
+    def _normalize_invites(self, invites):
+        normalized = []
+        for invite in invites or []:
+            if not isinstance(invite, dict):
+                continue
+            invite_id = trim_text(invite.get("id"), 40)
+            code = normalize_code(invite.get("from_code"))
+            if not invite_id or not is_valid_friend_code(code):
+                continue
+            normalized.append(
+                {
+                    "id": invite_id,
+                    "from_code": code,
+                    "from_name": trim_text(invite.get("from_name"), 24) or "A nearby builder",
+                    "from_avatar": trim_text(invite.get("from_avatar"), 4) or "👾",
+                    "duration_mins": safe_int(invite.get("duration_mins"), 25, 5, 120),
+                    "started_at": safe_int(invite.get("started_at"), now_seconds()),
+                    "ends_at": safe_int(invite.get("ends_at"), now_seconds() + 1500),
+                }
+            )
+        return normalized[-MAX_INVITES:]
+
+    @staticmethod
+    def _unique_peers(peers):
+        result = []
+        seen = set()
+        for peer in peers:
+            if peer and peer["code"] not in seen:
+                result.append(peer)
+                seen.add(peer["code"])
+        return result
 
     def save_state(self, state=None):
         if state is not None:
             self.state = state
-        tmp_file = self.state_file.with_suffix(".tmp")
-        with open(tmp_file, "w") as f:
-            json.dump(self.state, f, indent=2)
-        os.replace(tmp_file, self.state_file)
+        tmp_file = self.state_dir / f".friends_state.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        try:
+            with tmp_file.open("w", encoding="utf-8") as state_file:
+                json.dump(self.state, state_file, indent=2)
+                state_file.write("\n")
+            os.replace(tmp_file, self.state_file)
+        finally:
+            try:
+                tmp_file.unlink()
+            except FileNotFoundError:
+                pass
 
     def get_focus_minutes(self):
-        started = self.state["profile"].get("focus_started_at", int(time.time()))
-        elapsed = max(0, int(time.time()) - started)
-        return elapsed // 60
+        started = safe_int(self.state["profile"].get("focus_started_at"), now_seconds())
+        return max(0, (now_seconds() - started) // 60)
+
+    def _profile_status(self):
+        status_id = self.state["profile"].get("status", "coding")
+        return AVAILABLE_STATUSES.get(status_id, AVAILABLE_STATUSES["coding"])
 
     def get_public_payload(self):
-        p = self.state["profile"]
-        status_info = AVAILABLE_STATUSES.get(p.get("status", "coding"), AVAILABLE_STATUSES["coding"])
-        
-        act = get_active_window() if p.get("privacy", {}).get("share_window", True) else ""
-        mus = get_active_music() if p.get("privacy", {}).get("share_music", True) else ""
-
-        return {
+        profile = self.state["profile"]
+        privacy = profile.get("privacy", {})
+        payload = {
             "protocol": PROTOCOL_VERSION,
             "type": "presence",
-            "code": p["code"],
-            "handle": p["handle"],
-            "avatar": p["avatar"],
-            "status": p.get("status", "coding"),
-            "status_text": status_info["name"],
-            "status_emoji": status_info["emoji"],
-            "activity": act,
-            "music": mus,
+            "code": profile["code"],
+            "handle": profile["handle"],
+            "avatar": profile["avatar"],
+            "status": profile.get("status", "coding"),
+            "activity": get_active_window() if privacy.get("share_window", True) else "",
+            "music": get_active_music() if privacy.get("share_music", True) else "",
             "focus_mins": self.get_focus_minutes(),
-            "timestamp": int(time.time())
+            "timestamp": now_seconds(),
         }
+        if privacy.get("share_project", True):
+            payload.update(
+                {
+                    "project_name": profile.get("project_name", ""),
+                    "project_desc": profile.get("project_desc", ""),
+                    "project_url": profile.get("project_url", ""),
+                }
+            )
+        if privacy.get("share_interests", True):
+            payload["interests"] = list(profile.get("interests", []))
+        if privacy.get("share_room", True):
+            payload["room"] = normalize_room(profile.get("room"))
+        if privacy.get("share_theme", False):
+            payload["theme"] = trim_text(get_current_theme(), 48)
+            payload["wallpaper"] = trim_text(
+                os.path.basename(get_current_wallpaper()), 100
+            )
+        return payload
 
     def set_status(self, status_id):
-        if status_id in AVAILABLE_STATUSES:
-            self.state["profile"]["status"] = status_id
-            self.state["profile"]["focus_started_at"] = int(time.time())
-            self.save_state()
-            return True
-        return False
+        if status_id not in AVAILABLE_STATUSES:
+            return False
+        self.state["profile"]["status"] = status_id
+        self.state["profile"]["focus_started_at"] = now_seconds()
+        self.save_state()
+        return True
 
     def set_handle(self, handle):
-        clean = handle.strip()[:24]
-        if clean:
-            self.state["profile"]["handle"] = clean
-            self.save_state()
-            return True
-        return False
+        clean = trim_text(handle, 24)
+        if not clean:
+            return False
+        self.state["profile"]["handle"] = clean
+        self.save_state()
+        return True
 
     def set_avatar(self, avatar):
-        if avatar in AVAILABLE_AVATARS:
-            self.state["profile"]["avatar"] = avatar
-            self.save_state()
-            return True
-        return False
+        if avatar not in AVAILABLE_AVATARS:
+            return False
+        self.state["profile"]["avatar"] = avatar
+        self.save_state()
+        return True
+
+    def set_project(self, name, desc="", url=""):
+        profile = self.state["profile"]
+        profile["project_name"] = trim_text(name, 32)
+        profile["project_desc"] = trim_text(desc, 80)
+        profile["project_url"] = safe_url(url)
+        self.save_state()
+        return True
 
     def toggle_privacy(self, key):
-        priv = self.state["profile"].setdefault("privacy", {})
-        if key in priv:
-            priv[key] = not priv[key]
-            self.save_state()
-            return priv[key]
+        if key not in PRIVACY_DEFAULTS:
+            return None
+        privacy = self.state["profile"].setdefault("privacy", dict(PRIVACY_DEFAULTS))
+        privacy[key] = not bool(privacy.get(key, PRIVACY_DEFAULTS[key]))
+        self.save_state()
+        return privacy[key]
+
+    def _peer_is_recent(self, peer):
+        return bool(peer and now_seconds() - safe_int(peer.get("last_seen")) < PEER_TTL_SECONDS)
+
+    def _common_ground(self, peer, current_activity=""):
+        common = []
+        own_interests = set(self.state["profile"].get("interests", []))
+        if self._same_room(peer):
+            common.append(f"Room: {normalize_room(self.state['profile'].get('room'))}")
+        for interest_id in peer.get("interests", []):
+            if interest_id in own_interests and interest_id in INTEREST_BY_ID:
+                item = INTEREST_BY_ID[interest_id]
+                common.append(f"{item['emoji']} {item['name']}")
+        if (
+            current_activity
+            and current_activity not in ("Desktop", "Hidden")
+            and peer.get("activity") == current_activity
+        ):
+            common.append(f"Both using {current_activity}")
+        if peer.get("status") == self.state["profile"].get("status"):
+            status = AVAILABLE_STATUSES.get(peer.get("status"))
+            if status:
+                common.append(f"Both {status['name'].lower()}")
+        return common[:3]
+
+    def _icebreaker(self, peer):
+        own_interests = set(self.state["profile"].get("interests", []))
+        for interest_id in peer.get("interests", []):
+            if interest_id in own_interests and interest_id in ICEBREAKERS:
+                return ICEBREAKERS[interest_id]
+        if self._same_room(peer):
+            room = normalize_room(self.state["profile"].get("room"))
+            return f"What are you working on in {room}?"
+        return "What are you building today?"
+
+    def set_interests(self, interests):
+        self.state["profile"]["interests"] = normalize_interests(interests)
+        self.save_state()
+        return True
+
+    def set_room(self, room):
+        raw_room = " ".join(trim_text(room, MAX_ROOM_LENGTH).split())
+        normalized = normalize_room(raw_room)
+        if raw_room and not normalized:
+            return False, "Use letters, numbers, spaces, dots, dashes, or underscores"
+        self.state["profile"]["room"] = normalized
+        self.save_state()
+        return True, "Gathering room cleared" if not normalized else f"Joined {normalized}"
+
+    def _same_room(self, peer):
+        own_room = normalize_room(self.state["profile"].get("room"))
+        peer_room = normalize_room((peer or {}).get("room"))
+        return bool(own_room and peer_room and own_room.casefold() == peer_room.casefold())
+
+    def _available_peers(self):
+        peers = []
+        for peer in self.state.get("lan_peers", {}).values():
+            if self._peer_is_recent(peer):
+                item = dict(peer)
+                item["online"] = True
+                peers.append(item)
+        for friend in self.state.get("friends", []):
+            live = self.state.get("lan_peers", {}).get(friend["code"])
+            if live and self._peer_is_recent(live):
+                item = dict(live)
+                item["online"] = True
+                peers.append(item)
+        return self._unique_peers(sorted(peers, key=lambda item: item["code"]))
+
+    def _find_peer(self, code, require_recent=False):
+        code = normalize_code(code)
+        candidates = []
+        if code in self.state.get("lan_peers", {}):
+            candidates.append(self.state["lan_peers"][code])
+        candidates.extend(
+            friend for friend in self.state.get("friends", []) if friend["code"] == code
+        )
+        matched_peer = self.state.get("matched_peer") or {}
+        if matched_peer.get("code") == code:
+            candidates.append(matched_peer)
+        for peer in candidates:
+            if not require_recent or self._peer_is_recent(peer):
+                return peer
         return None
 
-    def add_friend(self, code, handle=None, avatar="👾"):
-        code = code.strip().upper()
-        if not code.startswith("OMAR-") or len(code) < 9:
-            return False, "Invalid Friend Code format (expected OMAR-XXXX-XXX)"
+    def match_next(self):
+        """Select the next real, recently observed peer on the local radar."""
+        self.cleanup_lan_peers()
+        candidates = self._available_peers()
+        current_code = (self.state.get("matched_peer") or {}).get("code", "")
+        candidates = [peer for peer in candidates if peer["code"] != current_code]
+        own_interests = set(self.state["profile"].get("interests", []))
+        candidates.sort(
+            key=lambda peer: (
+                -int(self._same_room(peer)),
+                -len(own_interests.intersection(peer.get("interests", []))),
+                -(peer.get("status") == self.state["profile"].get("status")),
+                peer["code"],
+            )
+        )
+        if not candidates:
+            self.state["matched_peer"] = None
+            self.save_state()
+            return None
+        peer = dict(candidates[0])
+        peer["matched_at"] = now_seconds()
+        peer["same_room"] = self._same_room(peer)
+        peer["common_ground"] = self._common_ground(peer)
+        peer["icebreaker"] = self._icebreaker(peer)
+        self.state["matched_peer"] = peer
+        self.state["stats"]["hackers_met"] += 1
+        self._append_pulse(
+            peer,
+            "radar",
+            f"Found {peer['handle']} on your local radar.",
+            remote=False,
+        )
+        self.save_state()
+        return peer
+
+    def add_matched_friend(self):
+        peer = self.state.get("matched_peer")
+        if not peer or not self._peer_is_recent(peer):
+            return False, "No recent peer on the local radar"
+        return self.add_friend(peer["code"], peer.get("handle"), peer.get("avatar"))
+
+    def add_friend(self, code, handle=None, avatar=None):
+        code = normalize_code(code)
+        if not is_valid_friend_code(code):
+            return False, "Invalid Friend Code (expected OMAR-XXXX-XXX)"
         if code == self.state["profile"]["code"]:
             return False, "Cannot add your own Friend Code"
+        if any(friend["code"] == code for friend in self.state.get("friends", [])):
+            return False, "That Friend Code is already saved"
 
-        for f in self.state.get("friends", []):
-            if f.get("code") == code:
-                return False, f"{f.get('handle', 'Friend')} is already in your friends list"
-
-        name = handle.strip() if handle else f"Hacker_{code[-3:]}"
-        new_friend = {
-            "code": code,
-            "handle": name,
-            "avatar": avatar,
-            "status": "coding",
-            "status_text": "In The Zone",
-            "status_emoji": "🚀",
-            "activity": "Hacking",
-            "music": "",
-            "focus_mins": 5,
-            "last_seen": int(time.time()),
-            "is_ambient": False
-        }
-        self.state.setdefault("friends", []).append(new_friend)
+        peer = self._find_peer(code)
+        if peer:
+            friend = dict(peer)
+        else:
+            friend = {
+                "code": code,
+                "handle": trim_text(handle, 24) or "Omarchy Friend",
+                "avatar": avatar if avatar in AVAILABLE_AVATARS else "👾",
+                "status": "coding",
+                "activity": "",
+                "music": "",
+                "focus_mins": 0,
+                "last_seen": 0,
+                "source": "friend-code",
+            }
+        if handle:
+            friend["handle"] = trim_text(handle, 24)
+        if avatar in AVAILABLE_AVATARS:
+            friend["avatar"] = avatar
+        friend["online"] = self._peer_is_recent(friend)
+        self.state.setdefault("friends", []).append(friend)
+        self.state["stats"]["friends_made"] += 1
+        self._append_pulse(
+            friend,
+            "friend",
+            f"Saved {friend['handle']} as a trusted friend.",
+            remote=False,
+        )
         self.save_state()
-        return True, f"Added {name} to friends!"
+        return True, f"Saved {friend['handle']} as a trusted friend"
 
     def remove_friend(self, code):
-        code = code.strip().upper()
-        initial_len = len(self.state.get("friends", []))
-        self.state["friends"] = [f for f in self.state.get("friends", []) if f.get("code") != code]
-        if len(self.state["friends"]) < initial_len:
-            self.save_state()
-            return True, f"Removed {code}"
-        return False, "Friend code not found"
-
-    def interact(self, target_code, action="high-five"):
-        """Perform an interaction: high-five, coffee, or kudos."""
-        target_code = target_code.strip().upper()
-        target_friend = None
-        for f in self.state.get("friends", []):
-            if f.get("code") == target_code:
-                target_friend = f
-                break
-
-        # Check LAN peers as well
-        if not target_friend and target_code in self.state.get("lan_peers", {}):
-            target_friend = self.state["lan_peers"][target_code]
-
-        if not target_friend:
-            return False, "Target friend not found"
-
-        friend_name = target_friend.get("handle", "Friend")
-        avatar = target_friend.get("avatar", "👾")
-
-        # Update stats
-        if action == "high-five":
-            self.state["stats"]["high_fives_sent"] += 1
-            icon = "✋"
-            action_desc = f"Sent a high-five to {friend_name}!"
-            reply_desc = f"{friend_name} {avatar} bumped your fist back! 'Let's crush this build! 👊'"
-        elif action == "coffee":
-            self.state["stats"]["coffee_breaks_shared"] += 1
-            icon = "☕"
-            action_desc = f"Invited {friend_name} to a 5-min coffee break!"
-            reply_desc = f"{friend_name} {avatar} accepted! 'Grabbed an espresso. Cheers! ☕'"
-        elif action == "kudos":
-            icon = "⚡"
-            action_desc = f"Sent a spark of kudos to {friend_name}!"
-            reply_desc = f"{friend_name} {avatar} caught the spark! 'Appreciate the energy! ⚡'"
-        else:
-            return False, f"Unknown action: {action}"
-
-        # If ambient, add automatic delightful reply event
-        if target_friend.get("is_ambient", False):
-            event = {
-                "id": str(uuid.uuid4())[:8],
-                "action": action,
-                "icon": icon,
-                "from_name": friend_name,
-                "from_avatar": avatar,
-                "message": reply_desc,
-                "timestamp": int(time.time())
-            }
-            self.state.setdefault("events", []).append(event)
-
-        # Broadcast interaction over UDP if LAN sharing is enabled
-        if self.state["profile"].get("privacy", {}).get("share_lan", True):
-            packet = {
-                "protocol": PROTOCOL_VERSION,
-                "type": "interaction",
-                "action": action,
-                "from_code": self.state["profile"]["code"],
-                "from_handle": self.state["profile"]["handle"],
-                "from_avatar": self.state["profile"]["avatar"],
-                "to_code": target_code,
-                "timestamp": int(time.time())
-            }
-            self._send_udp_packet(packet)
-
+        code = normalize_code(code)
+        before = len(self.state.get("friends", []))
+        self.state["friends"] = [
+            friend for friend in self.state.get("friends", []) if friend["code"] != code
+        ]
+        if len(self.state["friends"]) == before:
+            return False, "Friend Code not found"
         self.save_state()
-        return True, action_desc
+        return True, f"Removed {code}"
+
+    def _remember_event_id(self, event_id):
+        event_id = trim_text(event_id, 40)
+        if not event_id:
+            return False
+        seen = self.state.setdefault("seen_event_ids", [])
+        if event_id in seen:
+            return False
+        seen.append(event_id)
+        del seen[:-MAX_SEEN_EVENT_IDS]
+        return True
+
+    def _allow_incoming_signal(self, sender_code):
+        cutoff = now_seconds() - 60
+        receipts = [
+            receipt
+            for receipt in self.state.get("signal_receipts", [])
+            if safe_int(receipt.get("timestamp")) >= cutoff
+        ]
+        sender_count = sum(1 for receipt in receipts if receipt.get("code") == sender_code)
+        if sender_count >= MAX_INCOMING_SIGNALS_PER_MINUTE:
+            self.state["signal_receipts"] = receipts[-MAX_SIGNAL_RECEIPTS:]
+            return False
+        receipts.append({"code": sender_code, "timestamp": now_seconds()})
+        self.state["signal_receipts"] = receipts[-MAX_SIGNAL_RECEIPTS:]
+        return True
+
+    def _append_event(self, action, icon, from_name, from_avatar, message, event_id=None):
+        event = {
+            "id": trim_text(event_id, 40) or uuid.uuid4().hex,
+            "action": trim_text(action, 16),
+            "icon": trim_text(icon, 4),
+            "from_name": trim_text(from_name, 24) or "A nearby builder",
+            "from_avatar": trim_text(from_avatar, 4) or "👾",
+            "message": trim_text(message, 180),
+            "timestamp": now_seconds(),
+        }
+        self.state.setdefault("events", []).append(event)
+        self.state["events"] = self.state["events"][-MAX_EVENTS:]
+        return event
+
+    def _append_pulse(self, peer, action, text, remote=False):
+        peer = peer or {}
+        item = {
+            "id": uuid.uuid4().hex,
+            "user": trim_text(peer.get("handle"), 24) or "A nearby builder",
+            "avatar": trim_text(peer.get("avatar"), 4) or "👾",
+            "action": trim_text(action, 16) or "signal",
+            "text": trim_text(text, 140),
+            "timestamp": now_seconds(),
+            "time_ago": "now",
+            "cheers": 0,
+            "remote": bool(remote),
+            "peer_code": normalize_code(peer.get("code")),
+        }
+        self.state.setdefault("world_pulse", []).append(item)
+        self.state["world_pulse"] = self.state["world_pulse"][-MAX_PULSE_ITEMS:]
+        return item
 
     def _send_udp_packet(self, packet):
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            sock.settimeout(0.5)
-            data = json.dumps(packet).encode("utf-8")
-            sock.sendto(data, ("255.255.255.255", BROADCAST_PORT))
-            sock.close()
-        except Exception:
-            pass
+            data = json.dumps(packet, separators=(",", ":")).encode("utf-8")
+            if len(data) > MAX_PACKET_BYTES:
+                return False
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                sock.settimeout(0.5)
+                sock.sendto(data, ("255.255.255.255", BROADCAST_PORT))
+            return True
+        except (OSError, TypeError, ValueError):
+            return False
+
+    def _target_for_action(self, target_code=None):
+        code = normalize_code(target_code)
+        if not code:
+            code = normalize_code((self.state.get("matched_peer") or {}).get("code"))
+        return self._find_peer(code, require_recent=True) if code else None
+
+    def interact(self, target_code, action="high-five"):
+        if action not in INTERACTION_META:
+            return False, f"Unknown action: {action}"
+        target = self._target_for_action(target_code)
+        if not target:
+            return False, "Target is not a recent opt-in peer"
+        if not self.state["profile"]["privacy"].get("share_lan", True):
+            return False, "Enable LAN sharing to send a signal"
+
+        icon, label = INTERACTION_META[action]
+        event_id = uuid.uuid4().hex
+        packet = {
+            "protocol": PROTOCOL_VERSION,
+            "type": "interaction",
+            "event_id": event_id,
+            "from_code": self.state["profile"]["code"],
+            "from_handle": self.state["profile"]["handle"],
+            "from_avatar": self.state["profile"]["avatar"],
+            "to_code": target["code"],
+            "action": action,
+            "timestamp": now_seconds(),
+        }
+        if action == "hello":
+            packet["prompt"] = self._icebreaker(target)
+        if not self._send_udp_packet(packet):
+            return False, "Could not send the LAN signal"
+        self.state["stats"]["high_fives_sent"] += action == "high-five"
+        self._append_event(
+            action,
+            icon,
+            target.get("handle"),
+            target.get("avatar"),
+            f"You sent {label} to {target.get('handle', 'a nearby builder')}.",
+            event_id,
+        )
+        self._append_pulse(
+            target,
+            action,
+            f"You sent {label} to {target.get('handle', 'a nearby builder')}.",
+        )
+        self.save_state()
+        return True, f"Sent {label} to {target.get('handle', 'a nearby builder')}"
+
+    def share_rice(self, target_code=None):
+        target = self._target_for_action(target_code)
+        if not target:
+            return False, "Choose a recent peer before sharing your rice"
+        if not self.state["profile"]["privacy"].get("share_lan", True):
+            return False, "Enable LAN sharing to share your rice"
+
+        theme = trim_text(get_current_theme(), 48)
+        wallpaper = trim_text(os.path.basename(get_current_wallpaper()), 100)
+        event_id = uuid.uuid4().hex
+        packet = {
+            "protocol": PROTOCOL_VERSION,
+            "type": "rice",
+            "event_id": event_id,
+            "from_code": self.state["profile"]["code"],
+            "from_handle": self.state["profile"]["handle"],
+            "from_avatar": self.state["profile"]["avatar"],
+            "to_code": target["code"],
+            "theme": theme,
+            "wallpaper": wallpaper,
+            "timestamp": now_seconds(),
+        }
+        if not self._send_udp_packet(packet):
+            return False, "Could not send the rice signal"
+        self.state["stats"]["rices_shared"] += 1
+        detail = theme or "your current theme"
+        self._append_event(
+            "rice",
+            "🎨",
+            target.get("handle"),
+            target.get("avatar"),
+            f"You shared {detail} with {target.get('handle', 'a nearby builder')}.",
+            event_id,
+        )
+        self._append_pulse(
+            target,
+            "rice",
+            f"You shared your setup with {target.get('handle', 'a nearby builder')}.",
+        )
+        self.save_state()
+        return True, f"Shared your setup with {target.get('handle', 'a nearby builder')}"
+
+    def start_cowork(self, duration_mins=25, target_code=None):
+        try:
+            duration_mins = safe_int(duration_mins, 25, 5, 120)
+        except (TypeError, ValueError):
+            duration_mins = 25
+
+        target = self._target_for_action(target_code)
+        if target and not self.state["profile"]["privacy"].get("share_lan", True):
+            return False, "Enable LAN sharing to invite a peer"
+
+        started_at = now_seconds()
+        ends_at = started_at + duration_mins * 60
+        invite_id = uuid.uuid4().hex
+        mode = "shared" if target else "solo"
+        self.state["cowork"] = {
+            "active": True,
+            "mode": mode,
+            "invite_id": invite_id,
+            "buddy_code": target.get("code", "") if target else "",
+            "buddy_name": target.get("handle", "") if target else "",
+            "buddy_avatar": target.get("avatar", "") if target else "",
+            "started_at": started_at,
+            "ends_at": ends_at,
+            "total_seconds": duration_mins * 60,
+        }
+        if target:
+            packet = {
+                "protocol": PROTOCOL_VERSION,
+                "type": "cowork",
+                "event": "invite",
+                "event_id": invite_id,
+                "from_code": self.state["profile"]["code"],
+                "from_handle": self.state["profile"]["handle"],
+                "from_avatar": self.state["profile"]["avatar"],
+                "to_code": target["code"],
+                "duration_mins": duration_mins,
+                "started_at": started_at,
+                "ends_at": ends_at,
+            }
+            if not self._send_udp_packet(packet):
+                self.state["cowork"] = self._default_state()["cowork"]
+                return False, "Could not send the co-work invite"
+            message = f"Invited {target.get('handle', 'a nearby builder')} to co-work"
+        else:
+            message = "Started a private focus session"
+        self._append_pulse(
+            target or self.state["profile"],
+            "focus",
+            f"{message} for {duration_mins} minutes.",
+        )
+        self.save_state()
+        return True, message
+
+    def accept_cowork(self, invite_id):
+        invite_id = trim_text(invite_id, 40)
+        invite = next(
+            (item for item in self.state.get("cowork_invites", []) if item["id"] == invite_id),
+            None,
+        )
+        if not invite or now_seconds() >= invite["ends_at"]:
+            return False, "That co-work invite has expired"
+        self.state["cowork_invites"] = [
+            item for item in self.state["cowork_invites"] if item["id"] != invite_id
+        ]
+        self.state["cowork"] = {
+            "active": True,
+            "mode": "shared",
+            "invite_id": invite_id,
+            "buddy_code": invite["from_code"],
+            "buddy_name": invite["from_name"],
+            "buddy_avatar": invite["from_avatar"],
+            "started_at": invite["started_at"],
+            "ends_at": invite["ends_at"],
+            "total_seconds": invite["duration_mins"] * 60,
+        }
+        peer = self._find_peer(invite["from_code"])
+        if peer:
+            self._append_pulse(peer, "focus", f"Joined {peer['handle']}'s co-work session.")
+        self.save_state()
+        return True, f"Joined {invite['from_name']} for co-work"
+
+    def dismiss_cowork(self, invite_id):
+        before = len(self.state.get("cowork_invites", []))
+        self.state["cowork_invites"] = [
+            item for item in self.state["cowork_invites"] if item["id"] != trim_text(invite_id, 40)
+        ]
+        if len(self.state["cowork_invites"]) == before:
+            return False, "Invite not found"
+        self.save_state()
+        return True, "Invite dismissed"
+
+    def cancel_cowork(self):
+        cowork = self.state.get("cowork", {})
+        if not cowork.get("active"):
+            return True, "No co-work session is active"
+        if cowork.get("mode") == "shared" and cowork.get("buddy_code"):
+            self._send_udp_packet(
+                {
+                    "protocol": PROTOCOL_VERSION,
+                    "type": "cowork",
+                    "event": "cancel",
+                    "event_id": uuid.uuid4().hex,
+                    "from_code": self.state["profile"]["code"],
+                    "from_handle": self.state["profile"]["handle"],
+                    "from_avatar": self.state["profile"]["avatar"],
+                    "to_code": cowork["buddy_code"],
+                    "timestamp": now_seconds(),
+                }
+            )
+        self.state["cowork"] = self._default_state()["cowork"]
+        self.save_state()
+        return True, "Co-work session ended"
+
+    def cheer_feed_item(self, item_id):
+        item = next(
+            (pulse for pulse in self.state.get("world_pulse", []) if pulse["id"] == item_id),
+            None,
+        )
+        if not item:
+            return False, "Pulse item not found"
+        item["cheers"] += 1
+        target = self._find_peer(item.get("peer_code"), require_recent=True)
+        if target and self.state["profile"]["privacy"].get("share_lan", True):
+            self._send_udp_packet(
+                {
+                    "protocol": PROTOCOL_VERSION,
+                    "type": "cheer",
+                    "event_id": uuid.uuid4().hex,
+                    "from_code": self.state["profile"]["code"],
+                    "from_handle": self.state["profile"]["handle"],
+                    "from_avatar": self.state["profile"]["avatar"],
+                    "to_code": target["code"],
+                    "timestamp": now_seconds(),
+                }
+            )
+        self.save_state()
+        return True, f"Sent a cheer to {item.get('user', 'a nearby builder')}"
+
+    def _known_sender(self, code):
+        return self._find_peer(code, require_recent=True)
+
+    def handle_packet(self, packet, addr=None):
+        """Validate and apply one bounded LAN packet. Returns whether it was used."""
+        if not isinstance(packet, dict) or packet.get("protocol") != PROTOCOL_VERSION:
+            return False
+        sender_code = normalize_code(packet.get("code") or packet.get("from_code"))
+        if not is_valid_friend_code(sender_code) or sender_code == self.state["profile"]["code"]:
+            return False
+
+        packet_type = packet.get("type")
+        if packet_type == "presence":
+            peer = self._normalize_peer(
+                {
+                    **packet,
+                    "last_seen": now_seconds(),
+                    "source": "lan",
+                    "online": True,
+                }
+            )
+            if not peer:
+                return False
+            if addr:
+                peer["ip"] = trim_text(addr[0], 64)
+            self.state.setdefault("lan_peers", {})[sender_code] = peer
+            self.save_state()
+            return True
+
+        if packet.get("to_code") != self.state["profile"]["code"]:
+            return False
+        sender = self._known_sender(sender_code)
+        if not sender:
+            return False
+        event_id = trim_text(packet.get("event_id"), 40)
+        if not self._remember_event_id(event_id):
+            return False
+
+        if packet_type == "interaction":
+            action = packet.get("action")
+            if action not in INTERACTION_META:
+                return False
+            if not self._allow_incoming_signal(sender_code):
+                return False
+            icon, label = INTERACTION_META[action]
+            if action == "high-five":
+                self.state["stats"]["high_fives_received"] += 1
+            self.state["stats"]["signals_received"] += 1
+            prompt = trim_text(packet.get("prompt"), 100)
+            message = f"{sender['handle']} sent you {label}."
+            if action == "hello" and prompt:
+                message += f" {prompt}"
+            self._append_event(
+                action,
+                icon,
+                sender["handle"],
+                sender["avatar"],
+                message,
+                event_id,
+            )
+            self._append_pulse(
+                sender,
+                action,
+                f"{sender['handle']} sent you {label}.",
+                remote=True,
+            )
+        elif packet_type == "rice":
+            if not self._allow_incoming_signal(sender_code):
+                return False
+            self.state["stats"]["signals_received"] += 1
+            detail = trim_text(packet.get("theme"), 48) or "their current setup"
+            self._append_event(
+                "rice",
+                "🎨",
+                sender["handle"],
+                sender["avatar"],
+                f"{sender['handle']} shared {detail} with you.",
+                event_id,
+            )
+            self._append_pulse(
+                sender,
+                "rice",
+                f"{sender['handle']} shared their setup.",
+                remote=True,
+            )
+        elif packet_type == "cheer":
+            if not self._allow_incoming_signal(sender_code):
+                return False
+            self.state["stats"]["signals_received"] += 1
+            self._append_event(
+                "cheer",
+                "💫",
+                sender["handle"],
+                sender["avatar"],
+                f"{sender['handle']} cheered your local pulse.",
+                event_id,
+            )
+        elif packet_type == "cowork":
+            event = packet.get("event")
+            if event == "invite":
+                if not self._allow_incoming_signal(sender_code):
+                    return False
+                duration = safe_int(packet.get("duration_mins"), 25, 5, 120)
+                ends_at = safe_int(packet.get("ends_at"), now_seconds() + duration * 60)
+                if ends_at <= now_seconds():
+                    return False
+                self.state["cowork_invites"] = self._normalize_invites(
+                    self.state.get("cowork_invites", [])
+                    + [
+                        {
+                            "id": event_id,
+                            "from_code": sender_code,
+                            "from_name": sender["handle"],
+                            "from_avatar": sender["avatar"],
+                            "duration_mins": duration,
+                            "started_at": safe_int(packet.get("started_at"), now_seconds()),
+                            "ends_at": ends_at,
+                        }
+                    ]
+                )
+                self._append_event(
+                    "focus",
+                    "🍅",
+                    sender["handle"],
+                    sender["avatar"],
+                    f"{sender['handle']} invited you to co-work for {duration} minutes.",
+                    event_id,
+                )
+                self._append_pulse(
+                    sender,
+                    "focus",
+                    f"{sender['handle']} opened a co-work invite.",
+                    remote=True,
+                )
+            elif event == "cancel":
+                if not self._allow_incoming_signal(sender_code):
+                    return False
+                if self.state.get("cowork", {}).get("buddy_code") == sender_code:
+                    self.state["cowork"] = self._default_state()["cowork"]
+                self._append_event(
+                    "focus",
+                    "⏹",
+                    sender["handle"],
+                    sender["avatar"],
+                    f"{sender['handle']} ended the shared session.",
+                    event_id,
+                )
+            else:
+                return False
+        else:
+            return False
+        self.save_state()
+        return True
 
     def pop_events(self):
         events = self.state.get("events", [])
@@ -411,210 +1359,250 @@ class FriendsEngine:
         return events
 
     def cleanup_lan_peers(self):
-        now = int(time.time())
-        cleaned = {}
-        for code, peer in self.state.get("lan_peers", {}).items():
-            if now - peer.get("last_seen", 0) < 90:
-                cleaned[code] = peer
-        self.state["lan_peers"] = cleaned
-        self.save_state()
+        cutoff = now_seconds() - PEER_TTL_SECONDS
+        self.state["lan_peers"] = {
+            code: peer
+            for code, peer in self.state.get("lan_peers", {}).items()
+            if safe_int(peer.get("last_seen")) >= cutoff
+        }
+
+    def _current_cowork(self):
+        cowork = self.state.get("cowork", {})
+        if not cowork.get("active"):
+            return {
+                "active": False,
+                "mode": "",
+                "remaining_seconds": 0,
+                "buddy_code": "",
+                "buddy_name": "",
+                "buddy_avatar": "",
+                "total_seconds": 0,
+            }
+        remaining = safe_int(cowork.get("ends_at")) - now_seconds()
+        if remaining <= 0:
+            self.state["stats"]["cowork_completed"] += 1
+            self.state["cowork"] = self._default_state()["cowork"]
+            return {
+                "active": False,
+                "mode": "",
+                "remaining_seconds": 0,
+                "buddy_code": "",
+                "buddy_name": "",
+                "buddy_avatar": "",
+                "total_seconds": 0,
+            }
+        return {
+            "active": True,
+            "mode": cowork.get("mode", "solo"),
+            "remaining_seconds": remaining,
+            "buddy_code": cowork.get("buddy_code", ""),
+            "buddy_name": cowork.get("buddy_name", ""),
+            "buddy_avatar": cowork.get("buddy_avatar", ""),
+            "total_seconds": safe_int(cowork.get("total_seconds"), maximum=7200),
+        }
 
     def get_full_status(self):
-        """Assemble complete UI status model for BarWidget and Panel."""
         self.cleanup_lan_peers()
-        p = self.state["profile"]
-        cur_status = AVAILABLE_STATUSES.get(p.get("status", "coding"), AVAILABLE_STATUSES["coding"])
+        cowork = self._current_cowork()
+        profile = self.state["profile"]
+        privacy = profile.get("privacy", {})
+        active_app = get_active_window() if privacy.get("share_window", True) else "Hidden"
+        active_music = get_active_music() if privacy.get("share_music", True) else ""
+        theme = get_current_theme()
+        wallpaper = get_current_wallpaper()
+        peers = self._available_peers()
+        for peer in peers:
+            peer["same_room"] = self._same_room(peer)
+            peer["common_ground"] = self._common_ground(peer, active_app)
+            peer["icebreaker"] = self._icebreaker(peer)
+        current_match = self.state.get("matched_peer")
+        if current_match and not self._peer_is_recent(current_match):
+            current_match = None
+            self.state["matched_peer"] = None
+        if current_match:
+            current_match = dict(current_match)
+            current_match["online"] = True
+            current_match["same_room"] = self._same_room(current_match)
+            current_match["common_ground"] = self._common_ground(current_match, active_app)
+            current_match["icebreaker"] = self._icebreaker(current_match)
+        for pulse in self.state.get("world_pulse", []):
+            pulse["time_ago"] = format_age(pulse.get("timestamp"))
 
-        # Live detection
-        active_app = get_active_window()
-        active_music = get_active_music()
-        focus_mins = self.get_focus_minutes()
-
-        # Ambient peers simulation
-        ambient_enabled = p.get("privacy", {}).get("ambient_peers", True)
-        all_friends = []
-        for f in self.state.get("friends", []):
-            if f.get("is_ambient") and not ambient_enabled:
-                continue
-            item = f.copy()
-            item["online"] = True
-            all_friends.append(item)
-
-        lan_peers = list(self.state.get("lan_peers", {}).values())
-        online_count = len(all_friends) + len(lan_peers)
-
+        self.save_state()
+        status_info = self._profile_status()
         return {
             "profile": {
-                "handle": p["handle"],
-                "avatar": p["avatar"],
-                "code": p["code"],
-                "status": p.get("status", "coding"),
-                "status_name": cur_status["name"],
-                "status_emoji": cur_status["emoji"],
-                "status_desc": cur_status["desc"],
-                "activity": active_app if p.get("privacy", {}).get("share_window", True) else "Hidden",
-                "music": active_music if p.get("privacy", {}).get("share_music", True) else "",
-                "focus_mins": focus_mins,
-                "privacy": p.get("privacy", {})
+                "handle": profile["handle"],
+                "avatar": profile["avatar"],
+                "code": profile["code"],
+                "status": profile.get("status", "coding"),
+                "status_name": status_info["name"],
+                "status_emoji": status_info["emoji"],
+                "status_desc": status_info["desc"],
+                "activity": active_app,
+                "music": active_music,
+                "theme": theme,
+                "wallpaper": wallpaper,
+                "focus_mins": self.get_focus_minutes(),
+                "project_name": profile.get("project_name", ""),
+                "project_desc": profile.get("project_desc", ""),
+                "project_url": profile.get("project_url", ""),
+                "interests": list(profile.get("interests", [])),
+                "room": normalize_room(profile.get("room")),
+                "privacy": privacy,
             },
-            "friends": all_friends,
-            "lan_peers": lan_peers,
-            "online_count": online_count,
+            "matched_peer": current_match,
+            "friends": [
+                dict(friend, online=bool(self.state.get("lan_peers", {}).get(friend["code"])
+                                         and self._peer_is_recent(self.state["lan_peers"][friend["code"]])))
+                for friend in self.state.get("friends", [])
+            ],
+            "lan_peers": peers,
+            "world_pulse": self.state.get("world_pulse", []),
+            "cowork": cowork,
+            "cowork_invites": self._normalize_invites(self.state.get("cowork_invites")),
+            "online_count": len(peers),
             "stats": self.state.get("stats", {}),
             "available_statuses": list(AVAILABLE_STATUSES.values()),
-            "available_avatars": AVAILABLE_AVATARS
+            "available_avatars": AVAILABLE_AVATARS,
+            "available_interests": AVAILABLE_INTERESTS,
+            "available": bool(peers),
+            "transport": {
+                "mode": "local-lan",
+                "port": BROADCAST_PORT,
+                "ttl_seconds": PEER_TTL_SECONDS,
+            },
         }
 
     def run_daemon(self):
-        """Run background LAN discovery listener and periodic broadcaster."""
+        """Listen for and periodically broadcast explicit local presence."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except AttributeError:
+        except (AttributeError, OSError):
             pass
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
         try:
             sock.bind(("", BROADCAST_PORT))
-        except Exception as e:
-            sys.stderr.write(f"Omarchy Friends: Could not bind UDP port {BROADCAST_PORT}: {e}\n")
+        except OSError as error:
+            sys.stderr.write(f"Omarchy Friends: could not bind UDP {BROADCAST_PORT}: {error}\n")
+            sock.close()
             return
-
         sock.setblocking(False)
         last_broadcast = 0
-
-        while True:
-            now = time.time()
-            # Broadcast our presence every 15 seconds if enabled
-            if now - last_broadcast >= 15:
-                if self.state["profile"].get("privacy", {}).get("share_lan", True):
-                    payload = self.get_public_payload()
-                    try:
-                        data = json.dumps(payload).encode("utf-8")
-                        sock.sendto(data, ("255.255.255.255", BROADCAST_PORT))
-                    except Exception:
-                        pass
-                last_broadcast = now
-
-            # Poll for incoming LAN packets with 1s select timeout
-            r, _, _ = select.select([sock], [], [], 1.0)
-            if r:
+        last_reload = 0
+        try:
+            while True:
+                current = time.time()
+                if current - last_reload >= 2:
+                    self.state = self.load_state()
+                    last_reload = current
+                if (
+                    current - last_broadcast >= 15
+                    and self.state["profile"]["privacy"].get("share_lan", True)
+                ):
+                    payload = json.dumps(
+                        self.get_public_payload(), separators=(",", ":")
+                    ).encode("utf-8")
+                    if len(payload) <= MAX_PACKET_BYTES:
+                        try:
+                            sock.sendto(payload, ("255.255.255.255", BROADCAST_PORT))
+                        except OSError:
+                            pass
+                    last_broadcast = current
+                readable, _, _ = select.select([sock], [], [], 1.0)
+                if not readable:
+                    continue
                 try:
-                    raw, addr = sock.recvfrom(4096)
+                    raw, addr = sock.recvfrom(MAX_PACKET_BYTES)
+                    if len(raw) > MAX_PACKET_BYTES:
+                        continue
                     packet = json.loads(raw.decode("utf-8"))
-                    if packet.get("protocol") != PROTOCOL_VERSION:
-                        continue
+                    self.handle_packet(packet, addr)
+                except (OSError, UnicodeDecodeError, TypeError, ValueError):
+                    continue
+        finally:
+            sock.close()
 
-                    # Ignore self packets
-                    my_code = self.state["profile"]["code"]
-                    sender_code = packet.get("code") or packet.get("from_code")
-                    if sender_code == my_code:
-                        continue
 
-                    ptype = packet.get("type")
-                    if ptype == "presence":
-                        # Record LAN peer
-                        self.state.setdefault("lan_peers", {})[sender_code] = {
-                            "code": sender_code,
-                            "handle": packet.get("handle", "LAN Peer"),
-                            "avatar": packet.get("avatar", "👾"),
-                            "status": packet.get("status", "coding"),
-                            "status_text": packet.get("status_text", "In The Zone"),
-                            "status_emoji": packet.get("status_emoji", "🚀"),
-                            "activity": packet.get("activity", ""),
-                            "music": packet.get("music", ""),
-                            "focus_mins": packet.get("focus_mins", 0),
-                            "ip": addr[0],
-                            "last_seen": int(time.time()),
-                            "is_ambient": False
-                        }
-                        self.save_state()
-
-                    elif ptype == "interaction":
-                        # Incoming interaction addressed to us
-                        if packet.get("to_code") == my_code:
-                            act = packet.get("action", "high-five")
-                            from_h = packet.get("from_handle", "A friend")
-                            from_av = packet.get("from_avatar", "✋")
-                            if act == "high-five":
-                                icon = "✋"
-                                msg = f"{from_h} gave you a High Five! ✋"
-                                self.state["stats"]["high_fives_received"] += 1
-                            elif act == "coffee":
-                                icon = "☕"
-                                msg = f"{from_h} invited you to a coffee break! ☕"
-                                self.state["stats"]["coffee_breaks_shared"] += 1
-                            else:
-                                icon = "⚡"
-                                msg = f"{from_h} sent you kudos! ⚡"
-
-                            event = {
-                                "id": str(uuid.uuid4())[:8],
-                                "action": act,
-                                "icon": icon,
-                                "from_name": from_h,
-                                "from_avatar": from_av,
-                                "message": msg,
-                                "timestamp": int(time.time())
-                            }
-                            self.state.setdefault("events", []).append(event)
-                            self.save_state()
-
-                            # Trigger desktop notification
-                            try:
-                                subprocess.run(
-                                    ["omarchy-notification-send", "--app-name", "Omarchy Friends", "-i", "dialog-information", msg, "Keep up the great momentum!"],
-                                    stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL
-                                )
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+def print_result(ok, message, **extra):
+    result = {"ok": bool(ok)}
+    if message:
+        result["message"] = message
+    result.update(extra)
+    print(json.dumps(result))
 
 
 def main():
     engine = FriendsEngine()
-
     if len(sys.argv) < 2 or sys.argv[1] == "status":
         print(json.dumps(engine.get_full_status()))
         return
 
-    cmd = sys.argv[1]
-
-    if cmd == "set-status" and len(sys.argv) >= 3:
-        ok = engine.set_status(sys.argv[2])
-        print(json.dumps({"ok": ok, "status": sys.argv[2]}))
-    elif cmd == "set-handle" and len(sys.argv) >= 3:
-        ok = engine.set_handle(" ".join(sys.argv[2:]))
-        print(json.dumps({"ok": ok}))
-    elif cmd == "set-avatar" and len(sys.argv) >= 3:
-        ok = engine.set_avatar(sys.argv[2])
-        print(json.dumps({"ok": ok}))
-    elif cmd == "toggle-privacy" and len(sys.argv) >= 3:
-        val = engine.toggle_privacy(sys.argv[2])
-        print(json.dumps({"ok": val is not None, "value": val}))
-    elif cmd == "add-friend" and len(sys.argv) >= 3:
-        code = sys.argv[2]
+    command = sys.argv[1]
+    if command == "set-status" and len(sys.argv) >= 3:
+        print_result(engine.set_status(sys.argv[2]), "Status updated")
+    elif command == "set-handle" and len(sys.argv) >= 3:
+        print_result(engine.set_handle(" ".join(sys.argv[2:])), "Handle updated")
+    elif command == "set-avatar" and len(sys.argv) >= 3:
+        print_result(engine.set_avatar(sys.argv[2]), "Avatar updated")
+    elif command == "set-project" and len(sys.argv) >= 3:
+        name = sys.argv[2]
+        desc = sys.argv[3] if len(sys.argv) >= 4 else ""
+        url = sys.argv[4] if len(sys.argv) >= 5 else ""
+        print_result(engine.set_project(name, desc, url), "Beacon updated")
+    elif command == "set-interests":
+        print_result(engine.set_interests(sys.argv[2:]), "Interests updated")
+    elif command == "set-room":
+        ok, message = engine.set_room(" ".join(sys.argv[2:]))
+        print_result(ok, message)
+    elif command == "match-next":
+        peer = engine.match_next()
+        print(json.dumps({"ok": bool(peer), "peer": peer}))
+    elif command == "add-matched":
+        ok, message = engine.add_matched_friend()
+        print_result(ok, message)
+    elif command == "share-rice":
+        ok, message = engine.share_rice(sys.argv[2] if len(sys.argv) >= 3 else None)
+        print_result(ok, message)
+    elif command == "start-cowork":
+        minutes = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 25
+        target = sys.argv[3] if len(sys.argv) >= 4 else None
+        ok, message = engine.start_cowork(minutes, target)
+        print_result(ok, message)
+    elif command == "accept-cowork" and len(sys.argv) >= 3:
+        ok, message = engine.accept_cowork(sys.argv[2])
+        print_result(ok, message)
+    elif command == "dismiss-cowork" and len(sys.argv) >= 3:
+        ok, message = engine.dismiss_cowork(sys.argv[2])
+        print_result(ok, message)
+    elif command == "cancel-cowork":
+        ok, message = engine.cancel_cowork()
+        print_result(ok, message)
+    elif command == "cheer-feed" and len(sys.argv) >= 3:
+        ok, message = engine.cheer_feed_item(sys.argv[2])
+        print_result(ok, message)
+    elif command == "toggle-privacy" and len(sys.argv) >= 3:
+        value = engine.toggle_privacy(sys.argv[2])
+        print(json.dumps({"ok": value is not None, "value": value}))
+    elif command == "add-friend" and len(sys.argv) >= 3:
         handle = sys.argv[3] if len(sys.argv) >= 4 else None
-        ok, msg = engine.add_friend(code, handle)
-        print(json.dumps({"ok": ok, "message": msg}))
-    elif cmd == "remove-friend" and len(sys.argv) >= 3:
-        ok, msg = engine.remove_friend(sys.argv[2])
-        print(json.dumps({"ok": ok, "message": msg}))
-    elif cmd == "interact" and len(sys.argv) >= 3:
-        target = sys.argv[2]
+        ok, message = engine.add_friend(sys.argv[2], handle)
+        print_result(ok, message)
+    elif command == "remove-friend" and len(sys.argv) >= 3:
+        ok, message = engine.remove_friend(sys.argv[2])
+        print_result(ok, message)
+    elif command == "interact" and len(sys.argv) >= 3:
         action = sys.argv[3] if len(sys.argv) >= 4 else "high-five"
-        ok, msg = engine.interact(target, action)
-        print(json.dumps({"ok": ok, "message": msg}))
-    elif cmd == "poll-events":
-        events = engine.pop_events()
-        print(json.dumps({"events": events}))
-    elif cmd == "daemon":
+        ok, message = engine.interact(sys.argv[2], action)
+        print_result(ok, message)
+    elif command == "poll-events":
+        print(json.dumps({"events": engine.pop_events()}))
+    elif command == "daemon":
         engine.run_daemon()
     else:
-        print(f"Unknown command: {cmd}", file=sys.stderr)
+        print(f"Unknown command: {command}", file=sys.stderr)
         sys.exit(1)
 
 
