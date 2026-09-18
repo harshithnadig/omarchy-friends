@@ -29,6 +29,9 @@ available when people are nearby.
 * **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
   signals, or keep using only the local radar. Friend Codes remain an
   optional private shortcut for people who already know each other.
+* **💡 Idea box:** Write a short feature suggestion in the deck, copy it with
+  context, and optionally open the repository's feature-request form. Nothing
+  is submitted automatically.
 
 ## How global discovery works
 

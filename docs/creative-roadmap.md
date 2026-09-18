@@ -35,6 +35,8 @@ chat app: a small, consent-aware moment of human connection.
   to pair for 25 minutes, the recipient accepts, and both get a local timer.
 * Global visibility and block controls, with no IP address, real name, or
   account credential in the presence payload.
+* A local-first idea box that makes it easy for users to propose the next
+  human connection ritual without silently sending anything.
 
 ## Shipped in 2.2
 

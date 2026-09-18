@@ -74,6 +74,33 @@ PopupCard {
     property string actionNotice: ""
     property bool actionNoticeGood: true
     property string roomInput: ""
+    property bool suggestionOpen: false
+    property string suggestionText: ""
+    property string suggestionNotice: ""
+    readonly property string suggestionIssueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
+
+    function suggestionPayload() {
+        return "Omarchy Friends feature idea:\n\n" + root.suggestionText.trim()
+    }
+
+    function copySuggestion() {
+        if (root.suggestionText.trim() === "") {
+            root.suggestionNotice = "Write an idea first"
+            return
+        }
+        Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(root.suggestionPayload()) + " | wl-copy"])
+        root.suggestionNotice = "Copied — paste it into the issue form"
+    }
+
+    function openSuggestion() {
+        if (root.suggestionText.trim() === "") {
+            root.suggestionNotice = "Write an idea first"
+            return
+        }
+        root.copySuggestion()
+        Quickshell.execDetached(["xdg-open", root.suggestionIssueUrl])
+        root.suggestionNotice = "Copied and opened GitHub"
+    }
 
     contentWidth: root.fittedContentWidth(Style.space(450))
     contentHeight: root.fittedContentHeight(mainColumn.implicitHeight)
@@ -2281,6 +2308,213 @@ PopupCard {
                         color: root.fg
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
+                    }
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // USER SUGGESTIONS (LOCAL DRAFT, EXPLICIT GITHUB HANDOFF)
+        // -------------------------------------------------------------
+        Rectangle {
+            width: parent.width
+            height: root.suggestionOpen ? suggestionEditorColumn.implicitHeight + Style.space(16) : Style.space(34)
+            radius: Math.max(6, Style.cornerRadius)
+            color: Qt.rgba(0.96, 0.62, 0.04, root.suggestionOpen ? 0.12 : 0.08)
+            border.width: 1
+            border.color: Qt.rgba(0.96, 0.62, 0.04, root.suggestionOpen ? 0.34 : 0.18)
+
+            Row {
+                visible: !root.suggestionOpen
+                anchors.fill: parent
+                anchors.margins: Style.space(7)
+                spacing: Style.space(8)
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "💡"
+                    font.pixelSize: Style.space(16)
+                }
+
+                Text {
+                    width: parent.width - suggestOpenButton.width - Style.space(38)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Have an idea that would make Friends better?"
+                    color: root.mutedColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                }
+
+                Rectangle {
+                    id: suggestOpenButton
+                    width: suggestOpenLabel.implicitWidth + Style.space(14)
+                    height: Style.space(26)
+                    radius: Style.space(5)
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: Qt.rgba(0.96, 0.62, 0.04, 0.22)
+
+                    Text {
+                        id: suggestOpenLabel
+                        anchors.centerIn: parent
+                        text: "Suggest a feature"
+                        color: "#f59e0b"
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.suggestionOpen = true
+                    }
+                }
+            }
+
+            Column {
+                id: suggestionEditorColumn
+                visible: root.suggestionOpen
+                anchors.fill: parent
+                anchors.margins: Style.space(8)
+                spacing: Style.space(6)
+
+                Row {
+                    width: parent.width
+
+                    Text {
+                        width: parent.width - suggestionCloseButton.width
+                        text: "💡 Suggest a feature"
+                        color: root.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                    }
+
+                    Rectangle {
+                        id: suggestionCloseButton
+                        width: Style.space(24)
+                        height: Style.space(24)
+                        radius: Style.space(4)
+                        color: "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "×"
+                            color: root.mutedColor
+                            font.pixelSize: Style.space(18)
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.suggestionOpen = false
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    text: "Write one concrete idea. It stays local until you choose Copy or Open GitHub."
+                    color: root.mutedColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    wrapMode: Text.WordWrap
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: Style.space(34)
+                    radius: Style.space(5)
+                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+
+                    TextInput {
+                        id: suggestionEditor
+                        anchors.fill: parent
+                        anchors.margins: Style.space(8)
+                        color: root.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        text: root.suggestionText
+                        maximumLength: 180
+                        onTextChanged: root.suggestionText = text
+                        selectByMouse: true
+
+                        Text {
+                            visible: suggestionEditor.text === ""
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "e.g. Add a shared hack-night room"
+                            color: root.mutedColor
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.bodySmall
+                        }
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: Style.space(6)
+
+                    Rectangle {
+                        width: copySuggestionLabel.implicitWidth + Style.space(14)
+                        height: Style.space(28)
+                        radius: Style.space(5)
+                        color: root.accentColor
+
+                        Text {
+                            id: copySuggestionLabel
+                            anchors.centerIn: parent
+                            text: "📋 Copy idea"
+                            color: root.bg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: root.suggestionText.trim() !== ""
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.copySuggestion()
+                        }
+                    }
+
+                    Rectangle {
+                        width: openSuggestionLabel.implicitWidth + Style.space(14)
+                        height: Style.space(28)
+                        radius: Style.space(5)
+                        color: Qt.rgba(0.96, 0.62, 0.04, 0.20)
+                        border.width: 1
+                        border.color: Qt.rgba(0.96, 0.62, 0.04, 0.38)
+
+                        Text {
+                            id: openSuggestionLabel
+                            anchors.centerIn: parent
+                            text: "Open GitHub"
+                            color: "#f59e0b"
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: root.suggestionText.trim() !== ""
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.openSuggestion()
+                        }
+                    }
+
+                    Text {
+                        width: parent.width - copySuggestionLabel.implicitWidth - openSuggestionLabel.implicitWidth - Style.space(48)
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.suggestionNotice !== ""
+                        text: root.suggestionNotice
+                        color: "#10b981"
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
                     }
                 }
             }
