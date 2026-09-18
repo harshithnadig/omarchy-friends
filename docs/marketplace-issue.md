@@ -23,6 +23,7 @@ a global feed, and has no hosted relay or simulated users. LAN packets are
 plaintext and unauthenticated; the README documents that boundary. The
 repository contains the manifest, installation and removal instructions,
 license, tests, and Quickshell validation commands.
+The click-to-open Friends Deck repair is included in the current `main` head.
 
 ### Submission checklist
 
