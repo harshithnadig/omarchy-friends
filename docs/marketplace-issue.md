@@ -1,12 +1,3 @@
-# Marketplace submission draft
-
-Title:
-
-    [Plugin]: Omarchy Friends
-
-The owner must review and explicitly approve this completed body before it is
-posted to the Omarchy plugin marketplace. This file is only a local draft.
-
 ### Repository URL
 
 https://github.com/harshithnadig/omarchy-friends
