@@ -16,6 +16,12 @@ available when people are nearby.
 * **👋 One-click connection:** Wave, offer coffee, or send kudos from any
   world profile. Incoming waves appear in the deck and as a desktop
   notification. No Friend Code is required.
+* **✨ World Spark:** Get a daily bounded opener and send it to the best live
+  match, so meeting someone starts with an actual question instead of a
+  blank chat box.
+* **🍅 Focus ritual:** Invite a real builder to pair for 25 minutes. The
+  invite expires, the other person explicitly joins, and both sides get a
+  shared local countdown without opening another social app.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
 * **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for
@@ -49,8 +55,9 @@ The generated profile is visible by default because automatic discovery is the
 point of the plugin. The **🌍 World** privacy chip hides it immediately. Do not
 put a real name, email, location, or private project URL in a public profile.
 Public relays can observe the pseudonymous signed events they carry; this is
-not end-to-end private chat. The plugin deliberately starts with small,
-bounded signals instead of opening a public freeform inbox.
+not end-to-end private chat. World Spark questions and focus invitations are
+bounded signed signals, not a freeform public inbox. A focus invitation expires
+after three minutes unless the recipient explicitly joins.
 
 ## Local radar and privacy
 

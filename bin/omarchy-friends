@@ -3,9 +3,10 @@
 
 The local radar remains available, but the primary Friends experience is a
 federated lobby. Every install gets a generated identity, publishes a small
-signed presence to public Nostr relays, and can send a bounded wave to another
-currently-online install without exchanging a Friend Code. The global layer
-never publishes an IP address, a real name, or an account credential.
+signed presence to public Nostr relays, and can send a bounded wave or an
+explicit 25-minute focus invitation to another currently-online install
+without exchanging a Friend Code. The global layer never publishes an IP
+address, a real name, or an account credential.
 """
 
 import hashlib
@@ -162,7 +163,24 @@ GLOBAL_ACTION_META = {
     "hello": ("👋", "a wave"),
     "coffee": ("☕", "a coffee invite"),
     "kudos": ("⚡", "kudos"),
+    "spark": ("✨", "a connection spark"),
+    "focus": ("🍅", "a 25m focus invite"),
+    "focus_accept": ("✅", "a focus invite acceptance"),
+    "focus_cancel": ("⏹", "a focus session cancellation"),
 }
+
+GLOBAL_FOCUS_DEFAULT_MINUTES = 25
+GLOBAL_FOCUS_PENDING_SECONDS = 180
+GLOBAL_FOCUS_ACTIONS = {"focus", "focus_accept", "focus_cancel"}
+
+WORLD_PROMPTS = (
+    "What tiny thing are you making better today?",
+    "What are you building that deserves a tiny launch bell?",
+    "What is the best part of your current setup?",
+    "What did you learn the hard way this week?",
+    "What would you pair on for 25 focused minutes?",
+    "What open-source idea has your attention right now?",
+)
 
 GLOBAL_HANDLE_ADJECTIVES = (
     "Pixel", "Kernel", "Neon", "Cosmic", "Quiet", "Turbo", "Midnight", "Electric"
@@ -417,6 +435,19 @@ class FriendsEngine:
         self.state_file = self.state_dir / "friends_state.json"
         self.state = self.load_state()
 
+    @staticmethod
+    def _empty_global_focus():
+        return {
+            "status": "idle",
+            "session_id": "",
+            "buddy_public_key": "",
+            "buddy_name": "",
+            "buddy_avatar": "",
+            "started_at": 0,
+            "ends_at": 0,
+            "total_seconds": 0,
+        }
+
     def _default_state(self):
         global_identity = generate_keypair()
         return {
@@ -443,6 +474,7 @@ class FriendsEngine:
                 "blocked_pubkeys": [],
                 "incoming_receipts": [],
                 "sent_pings": [],
+                "processed_event_ids": [],
                 "last_sync": 0,
                 "last_publish": 0,
                 "last_error": "",
@@ -461,6 +493,7 @@ class FriendsEngine:
                 "total_seconds": 0,
             },
             "cowork_invites": [],
+            "global_focus": self._empty_global_focus(),
             "events": [],
             "seen_event_ids": [],
             "signal_receipts": [],
@@ -591,6 +624,30 @@ class FriendsEngine:
                 for item in old_global.get("sent_pings", [])
                 if isinstance(item, dict) and is_valid_public_key(item.get("public_key"))
             ][-GLOBAL_MAX_SENT_PINGS:]
+            global_state["processed_event_ids"] = list(dict.fromkeys(
+                trim_text(event_id, 64).lower()
+                for event_id in old_global.get("processed_event_ids", [])
+                if trim_text(event_id, 64)
+            ))[-MAX_SEEN_EVENT_IDS:]
+
+        old_global_focus = data.get("global_focus")
+        if isinstance(old_global_focus, dict):
+            focus = state["global_focus"]
+            status = trim_text(old_global_focus.get("status"), 12)
+            focus["status"] = status if status in ("idle", "pending", "active") else "idle"
+            focus["session_id"] = trim_text(old_global_focus.get("session_id"), 40)
+            focus["buddy_public_key"] = trim_text(old_global_focus.get("buddy_public_key"), 64).lower()
+            if not is_valid_public_key(focus["buddy_public_key"]):
+                focus["buddy_public_key"] = ""
+            focus["buddy_name"] = trim_text(old_global_focus.get("buddy_name"), 24)
+            focus["buddy_avatar"] = (
+                old_global_focus.get("buddy_avatar")
+                if old_global_focus.get("buddy_avatar") in AVAILABLE_AVATARS
+                else "👾"
+            )
+            focus["started_at"] = safe_int(old_global_focus.get("started_at"))
+            focus["ends_at"] = safe_int(old_global_focus.get("ends_at"))
+            focus["total_seconds"] = safe_int(old_global_focus.get("total_seconds"), maximum=7200)
 
         for code, peer in (data.get("lan_peers") or {}).items():
             normalized = self._normalize_peer(peer)
@@ -737,11 +794,13 @@ class FriendsEngine:
         public_key = trim_text(item.get("public_key") or item.get("pubkey"), 64).lower()
         action = trim_text(item.get("action"), 16)
         timestamp = safe_int(item.get("timestamp") or item.get("created_at"))
+        session_id = trim_text(item.get("session_id"), 40)
         if (
             not event_id
             or not is_valid_public_key(public_key)
             or action not in GLOBAL_ACTION_META
             or not timestamp
+            or (action in GLOBAL_FOCUS_ACTIONS and not session_id)
         ):
             return None
         avatar = item.get("avatar") or item.get("from_avatar")
@@ -754,6 +813,9 @@ class FriendsEngine:
             "avatar": avatar,
             "action": action,
             "icon": GLOBAL_ACTION_META[action][0],
+            "prompt": trim_text(item.get("prompt"), 120),
+            "session_id": session_id,
+            "minutes": safe_int(item.get("minutes"), GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120),
             "message": trim_text(item.get("message"), 120),
             "timestamp": timestamp,
             "time_ago": format_age(timestamp),
@@ -1074,6 +1136,182 @@ class FriendsEngine:
         )
         return peers[:GLOBAL_MAX_PEERS]
 
+    @staticmethod
+    def _world_prompt():
+        day_number = now_seconds() // 86400
+        return WORLD_PROMPTS[day_number % len(WORLD_PROMPTS)]
+
+    def global_spark(self):
+        """Choose the most promising real peer and send a bounded opener."""
+        peers = self._global_peers()
+        if not peers:
+            return False, "No builders are online yet — refresh the World in a moment"
+        peer = peers[0]
+        prompt = peer.get("icebreaker") or self._world_prompt()
+        ok, message = self.global_ping(peer["public_key"], "spark", prompt)
+        if ok:
+            return True, f"Spark sent to {peer.get('handle', 'a builder')} · {prompt}"
+        return False, message
+
+    def _current_global_focus(self):
+        focus = self.state.setdefault("global_focus", self._empty_global_focus())
+        status = focus.get("status") if focus.get("status") in ("pending", "active") else "idle"
+        now = now_seconds()
+        if status == "pending":
+            remaining = focus.get("started_at", 0) + GLOBAL_FOCUS_PENDING_SECONDS - now
+            if remaining <= 0 or not focus.get("session_id") or not focus.get("buddy_public_key"):
+                self.state["global_focus"] = self._empty_global_focus()
+                status = "idle"
+                remaining = 0
+        elif status == "active":
+            remaining = safe_int(focus.get("ends_at")) - now
+            if remaining <= 0:
+                self.state["global_focus"] = self._empty_global_focus()
+                status = "idle"
+                remaining = 0
+        else:
+            remaining = 0
+
+        if status == "idle":
+            focus = self.state["global_focus"]
+        return {
+            "status": status,
+            "active": status == "active",
+            "pending": status == "pending",
+            "session_id": trim_text(focus.get("session_id"), 40),
+            "buddy_public_key": trim_text(focus.get("buddy_public_key"), 64).lower(),
+            "buddy_name": trim_text(focus.get("buddy_name"), 24),
+            "buddy_avatar": focus.get("buddy_avatar") if focus.get("buddy_avatar") in AVAILABLE_AVATARS else "👾",
+            "remaining_seconds": max(0, safe_int(remaining)),
+            "total_seconds": safe_int(focus.get("total_seconds"), maximum=7200),
+        }
+
+    def global_focus_invite(self, public_key=None, duration_mins=GLOBAL_FOCUS_DEFAULT_MINUTES):
+        """Invite one real online builder to a bounded shared focus session."""
+        if self._current_global_focus()["status"] != "idle":
+            return False, "Finish your current World focus ritual first"
+        peers = self._global_peers()
+        requested_key = trim_text(public_key, 64).lower() if public_key else ""
+        peer = next((item for item in peers if item.get("public_key") == requested_key), None) if requested_key else (peers[0] if peers else None)
+        if not peer:
+            return False, "No builders are online yet — refresh the World in a moment"
+        duration_mins = safe_int(duration_mins, GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120)
+        session_id = uuid.uuid4().hex
+        ok, message = self.global_ping(
+            peer["public_key"],
+            "focus",
+            session_id=session_id,
+            minutes=duration_mins,
+        )
+        if not ok:
+            return False, message
+        started_at = now_seconds()
+        self.state["global_focus"] = {
+            "status": "pending",
+            "session_id": session_id,
+            "buddy_public_key": peer["public_key"],
+            "buddy_name": peer.get("handle", "A builder"),
+            "buddy_avatar": peer.get("avatar", "👾"),
+            "started_at": started_at,
+            "ends_at": 0,
+            "total_seconds": duration_mins * 60,
+        }
+        self.save_state()
+        return True, f"Invited {peer.get('handle', 'a builder')} to focus for {duration_mins} minutes"
+
+    def _handle_global_focus_reply(self, ping):
+        focus = self.state.setdefault("global_focus", self._empty_global_focus())
+        if (
+            focus.get("status") != "pending"
+            or focus.get("session_id") != ping.get("session_id")
+            or focus.get("buddy_public_key") != ping.get("public_key")
+        ):
+            return False
+        peer = self.state.get("global", {}).get("peers", {}).get(ping["public_key"], ping)
+        if ping.get("action") == "focus_accept":
+            started_at = now_seconds()
+            minutes = safe_int(ping.get("minutes"), GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120)
+            self.state["global_focus"] = {
+                "status": "active",
+                "session_id": ping["session_id"],
+                "buddy_public_key": ping["public_key"],
+                "buddy_name": ping.get("handle") or peer.get("handle", "A builder"),
+                "buddy_avatar": ping.get("avatar") or peer.get("avatar", "👾"),
+                "started_at": started_at,
+                "ends_at": started_at + minutes * 60,
+                "total_seconds": minutes * 60,
+            }
+            message = f"{ping.get('handle', 'A builder')} joined your {minutes}m focus session."
+            self._append_event("focus_accept", "✅", ping.get("handle"), ping.get("avatar"), message, ping.get("id"))
+            self._append_pulse(peer, "focus", message, remote=True)
+            return True
+        if ping.get("action") == "focus_cancel":
+            self.state["global_focus"] = self._empty_global_focus()
+            message = f"{ping.get('handle', 'A builder')} ended the World focus ritual."
+            self._append_event("focus_cancel", "⏹", ping.get("handle"), ping.get("avatar"), message, ping.get("id"))
+            self._append_pulse(peer, "focus_cancel", message, remote=True)
+            return True
+        return False
+
+    def global_focus_accept(self, ping_id):
+        if self._current_global_focus()["status"] != "idle":
+            return False, "Finish your current World focus ritual first"
+        ping_id = trim_text(ping_id, 64).lower()
+        ping = next(
+            (item for item in self.state.get("global", {}).get("pings", []) if item.get("id") == ping_id),
+            None,
+        )
+        if not ping or ping.get("action") != "focus":
+            return False, "That focus invite is no longer available"
+        if safe_int(ping.get("timestamp")) < now_seconds() - GLOBAL_FOCUS_PENDING_SECONDS:
+            self.state["global"]["pings"] = [item for item in self.state["global"]["pings"] if item.get("id") != ping_id]
+            self.save_state()
+            return False, "That focus invite has expired"
+        peer = self.state.get("global", {}).get("peers", {}).get(ping.get("public_key"))
+        if not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS:
+            return False, "That builder is no longer online"
+        minutes = safe_int(ping.get("minutes"), GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120)
+        ok, message = self.global_ping(
+            ping["public_key"],
+            "focus_accept",
+            session_id=ping.get("session_id"),
+            minutes=minutes,
+        )
+        if not ok:
+            return False, message
+        started_at = now_seconds()
+        self.state["global_focus"] = {
+            "status": "active",
+            "session_id": ping.get("session_id", ""),
+            "buddy_public_key": ping["public_key"],
+            "buddy_name": ping.get("handle", "A builder"),
+            "buddy_avatar": ping.get("avatar", "👾"),
+            "started_at": started_at,
+            "ends_at": started_at + minutes * 60,
+            "total_seconds": minutes * 60,
+        }
+        self.state["global"]["pings"] = [item for item in self.state["global"]["pings"] if item.get("id") != ping_id]
+        message = f"You joined {ping.get('handle', 'a builder')} for {minutes} minutes"
+        self._append_event("focus", "🍅", ping.get("handle"), ping.get("avatar"), message, ping_id)
+        self._append_pulse(peer, "focus", message)
+        self.save_state()
+        return True, message
+
+    def global_focus_cancel(self):
+        focus = self._current_global_focus()
+        if focus["status"] == "idle":
+            return True, "No World focus ritual is active"
+        if focus.get("buddy_public_key"):
+            self.global_ping(
+                focus["buddy_public_key"],
+                "focus_cancel",
+                session_id=focus.get("session_id"),
+                minutes=max(5, safe_int(focus.get("total_seconds"), 1500) // 60),
+            )
+        self.state["global_focus"] = self._empty_global_focus()
+        self.save_state()
+        return True, "World focus ritual ended"
+
     def _global_relay_sync(self, relay_url, presence_event, since):
         """Publish presence and collect current presence plus addressed pings."""
         presence_sub = "ofp" + uuid.uuid4().hex[:12]
@@ -1212,17 +1450,25 @@ class FriendsEngine:
             peer["relay_count"] = len(relay_counts.get(key, set()))
         if successes:
             global_state["peers"].update(peers)
+        processed_ids = global_state.setdefault("processed_event_ids", [])
         for ping in pings:
-            if any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
+            if ping["id"] in processed_ids or any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
                 continue
             if ping["public_key"] in global_state.get("blocked_pubkeys", []):
                 continue
             if not self._allow_global_signal(ping["public_key"]):
                 continue
+            if ping.get("action") in ("focus_accept", "focus_cancel"):
+                self._handle_global_focus_reply(ping)
+                processed_ids.append(ping["id"])
+                global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+                continue
             global_state.setdefault("pings", []).append(ping)
             peer = global_state.get("peers", {}).get(ping["public_key"], ping)
             icon, label = GLOBAL_ACTION_META[ping["action"]]
             message = f"{ping['handle']} sent you {label}."
+            if ping.get("prompt"):
+                message += f" {ping['prompt']}"
             self._append_event(ping["action"], icon, ping["handle"], ping["avatar"], message, ping["id"])
             self._append_pulse(peer, ping["action"], message, remote=True)
             global_state["pings"] = global_state["pings"][-GLOBAL_MAX_PINGS:]
@@ -1242,7 +1488,7 @@ class FriendsEngine:
             return True, "World refreshed; presence is waiting for relay acceptance"
         return False, "World is offline; local radar still works"
 
-    def global_ping(self, public_key, action="hello"):
+    def global_ping(self, public_key, action="hello", prompt="", session_id="", minutes=GLOBAL_FOCUS_DEFAULT_MINUTES):
         public_key = trim_text(public_key, 64).lower()
         if not is_valid_public_key(public_key):
             return False, "That world profile is not valid"
@@ -1272,6 +1518,9 @@ class FriendsEngine:
                 "action": action,
                 "handle": self.state["profile"]["handle"],
                 "avatar": self.state["profile"]["avatar"],
+                "prompt": trim_text(prompt, 120),
+                "session_id": trim_text(session_id, 40),
+                "minutes": safe_int(minutes, GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120),
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -1294,8 +1543,11 @@ class FriendsEngine:
             return False, "Could not reach the world right now"
         sent.append({"public_key": public_key, "timestamp": now_seconds()})
         self.state["global"]["sent_pings"] = sent[-GLOBAL_MAX_SENT_PINGS:]
-        self._append_event(action, icon, peer.get("handle"), peer.get("avatar"), f"You sent {label} to {peer.get('handle', 'a builder')}.", event["id"])
-        self._append_pulse(peer, action, f"You sent {label} to {peer.get('handle', 'a builder')}.", remote=False)
+        message = f"You sent {label} to {peer.get('handle', 'a builder')}."
+        if prompt:
+            message += f" {trim_text(prompt, 120)}"
+        self._append_event(action, icon, peer.get("handle"), peer.get("avatar"), message, event["id"])
+        self._append_pulse(peer, action, message, remote=False)
         self.save_state()
         return True, f"Sent {label} to {peer.get('handle', 'a builder')}"
 
@@ -2036,6 +2288,7 @@ class FriendsEngine:
         global_state = self.state.setdefault("global", {})
         global_pings = list(global_state.get("pings", []))[-GLOBAL_MAX_PINGS:]
         cowork = self._current_cowork()
+        global_focus = self._current_global_focus()
         profile = self.state["profile"]
         privacy = profile.get("privacy", {})
         active_app = get_active_window() if privacy.get("share_window", True) else "Hidden"
@@ -2109,7 +2362,9 @@ class FriendsEngine:
                 ),
                 "relay_total": len(GLOBAL_RELAYS),
             },
+            "world_prompt": self._world_prompt(),
             "world_pulse": self.state.get("world_pulse", []),
+            "global_focus": global_focus,
             "cowork": cowork,
             "cowork_invites": self._normalize_invites(self.state.get("cowork_invites")),
             "online_count": len(peers) + len(global_peers),
@@ -2260,6 +2515,19 @@ def main():
     elif command == "global-refresh":
         ok, message = engine.sync_global()
         print_result(ok, message, global_status=engine.get_full_status().get("global_status", {}))
+    elif command == "global-spark":
+        ok, message = engine.global_spark()
+        print_result(ok, message)
+    elif command == "global-focus":
+        target = sys.argv[2] if len(sys.argv) >= 3 else None
+        ok, message = engine.global_focus_invite(target)
+        print_result(ok, message)
+    elif command == "accept-global-focus" and len(sys.argv) >= 3:
+        ok, message = engine.global_focus_accept(sys.argv[2])
+        print_result(ok, message)
+    elif command == "cancel-global-focus":
+        ok, message = engine.global_focus_cancel()
+        print_result(ok, message)
     elif command == "global-ping" and len(sys.argv) >= 3:
         action = sys.argv[3] if len(sys.argv) >= 4 else "hello"
         ok, message = engine.global_ping(sys.argv[2], action)

@@ -29,6 +29,10 @@ chat app: a small, consent-aware moment of human connection.
   expiry, and a configurable relay list.
 * One-click global waves, coffee offers, and kudos; incoming waves are
   deduped, notified, and rate-limited.
+* Daily World Spark prompts that turn the best live match into a bounded,
+  human conversation opener.
+* Explicit global focus rituals: a real builder can invite another installer
+  to pair for 25 minutes, the recipient accepts, and both get a local timer.
 * Global visibility and block controls, with no IP address, real name, or
   account credential in the presence payload.
 
@@ -53,15 +57,13 @@ chat app: a small, consent-aware moment of human connection.
 
 ## Best next additions
 
-1. **Presence rituals:** one-tap “I’m here”, “pair for 25”, and “ship bell”
-   signals with a clear pending/accepted state. No chat box.
-2. **Beacon history:** show “what changed since last seen” for a world peer,
+1. **Beacon history:** show “what changed since last seen” for a world peer,
    using only their explicitly shared status/project fields.
-3. **Relay health and community relays:** make relay latency visible and let
+2. **Relay health and community relays:** make relay latency visible and let
    Omarchy communities add a trusted relay without changing the identity model.
-4. **Conversation memory:** keep a tiny, local-only record of mutual signals so
+3. **Conversation memory:** keep a tiny, local-only record of mutual signals so
    a returning peer feels familiar without creating a public social graph.
-5. **Private transport upgrade:** add an explicitly configured encrypted
+4. **Private transport upgrade:** add an explicitly configured encrypted
    unicast path only after the consent and key model is designed; do not turn
    Friend Codes into authentication quietly.
 

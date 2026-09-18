@@ -50,6 +50,8 @@ PopupCard {
     readonly property var globalList: service && service.globalPeers ? service.globalPeers : []
     readonly property var globalPings: service && service.globalPings ? service.globalPings : []
     readonly property var globalStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
+    readonly property string worldPrompt: service && service.worldPrompt ? service.worldPrompt : "What tiny thing are you making better today?"
+    readonly property var globalFocus: service && service.globalFocus ? service.globalFocus : ({ status: "idle", active: false, pending: false, buddy_name: "", buddy_avatar: "", remaining_seconds: 0, total_seconds: 0 })
     readonly property var worldPulse: service && service.worldPulse ? service.worldPulse : []
     readonly property var cowork: service && service.cowork ? service.cowork : ({ active: false, mode: "", remaining_seconds: 0, buddy_name: "", buddy_avatar: "", total_seconds: 0 })
     readonly property var coworkInvites: service && service.coworkInvites ? service.coworkInvites : []
@@ -176,6 +178,79 @@ PopupCard {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: if (root.service) root.service.cancelCowork()
+                    }
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // WORLD FOCUS RITUAL (PENDING OR ACTIVE)
+        // -------------------------------------------------------------
+        Rectangle {
+            width: parent.width
+            height: Style.space(44)
+            radius: Math.max(6, Style.cornerRadius)
+            visible: root.globalFocus && root.globalFocus.status !== "idle"
+            color: Qt.rgba(0.45, 0.32, 0.95, 0.16)
+            border.width: 1
+            border.color: Qt.rgba(0.55, 0.42, 1.0, 0.55)
+
+            Row {
+                anchors.fill: parent
+                anchors.margins: Style.space(8)
+                spacing: Style.space(10)
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.globalFocus.pending ? "⏳" : "🍅"
+                    font.pixelSize: Style.space(20)
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - Style.space(130)
+                    spacing: Style.space(1)
+
+                    Text {
+                        text: root.globalFocus.pending ? "Waiting for " + (root.globalFocus.buddy_name || "a builder") : "World focus with " + (root.globalFocus.buddy_name || "a builder") + " " + (root.globalFocus.buddy_avatar || "")
+                        color: root.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        readonly property int remSecs: root.globalFocus.remaining_seconds || 0
+                        readonly property int mins: Math.floor(remSecs / 60)
+                        readonly property int secs: remSecs % 60
+                        text: root.globalFocus.pending ? "Invite is open · " + mins + "m " + (secs < 10 ? "0" + secs : secs) + "s" : mins + "m " + (secs < 10 ? "0" + secs : secs) + "s remaining"
+                        color: "#b9a7ff"
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: Style.space(24)
+                    width: stopWorldFocusLabel.implicitWidth + Style.space(12)
+                    radius: Style.space(4)
+                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.12)
+
+                    Text {
+                        id: stopWorldFocusLabel
+                        anchors.centerIn: parent
+                        text: root.globalFocus.pending ? "Cancel" : "Stop"
+                        color: root.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: if (root.service) root.service.cancelGlobalFocus()
                     }
                 }
             }
@@ -1093,6 +1168,107 @@ PopupCard {
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
                     }
+
+                    Rectangle {
+                        width: parent.width
+                        height: sparkRow.implicitHeight + Style.space(12)
+                        radius: Style.space(6)
+                        color: Qt.rgba(0.96, 0.62, 0.04, 0.10)
+                        border.width: 1
+                        border.color: Qt.rgba(0.96, 0.62, 0.04, 0.24)
+
+                        Row {
+                            id: sparkRow
+                            anchors.fill: parent
+                            anchors.margins: Style.space(7)
+                            spacing: Style.space(8)
+
+                            Text {
+                                text: "✨"
+                                font.pixelSize: Style.space(18)
+                            }
+
+                            Column {
+                                width: parent.width - Style.space(34)
+                                spacing: Style.space(1)
+
+                                Text {
+                                    text: "Today's World Spark"
+                                    color: "#f59e0b"
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: root.worldPrompt
+                                    color: root.fg
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                Row {
+                                    spacing: Style.space(6)
+
+                                    Rectangle {
+                                        id: sparkButton
+                                        width: sparkButtonLabel.implicitWidth + Style.space(14)
+                                        height: Style.space(28)
+                                        radius: Style.space(6)
+                                        opacity: root.globalList.length > 0 && root.globalStatus.visible ? 1 : 0.45
+                                        color: root.accentColor
+
+                                        Text {
+                                            id: sparkButtonLabel
+                                            anchors.centerIn: parent
+                                            text: "Spark someone"
+                                            color: root.bg
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.caption
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            enabled: root.globalList.length > 0 && root.globalStatus.visible
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: if (root.service) root.service.sparkWorld()
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: focusButton
+                                        width: focusButtonLabel.implicitWidth + Style.space(14)
+                                        height: Style.space(28)
+                                        radius: Style.space(6)
+                                        opacity: root.globalList.length > 0 && root.globalStatus.visible && (!root.globalFocus || root.globalFocus.status === "idle") ? 1 : 0.45
+                                        color: Qt.rgba(0.45, 0.32, 0.95, 0.34)
+                                        border.width: 1
+                                        border.color: Qt.rgba(0.65, 0.55, 1.0, 0.65)
+
+                                        Text {
+                                            id: focusButtonLabel
+                                            anchors.centerIn: parent
+                                            text: "🍅 Pair for 25m"
+                                            color: root.fg
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.caption
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            enabled: root.globalList.length > 0 && root.globalStatus.visible && (!root.globalFocus || root.globalFocus.status === "idle")
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: if (root.service) root.service.inviteGlobalFocus()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1112,7 +1288,7 @@ PopupCard {
                     spacing: Style.space(5)
 
                     Text {
-                        text: "✨ Incoming waves"
+                        text: "✨ World signals"
                         color: "#f59e0b"
                         font.family: Style.font.family
                         font.pixelSize: Style.font.bodySmall
@@ -1132,8 +1308,8 @@ PopupCard {
                             }
 
                             Text {
-                                width: parent.width - Style.space(92)
-                                text: (modelData.handle || "A builder") + " sent you " + (modelData.action || "a wave")
+                                width: parent.width - (modelData.action === "focus" ? Style.space(116) : Style.space(92))
+                                text: modelData.action === "focus" ? ((modelData.handle || "A builder") + " wants to focus with you for " + (modelData.minutes || 25) + "m") : (modelData.prompt ? ((modelData.handle || "A builder") + " asks: " + modelData.prompt) : ((modelData.handle || "A builder") + " sent you " + (modelData.action || "a wave")))
                                 color: root.fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
@@ -1149,8 +1325,8 @@ PopupCard {
                                 Text {
                                     id: incomingReplyLabel
                                     anchors.centerIn: parent
-                                    text: "👋 Wave back"
-                                    color: root.accentColor
+                                    text: modelData.action === "focus" ? "Join " + (modelData.minutes || 25) + "m" : "👋 Wave back"
+                                    color: modelData.action === "focus" ? "#b9a7ff" : root.accentColor
                                     font.family: Style.font.family
                                     font.pixelSize: Style.font.caption
                                     font.bold: true
@@ -1159,7 +1335,11 @@ PopupCard {
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (root.service) root.service.pingGlobal(modelData.public_key, "hello")
+                                    onClicked: {
+                                        if (!root.service) return
+                                        if (modelData.action === "focus") root.service.acceptGlobalFocus(modelData.id)
+                                        else root.service.pingGlobal(modelData.public_key, "hello")
+                                    }
                                 }
                             }
                         }
@@ -1216,7 +1396,7 @@ PopupCard {
                         }
 
                         Column {
-                            width: parent.width - Style.space(150)
+                            width: parent.width - Style.space(212)
                             spacing: Style.space(2)
 
                             Row {
@@ -1259,11 +1439,13 @@ PopupCard {
                         }
 
                         Row {
+                            id: worldActions
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(4)
 
                             Repeater {
                                 model: [
+                                    { action: "focus", label: "🍅" },
                                     { action: "hello", label: "👋" },
                                     { action: "coffee", label: "☕" },
                                     { action: "kudos", label: "⚡" }
@@ -1284,7 +1466,12 @@ PopupCard {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: if (root.service) root.service.pingGlobal(worldPeer.public_key, modelData.action)
+                                        enabled: modelData.action !== "focus" || !root.globalFocus || root.globalFocus.status === "idle"
+                                        onClicked: {
+                                            if (!root.service) return
+                                            if (modelData.action === "focus") root.service.inviteGlobalFocus(worldPeer.public_key)
+                                            else root.service.pingGlobal(worldPeer.public_key, modelData.action)
+                                        }
                                     }
                                 }
                             }

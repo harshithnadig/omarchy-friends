@@ -40,6 +40,8 @@ Item {
     property var globalPeers: []
     property var globalPings: []
     property var globalStatus: ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
+    property string worldPrompt: "What tiny thing are you making better today?"
+    property var globalFocus: ({ status: "idle", active: false, pending: false, buddy_name: "", buddy_avatar: "", remaining_seconds: 0, total_seconds: 0 })
     property var worldPulse: []
     property var cowork: ({ active: false, mode: "", remaining_seconds: 0, buddy_code: "", buddy_name: "", buddy_avatar: "", total_seconds: 0 })
     property var coworkInvites: []
@@ -225,6 +227,39 @@ Item {
         })
     }
 
+    function sparkWorld() {
+        runAction([root.binPath, "global-spark"], function(output) {
+            root.reportResult(output, "Connection spark sent")
+            root.refresh()
+            root.pollEvents()
+        })
+    }
+
+    function inviteGlobalFocus(publicKey) {
+        var args = [root.binPath, "global-focus"]
+        if (publicKey) args.push(publicKey)
+        runAction(args, function(output) {
+            root.reportResult(output, "Focus invite sent")
+            root.refresh()
+            root.pollEvents()
+        })
+    }
+
+    function acceptGlobalFocus(pingId) {
+        runAction([root.binPath, "accept-global-focus", pingId], function(output) {
+            root.reportResult(output, "You joined the focus ritual")
+            root.refresh()
+            root.pollEvents()
+        })
+    }
+
+    function cancelGlobalFocus() {
+        runAction([root.binPath, "cancel-global-focus"], function(output) {
+            root.reportResult(output, "World focus ended")
+            root.refresh()
+        })
+    }
+
     function pingGlobal(publicKey, action) {
         root.friendInteracted(action || "hello", publicKey)
         runAction([root.binPath, "global-ping", publicKey, action || "hello"], function(output) {
@@ -306,6 +341,8 @@ Item {
                     if (data.global_peers) root.globalPeers = data.global_peers
                     if (data.global_pings) root.globalPings = data.global_pings
                     if (data.global_status) root.globalStatus = data.global_status
+                    if (data.world_prompt) root.worldPrompt = data.world_prompt
+                    if (data.global_focus) root.globalFocus = data.global_focus
                     if (data.world_pulse) root.worldPulse = data.world_pulse
                     if (data.cowork) root.cowork = data.cowork
                     if (data.cowork_invites) root.coworkInvites = data.cowork_invites

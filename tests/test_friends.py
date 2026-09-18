@@ -110,6 +110,75 @@ class TestFriendsEngine(unittest.TestCase):
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)
 
+    def test_world_spark_sends_a_bounded_icebreaker_to_a_real_peer(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                peer = self.engine._global_peer_from_event(remote._global_presence_event())
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            published = []
+            with patch.object(
+                self.engine,
+                "_publish_global_event",
+                side_effect=lambda event: published.append(event) or (True, {}),
+            ):
+                ok, message = self.engine.global_spark()
+            self.assertTrue(ok, message)
+            self.assertEqual(len(published), 1)
+            content = json.loads(published[0]["content"])
+            self.assertEqual(content["action"], "spark")
+            self.assertTrue(content["prompt"])
+            self.assertLessEqual(len(content["prompt"]), 120)
+            self.assertTrue(friends_module.verify_event(published[0]))
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
+    def test_world_focus_invite_and_acceptance_create_a_real_shared_ritual(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                remote_peer = self.engine._global_peer_from_event(remote._global_presence_event())
+                local_peer = remote._global_peer_from_event(self.engine._global_presence_event())
+            self.engine.state["global"]["peers"][remote_peer["public_key"]] = remote_peer
+            remote.state["global"]["peers"][local_peer["public_key"]] = local_peer
+
+            invite_events = []
+            with patch.object(
+                self.engine,
+                "_publish_global_event",
+                side_effect=lambda event: invite_events.append(event) or (True, {}),
+            ):
+                ok, message = self.engine.global_focus_invite(remote_peer["public_key"])
+            self.assertTrue(ok, message)
+            self.assertEqual(self.engine.get_full_status()["global_focus"]["status"], "pending")
+            invite_content = json.loads(invite_events[0]["content"])
+            self.assertEqual(invite_content["action"], "focus")
+            self.assertEqual(invite_content["minutes"], 25)
+
+            invite_ping = remote._global_ping_from_event(invite_events[0])
+            self.assertIsNotNone(invite_ping)
+            remote.state["global"]["pings"].append(invite_ping)
+            accept_events = []
+            with patch.object(
+                remote,
+                "_publish_global_event",
+                side_effect=lambda event: accept_events.append(event) or (True, {}),
+            ):
+                ok, message = remote.global_focus_accept(invite_ping["id"])
+            self.assertTrue(ok, message)
+            self.assertTrue(remote.get_full_status()["global_focus"]["active"])
+            self.assertEqual(json.loads(accept_events[0]["content"])["action"], "focus_accept")
+
+            accepted_ping = self.engine._global_ping_from_event(accept_events[0])
+            self.assertTrue(self.engine._handle_global_focus_reply(accepted_ping))
+            focus = self.engine.get_full_status()["global_focus"]
+            self.assertTrue(focus["active"])
+            self.assertEqual(focus["buddy_public_key"], remote_peer["public_key"])
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
     def test_global_refresh_delivers_incoming_wave_once(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)
