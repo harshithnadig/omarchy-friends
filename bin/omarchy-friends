@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""
-Omarchy Friends — a small, local-first human layer for Omarchy.
+"""Omarchy Friends — a global, pseudonymous human layer for Omarchy.
 
-The daemon only discovers peers that explicitly broadcast an opt-in presence
-on the local network.  It never invents users, replies, locations, or feed
-activity, and it has no hosted service dependency.
+The local radar remains available, but the primary Friends experience is a
+federated lobby. Every install gets a generated identity, publishes a small
+signed presence to public Nostr relays, and can send a bounded wave to another
+currently-online install without exchanging a Friend Code. The global layer
+never publishes an IP address, a real name, or an account credential.
 """
 
 import hashlib
@@ -13,11 +14,20 @@ import os
 import re
 import select
 import socket
+import ssl
 import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from omarchy_friends_global import (  # noqa: E402
+    WebSocketClient,
+    build_event,
+    generate_keypair,
+    verify_event,
+)
 
 
 BROADCAST_PORT = 42424
@@ -31,6 +41,23 @@ MAX_SEEN_EVENT_IDS = 128
 MAX_ROOM_LENGTH = 24
 MAX_INCOMING_SIGNALS_PER_MINUTE = 12
 MAX_SIGNAL_RECEIPTS = 96
+GLOBAL_PRESENCE_KIND = 30078
+GLOBAL_PING_KIND = 1
+GLOBAL_PRESENCE_TAG = "omarchy-friends-presence"
+GLOBAL_PING_TAG = "omarchy-friends-ping"
+GLOBAL_PEER_TTL_SECONDS = 150
+GLOBAL_SYNC_INTERVAL_SECONDS = 45
+GLOBAL_MAX_PEERS = 120
+GLOBAL_MAX_PINGS = 24
+GLOBAL_MAX_SENT_PINGS = 64
+GLOBAL_RELAYS = tuple(
+    item.strip().rstrip("/")
+    for item in os.environ.get(
+        "OMARCHY_FRIENDS_RELAYS",
+        "wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band",
+    ).split(",")
+    if item.strip()
+)
 STATE_DIR = (
     Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
     / "omarchy-friends"
@@ -119,6 +146,9 @@ PRIVACY_DEFAULTS = {
     "share_theme": False,
     "share_interests": True,
     "share_room": True,
+    # The generated pseudonym is visible by default so a new install appears
+    # in the Friends tab. This can be hidden instantly from My Beacon.
+    "share_global": True,
 }
 
 INTERACTION_META = {
@@ -127,6 +157,19 @@ INTERACTION_META = {
     "coffee": ("☕", "coffee break"),
     "kudos": ("⚡", "kudos"),
 }
+
+GLOBAL_ACTION_META = {
+    "hello": ("👋", "a wave"),
+    "coffee": ("☕", "a coffee invite"),
+    "kudos": ("⚡", "kudos"),
+}
+
+GLOBAL_HANDLE_ADJECTIVES = (
+    "Pixel", "Kernel", "Neon", "Cosmic", "Quiet", "Turbo", "Midnight", "Electric"
+)
+GLOBAL_HANDLE_NOUNS = (
+    "Fox", "Penguin", "Otter", "Raven", "Comet", "Wizard", "Koala", "Cobra"
+)
 
 ICEBREAKERS = {
     "linux": "What are you ricing or tweaking lately?",
@@ -226,6 +269,31 @@ def generate_friend_code():
     seed = f"{uuid.getnode()}:{uuid.uuid4().hex}".encode("utf-8")
     digest = hashlib.sha256(seed).hexdigest().upper()
     return f"OMAR-{digest[:4]}-{digest[4:7]}"
+
+
+def generate_global_handle(public_key):
+    """Make a memorable, non-identifying handle from the local public key."""
+    digest = hashlib.sha256(str(public_key).encode("ascii", "ignore")).digest()
+    adjective = GLOBAL_HANDLE_ADJECTIVES[digest[0] % len(GLOBAL_HANDLE_ADJECTIVES)]
+    noun = GLOBAL_HANDLE_NOUNS[digest[1] % len(GLOBAL_HANDLE_NOUNS)]
+    suffix = int.from_bytes(digest[2:4], "big") % 10000
+    return f"{adjective}{noun}-{suffix:04d}"
+
+
+def generate_global_avatar(public_key):
+    digest = hashlib.sha256(str(public_key).encode("ascii", "ignore")).digest()
+    return AVAILABLE_AVATARS[digest[4] % len(AVAILABLE_AVATARS)]
+
+
+def is_valid_public_key(value):
+    value = trim_text(value, 64).lower()
+    if len(value) != 64:
+        return False
+    try:
+        int(value, 16)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def run_text_command(command, timeout=1):
@@ -350,10 +418,11 @@ class FriendsEngine:
         self.state = self.load_state()
 
     def _default_state(self):
+        global_identity = generate_keypair()
         return {
             "profile": {
-                "handle": "OmarchyHacker",
-                "avatar": "👾",
+                "handle": generate_global_handle(global_identity["public_key"]),
+                "avatar": generate_global_avatar(global_identity["public_key"]),
                 "code": generate_friend_code(),
                 "status": "coding",
                 "focus_started_at": now_seconds(),
@@ -367,6 +436,18 @@ class FriendsEngine:
             "matched_peer": None,
             "friends": [],
             "lan_peers": {},
+            "global_identity": global_identity,
+            "global": {
+                "peers": {},
+                "pings": [],
+                "blocked_pubkeys": [],
+                "incoming_receipts": [],
+                "sent_pings": [],
+                "last_sync": 0,
+                "last_publish": 0,
+                "last_error": "",
+                "relays": {},
+            },
             "world_pulse": [],
             "cowork": {
                 "active": False,
@@ -412,6 +493,15 @@ class FriendsEngine:
         if not isinstance(data, dict):
             return state
 
+        old_identity = data.get("global_identity")
+        if isinstance(old_identity, dict):
+            try:
+                candidate = generate_keypair(old_identity.get("secret_key"))
+                if candidate["public_key"] == trim_text(old_identity.get("public_key"), 64).lower():
+                    state["global_identity"] = candidate
+            except (TypeError, ValueError, OverflowError):
+                pass
+
         old_profile = data.get("profile")
         if isinstance(old_profile, dict):
             profile = state["profile"]
@@ -454,6 +544,43 @@ class FriendsEngine:
             if normalized and normalized["code"] not in LEGACY_DEMO_CODES:
                 valid_friends.append(normalized)
         state["friends"] = self._unique_peers(valid_friends)
+
+        old_global = data.get("global")
+        if isinstance(old_global, dict):
+            global_state = state["global"]
+            global_state["last_sync"] = safe_int(old_global.get("last_sync"))
+            global_state["last_publish"] = safe_int(old_global.get("last_publish"))
+            global_state["last_error"] = trim_text(old_global.get("last_error"), 180)
+            global_state["blocked_pubkeys"] = [
+                key
+                for key in old_global.get("blocked_pubkeys", [])
+                if is_valid_public_key(key)
+            ][:GLOBAL_MAX_PEERS]
+            global_state["incoming_receipts"] = [
+                {
+                    "public_key": trim_text(item.get("public_key"), 64).lower(),
+                    "timestamp": safe_int(item.get("timestamp")),
+                }
+                for item in (old_global.get("incoming_receipts") or [])
+                if isinstance(item, dict) and is_valid_public_key(item.get("public_key"))
+            ][-MAX_SIGNAL_RECEIPTS:]
+            for public_key, peer in (old_global.get("peers") or {}).items():
+                normalized = self._normalize_global_peer(peer)
+                if normalized and normalized["public_key"] == trim_text(public_key, 64).lower():
+                    global_state["peers"][normalized["public_key"]] = normalized
+            global_state["pings"] = [
+                normalized
+                for item in old_global.get("pings", [])
+                if (normalized := self._normalize_global_ping(item))
+            ][-GLOBAL_MAX_PINGS:]
+            global_state["sent_pings"] = [
+                {
+                    "public_key": trim_text(item.get("public_key"), 64).lower(),
+                    "timestamp": safe_int(item.get("timestamp")),
+                }
+                for item in old_global.get("sent_pings", [])
+                if isinstance(item, dict) and is_valid_public_key(item.get("public_key"))
+            ][-GLOBAL_MAX_SENT_PINGS:]
 
         for code, peer in (data.get("lan_peers") or {}).items():
             normalized = self._normalize_peer(peer)
@@ -558,6 +685,71 @@ class FriendsEngine:
             "online": bool(peer.get("online", False)),
         }
 
+    def _normalize_global_peer(self, peer):
+        if not isinstance(peer, dict):
+            return None
+        public_key = trim_text(peer.get("public_key") or peer.get("pubkey"), 64).lower()
+        if not is_valid_public_key(public_key) or public_key == self.state.get("global_identity", {}).get("public_key"):
+            return None
+        status = peer.get("status")
+        if not isinstance(status, str) or status not in AVAILABLE_STATUSES:
+            status = "coding"
+        status_info = AVAILABLE_STATUSES[status]
+        return {
+            "public_key": public_key,
+            "handle": trim_text(peer.get("handle"), 24) or generate_global_handle(public_key),
+            "avatar": peer.get("avatar") if peer.get("avatar") in AVAILABLE_AVATARS else generate_global_avatar(public_key),
+            "status": status,
+            "status_text": status_info["name"],
+            "status_emoji": status_info["emoji"],
+            "activity": trim_text(peer.get("activity"), 32),
+            "music": trim_text(peer.get("music"), 100),
+            "focus_mins": safe_int(peer.get("focus_mins"), maximum=1440),
+            "project_name": trim_text(peer.get("project_name"), 32),
+            "project_desc": trim_text(peer.get("project_desc"), 80),
+            "project_url": safe_url(peer.get("project_url")),
+            "theme": trim_text(peer.get("theme"), 48),
+            "wallpaper": trim_text(peer.get("wallpaper"), 100),
+            "interests": normalize_interests(peer.get("interests")),
+            "room": normalize_room(peer.get("room")),
+            "last_seen": safe_int(peer.get("last_seen") or peer.get("timestamp")),
+            "source": "global",
+            "online": bool(peer.get("online", False)),
+            "relay_count": safe_int(peer.get("relay_count"), maximum=len(GLOBAL_RELAYS)),
+            "common_ground": [],
+            "icebreaker": "",
+        }
+
+    def _normalize_global_ping(self, item):
+        if not isinstance(item, dict):
+            return None
+        event_id = trim_text(item.get("id") or item.get("event_id"), 64).lower()
+        public_key = trim_text(item.get("public_key") or item.get("pubkey"), 64).lower()
+        action = trim_text(item.get("action"), 16)
+        timestamp = safe_int(item.get("timestamp") or item.get("created_at"))
+        if (
+            not event_id
+            or not is_valid_public_key(public_key)
+            or action not in GLOBAL_ACTION_META
+            or not timestamp
+        ):
+            return None
+        avatar = item.get("avatar") or item.get("from_avatar")
+        if avatar not in AVAILABLE_AVATARS:
+            avatar = "👾"
+        return {
+            "id": event_id,
+            "public_key": public_key,
+            "handle": trim_text(item.get("handle") or item.get("from_name"), 24) or generate_global_handle(public_key),
+            "avatar": avatar,
+            "action": action,
+            "icon": GLOBAL_ACTION_META[action][0],
+            "message": trim_text(item.get("message"), 120),
+            "timestamp": timestamp,
+            "time_ago": format_age(timestamp),
+            "read": bool(item.get("read", False)),
+        }
+
     def _normalize_pulse(self, item):
         if not isinstance(item, dict):
             return None
@@ -635,6 +827,10 @@ class FriendsEngine:
                 json.dump(self.state, state_file, indent=2)
                 state_file.write("\n")
             os.replace(tmp_file, self.state_file)
+            try:
+                os.chmod(self.state_file, 0o600)
+            except OSError:
+                pass
         finally:
             try:
                 tmp_file.unlink()
@@ -682,6 +878,427 @@ class FriendsEngine:
                 os.path.basename(get_current_wallpaper()), 100
             )
         return payload
+
+    def _global_identity(self):
+        identity = self.state.get("global_identity")
+        try:
+            candidate = generate_keypair(identity.get("secret_key")) if isinstance(identity, dict) else None
+            if candidate and candidate["public_key"] == trim_text(identity.get("public_key"), 64).lower():
+                return candidate
+        except (TypeError, ValueError, OverflowError):
+            pass
+        identity = generate_keypair()
+        self.state["global_identity"] = identity
+        if self.state["profile"].get("handle") in ("", "OmarchyHacker"):
+            self.state["profile"]["handle"] = generate_global_handle(identity["public_key"])
+        self.save_state()
+        return identity
+
+    def _global_presence_content(self):
+        profile = self.state["profile"]
+        privacy = profile.get("privacy", {})
+        content = {
+            "app": "omarchy-friends",
+            "v": 1,
+            "type": "presence",
+            "handle": trim_text(profile.get("handle"), 24) or "Omarchy Builder",
+            "avatar": profile.get("avatar") if profile.get("avatar") in AVAILABLE_AVATARS else "👾",
+            "status": profile.get("status", "coding"),
+            "focus_mins": self.get_focus_minutes(),
+            "timestamp": now_seconds(),
+        }
+        if privacy.get("share_window", True):
+            content["activity"] = get_active_window()
+        if privacy.get("share_music", True):
+            content["music"] = get_active_music()
+        if privacy.get("share_project", True):
+            content.update(
+                {
+                    "project_name": profile.get("project_name", ""),
+                    "project_desc": profile.get("project_desc", ""),
+                    "project_url": profile.get("project_url", ""),
+                }
+            )
+        if privacy.get("share_interests", True):
+            content["interests"] = list(profile.get("interests", []))
+        if privacy.get("share_room", True):
+            content["room"] = normalize_room(profile.get("room"))
+        if privacy.get("share_theme", False):
+            content["theme"] = trim_text(get_current_theme(), 48)
+            content["wallpaper"] = trim_text(os.path.basename(get_current_wallpaper()), 100)
+        return content
+
+    def _global_presence_event(self):
+        identity = self._global_identity()
+        content = json.dumps(
+            self._global_presence_content(),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return build_event(
+            identity["secret_key"],
+            GLOBAL_PRESENCE_KIND,
+            [
+                ["d", GLOBAL_PRESENCE_TAG],
+                ["t", "omarchy-friends"],
+                ["alt", "Omarchy Friends online presence"],
+            ],
+            content,
+        )
+
+    @staticmethod
+    def _event_tag_values(event, name):
+        return [
+            tag[1]
+            for tag in event.get("tags", [])
+            if isinstance(tag, list) and len(tag) >= 2 and tag[0] == name and isinstance(tag[1], str)
+        ]
+
+    def _global_peer_from_event(self, event):
+        if not verify_event(event) or int(event.get("kind", -1)) != GLOBAL_PRESENCE_KIND:
+            return None
+        if GLOBAL_PRESENCE_TAG not in self._event_tag_values(event, "d"):
+            return None
+        if "omarchy-friends" not in self._event_tag_values(event, "t"):
+            return None
+        try:
+            content = json.loads(event.get("content", "{}"))
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(content, dict) or content.get("app") != "omarchy-friends" or content.get("type") != "presence":
+            return None
+        created_at = safe_int(event.get("created_at"))
+        if created_at < now_seconds() - GLOBAL_PEER_TTL_SECONDS or created_at > now_seconds() + 30:
+            return None
+        return self._normalize_global_peer(
+            {
+                **content,
+                "public_key": event.get("pubkey"),
+                "last_seen": created_at,
+                "online": True,
+            }
+        )
+
+    def _global_ping_from_event(self, event):
+        if not verify_event(event) or int(event.get("kind", -1)) != GLOBAL_PING_KIND:
+            return None
+        if GLOBAL_PING_TAG not in self._event_tag_values(event, "t"):
+            return None
+        identity = self._global_identity()
+        if identity["public_key"] not in self._event_tag_values(event, "p"):
+            return None
+        created_at = safe_int(event.get("created_at"))
+        if created_at < now_seconds() - 900 or created_at > now_seconds() + 30:
+            return None
+        try:
+            content = json.loads(event.get("content", "{}"))
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(content, dict) or content.get("app") != "omarchy-friends" or content.get("type") != "ping":
+            return None
+        return self._normalize_global_ping(
+            {
+                **content,
+                "id": event.get("id"),
+                "public_key": event.get("pubkey"),
+                "timestamp": created_at,
+            }
+        )
+
+    def _allow_global_signal(self, public_key):
+        cutoff = now_seconds() - 60
+        global_state = self.state.setdefault("global", {})
+        receipts = [
+            item
+            for item in global_state.get("incoming_receipts", [])
+            if safe_int(item.get("timestamp")) >= cutoff
+        ]
+        if sum(1 for item in receipts if item.get("public_key") == public_key) >= MAX_INCOMING_SIGNALS_PER_MINUTE:
+            global_state["incoming_receipts"] = receipts[-MAX_SIGNAL_RECEIPTS:]
+            return False
+        receipts.append({"public_key": public_key, "timestamp": now_seconds()})
+        global_state["incoming_receipts"] = receipts[-MAX_SIGNAL_RECEIPTS:]
+        return True
+
+    def _cleanup_global_peers(self):
+        cutoff = now_seconds() - GLOBAL_PEER_TTL_SECONDS
+        global_state = self.state.setdefault("global", {})
+        blocked = set(global_state.get("blocked_pubkeys", []))
+        global_state["peers"] = {
+            key: dict(peer, online=True)
+            for key, peer in global_state.get("peers", {}).items()
+            if is_valid_public_key(key)
+            and key not in blocked
+            and isinstance(peer, dict)
+            and safe_int(peer.get("last_seen")) >= cutoff
+        }
+        global_state["pings"] = [
+            item
+            for item in global_state.get("pings", [])
+            if isinstance(item, dict) and not item.get("public_key") in blocked
+        ][-GLOBAL_MAX_PINGS:]
+        for item in global_state["pings"]:
+            item["time_ago"] = format_age(item.get("timestamp"))
+
+    def _global_peers(self):
+        self._cleanup_global_peers()
+        profile = self.state["profile"]
+        active_app = get_active_window() if profile.get("privacy", {}).get("share_window", True) else ""
+        peers = []
+        for peer in self.state.get("global", {}).get("peers", {}).values():
+            item = dict(peer, online=True)
+            item["same_room"] = self._same_room(item)
+            item["common_ground"] = self._common_ground(item, active_app)
+            item["icebreaker"] = self._icebreaker(item)
+            peers.append(item)
+        own_interests = set(profile.get("interests", []))
+        peers.sort(
+            key=lambda item: (
+                -int(self._same_room(item)),
+                -len(own_interests.intersection(item.get("interests", []))),
+                -safe_int(item.get("last_seen")),
+                item.get("handle", "").casefold(),
+            )
+        )
+        return peers[:GLOBAL_MAX_PEERS]
+
+    def _global_relay_sync(self, relay_url, presence_event, since):
+        """Publish presence and collect current presence plus addressed pings."""
+        presence_sub = "ofp" + uuid.uuid4().hex[:12]
+        ping_sub = "ofg" + uuid.uuid4().hex[:12]
+        result = {"published": False, "presence": [], "pings": []}
+        ok_seen = False
+        with WebSocketClient(relay_url, timeout=3.5) as relay:
+            relay.send_json(["EVENT", presence_event])
+            relay.send_json(
+                [
+                    "REQ",
+                    presence_sub,
+                    {
+                        "kinds": [GLOBAL_PRESENCE_KIND],
+                        "#t": ["omarchy-friends"],
+                        "since": max(0, now_seconds() - GLOBAL_PEER_TTL_SECONDS),
+                        "limit": GLOBAL_MAX_PEERS,
+                    },
+                ]
+            )
+            relay.send_json(
+                [
+                    "REQ",
+                    ping_sub,
+                    {
+                        "kinds": [GLOBAL_PING_KIND],
+                        "#t": [GLOBAL_PING_TAG],
+                        "#p": [self._global_identity()["public_key"]],
+                        "since": max(0, since - 10),
+                        "limit": GLOBAL_MAX_PINGS,
+                    },
+                ]
+            )
+            eose = set()
+            deadline = time.monotonic() + 3.5
+            while time.monotonic() < deadline and len(eose) < 2:
+                message = relay.recv_json(max(0.05, deadline - time.monotonic()))
+                if not isinstance(message, list) or not message:
+                    continue
+                if message[0] == "OK" and len(message) >= 3 and message[1] == presence_event["id"]:
+                    ok_seen = True
+                    result["published"] = bool(message[2])
+                elif message[0] == "EVENT" and len(message) >= 3:
+                    if message[1] == presence_sub:
+                        result["presence"].append(message[2])
+                    elif message[1] == ping_sub:
+                        result["pings"].append(message[2])
+                elif message[0] == "EOSE" and len(message) >= 2:
+                    eose.add(message[1])
+                elif message[0] == "CLOSED" and len(message) >= 2:
+                    eose.add(message[1])
+            if not ok_seen:
+                # Some relays flush EOSE before their OK acknowledgement. The
+                # EVENT was written successfully, so don't show a false
+                # "offline" state to the user in that normal race.
+                result["published"] = True
+            try:
+                relay.send_json(["CLOSE", presence_sub])
+                relay.send_json(["CLOSE", ping_sub])
+            except OSError:
+                pass
+        return result
+
+    def _publish_global_event(self, event):
+        published = 0
+        relay_status = {}
+        for relay_url in GLOBAL_RELAYS:
+            try:
+                with WebSocketClient(relay_url, timeout=3.0) as relay:
+                    relay.send_json(["EVENT", event])
+                    accepted = False
+                    ok_seen = False
+                    deadline = time.monotonic() + 1.5
+                    while time.monotonic() < deadline:
+                        try:
+                            message = relay.recv_json(max(0.05, deadline - time.monotonic()))
+                        except EOFError:
+                            break
+                        if isinstance(message, list) and len(message) >= 3 and message[0] == "OK" and message[1] == event["id"]:
+                            ok_seen = True
+                            accepted = bool(message[2])
+                            break
+                    # A successful websocket write is useful even if a relay
+                    # does not send an OK frame before its short timeout.
+                    if accepted or not ok_seen:
+                        published += 1
+                        relay_status[relay_url] = {"online": True, "accepted": accepted, "acknowledged": ok_seen}
+                    else:
+                        relay_status[relay_url] = {"online": True, "accepted": False, "acknowledged": True}
+            except (OSError, ValueError, ssl.SSLError) as error:
+                relay_status[relay_url] = {"online": False, "error": trim_text(error, 120)}
+        return published > 0, relay_status
+
+    def sync_global(self):
+        """Publish the current presence and refresh the public lobby."""
+        global_state = self.state.setdefault("global", {})
+        if not self.state["profile"].get("privacy", {}).get("share_global", True):
+            self._cleanup_global_peers()
+            global_state["last_error"] = "Global visibility is off"
+            self.save_state()
+            return False, "Turn on global visibility to appear in Friends"
+
+        presence_event = self._global_presence_event()
+        sync_since = max(0, safe_int(global_state.get("last_sync")) - 10)
+        peers = {}
+        relay_counts = {}
+        pings = []
+        relay_status = {}
+        successes = 0
+        published = False
+        errors = []
+        for relay_url in GLOBAL_RELAYS:
+            try:
+                result = self._global_relay_sync(relay_url, presence_event, sync_since)
+                successes += 1
+                published = published or bool(result.get("published"))
+                relay_status[relay_url] = {"online": True, "accepted": bool(result.get("published"))}
+                for event in result.get("presence", []):
+                    peer = self._global_peer_from_event(event)
+                    if not peer:
+                        continue
+                    key = peer["public_key"]
+                    if safe_int(peer.get("last_seen")) >= safe_int(peers.get(key, {}).get("last_seen")):
+                        peers[key] = peer
+                    relay_counts.setdefault(key, set()).add(relay_url)
+                for event in result.get("pings", []):
+                    ping = self._global_ping_from_event(event)
+                    if ping:
+                        pings.append(ping)
+            except (OSError, ValueError, ssl.SSLError, EOFError) as error:
+                message = trim_text(error, 120)
+                errors.append(f"{relay_url}: {message}")
+                relay_status[relay_url] = {"online": False, "error": message}
+
+        for key, peer in peers.items():
+            peer["relay_count"] = len(relay_counts.get(key, set()))
+        if successes:
+            global_state["peers"].update(peers)
+        for ping in pings:
+            if any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
+                continue
+            if ping["public_key"] in global_state.get("blocked_pubkeys", []):
+                continue
+            if not self._allow_global_signal(ping["public_key"]):
+                continue
+            global_state.setdefault("pings", []).append(ping)
+            peer = global_state.get("peers", {}).get(ping["public_key"], ping)
+            icon, label = GLOBAL_ACTION_META[ping["action"]]
+            message = f"{ping['handle']} sent you {label}."
+            self._append_event(ping["action"], icon, ping["handle"], ping["avatar"], message, ping["id"])
+            self._append_pulse(peer, ping["action"], message, remote=True)
+            global_state["pings"] = global_state["pings"][-GLOBAL_MAX_PINGS:]
+
+        if successes:
+            global_state["last_sync"] = now_seconds()
+            global_state["last_publish"] = now_seconds() if published else global_state.get("last_publish", 0)
+            global_state["last_error"] = "" if published else "Relays reached, but presence was not accepted"
+        else:
+            global_state["last_error"] = "No public relay answered" if not errors else trim_text(errors[0], 180)
+        global_state["relays"] = relay_status
+        self._cleanup_global_peers()
+        self.save_state()
+        if successes and published:
+            return True, f"Visible to the Omarchy World ({len(self._global_peers())} online)"
+        if successes:
+            return True, "World refreshed; presence is waiting for relay acceptance"
+        return False, "World is offline; local radar still works"
+
+    def global_ping(self, public_key, action="hello"):
+        public_key = trim_text(public_key, 64).lower()
+        if not is_valid_public_key(public_key):
+            return False, "That world profile is not valid"
+        if action not in GLOBAL_ACTION_META:
+            return False, "Unknown world signal"
+        if public_key in self.state.get("global", {}).get("blocked_pubkeys", []):
+            return False, "That profile is blocked"
+        peer = self.state.get("global", {}).get("peers", {}).get(public_key)
+        if not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS:
+            return False, "That builder is no longer online"
+        if not self.state["profile"].get("privacy", {}).get("share_global", True):
+            return False, "Turn on global visibility before sending a wave"
+        sent = [
+            item
+            for item in self.state.setdefault("global", {}).get("sent_pings", [])
+            if safe_int(item.get("timestamp")) >= now_seconds() - 60
+        ]
+        if sum(1 for item in sent if item.get("public_key") == public_key) >= 4:
+            return False, "Slow down a little — that builder has your last waves"
+        identity = self._global_identity()
+        icon, label = GLOBAL_ACTION_META[action]
+        content = json.dumps(
+            {
+                "app": "omarchy-friends",
+                "v": 1,
+                "type": "ping",
+                "action": action,
+                "handle": self.state["profile"]["handle"],
+                "avatar": self.state["profile"]["avatar"],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        event = build_event(
+            identity["secret_key"],
+            GLOBAL_PING_KIND,
+            [
+                ["p", public_key],
+                ["t", GLOBAL_PING_TAG],
+                ["alt", "Omarchy Friends ping"],
+            ],
+            content,
+        )
+        ok, relay_status = self._publish_global_event(event)
+        self.state["global"]["relays"].update(relay_status)
+        if not ok:
+            self.state["global"]["last_error"] = "No public relay accepted the wave"
+            self.save_state()
+            return False, "Could not reach the world right now"
+        sent.append({"public_key": public_key, "timestamp": now_seconds()})
+        self.state["global"]["sent_pings"] = sent[-GLOBAL_MAX_SENT_PINGS:]
+        self._append_event(action, icon, peer.get("handle"), peer.get("avatar"), f"You sent {label} to {peer.get('handle', 'a builder')}.", event["id"])
+        self._append_pulse(peer, action, f"You sent {label} to {peer.get('handle', 'a builder')}.", remote=False)
+        self.save_state()
+        return True, f"Sent {label} to {peer.get('handle', 'a builder')}"
+
+    def block_global(self, public_key):
+        public_key = trim_text(public_key, 64).lower()
+        if not is_valid_public_key(public_key):
+            return False, "That world profile is not valid"
+        global_state = self.state.setdefault("global", {})
+        blocked = global_state.setdefault("blocked_pubkeys", [])
+        if public_key not in blocked:
+            blocked.append(public_key)
+        global_state.get("peers", {}).pop(public_key, None)
+        global_state["pings"] = [item for item in global_state.get("pings", []) if item.get("public_key") != public_key]
+        self.save_state()
+        return True, "Builder hidden from your world"
 
     def set_status(self, status_id):
         if status_id not in AVAILABLE_STATUSES:
@@ -1403,6 +2020,9 @@ class FriendsEngine:
 
     def get_full_status(self):
         self.cleanup_lan_peers()
+        global_peers = self._global_peers()
+        global_state = self.state.setdefault("global", {})
+        global_pings = list(global_state.get("pings", []))[-GLOBAL_MAX_PINGS:]
         cowork = self._current_cowork()
         profile = self.state["profile"]
         privacy = profile.get("privacy", {})
@@ -1435,6 +2055,8 @@ class FriendsEngine:
                 "handle": profile["handle"],
                 "avatar": profile["avatar"],
                 "code": profile["code"],
+                "public_key": self._global_identity()["public_key"],
+                "global_visible": bool(privacy.get("share_global", True)),
                 "status": profile.get("status", "coding"),
                 "status_name": status_info["name"],
                 "status_emoji": status_info["emoji"],
@@ -1458,24 +2080,43 @@ class FriendsEngine:
                 for friend in self.state.get("friends", [])
             ],
             "lan_peers": peers,
+            "global_peers": global_peers,
+            "global_pings": global_pings,
+            "global_status": {
+                "visible": bool(privacy.get("share_global", True)),
+                "online_count": len(global_peers),
+                "last_sync": safe_int(global_state.get("last_sync")),
+                "last_sync_age": format_age(global_state.get("last_sync")) if global_state.get("last_sync") else "never",
+                "last_publish": safe_int(global_state.get("last_publish")),
+                "last_error": trim_text(global_state.get("last_error"), 180),
+                "relays": global_state.get("relays", {}),
+                "relay_count": sum(
+                    1
+                    for item in global_state.get("relays", {}).values()
+                    if isinstance(item, dict) and item.get("online")
+                ),
+                "relay_total": len(GLOBAL_RELAYS),
+            },
             "world_pulse": self.state.get("world_pulse", []),
             "cowork": cowork,
             "cowork_invites": self._normalize_invites(self.state.get("cowork_invites")),
-            "online_count": len(peers),
+            "online_count": len(peers) + len(global_peers),
             "stats": self.state.get("stats", {}),
             "available_statuses": list(AVAILABLE_STATUSES.values()),
             "available_avatars": AVAILABLE_AVATARS,
             "available_interests": AVAILABLE_INTERESTS,
             "available": bool(peers),
             "transport": {
-                "mode": "local-lan",
+                "mode": "federated-global+local-lan",
                 "port": BROADCAST_PORT,
                 "ttl_seconds": PEER_TTL_SECONDS,
+                "global_ttl_seconds": GLOBAL_PEER_TTL_SECONDS,
+                "relays": list(GLOBAL_RELAYS),
             },
         }
 
     def run_daemon(self):
-        """Listen for and periodically broadcast explicit local presence."""
+        """Keep local UDP presence and the global relay presence alive."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -1492,12 +2133,19 @@ class FriendsEngine:
         sock.setblocking(False)
         last_broadcast = 0
         last_reload = 0
+        last_global_sync = 0
         try:
             while True:
                 current = time.time()
                 if current - last_reload >= 2:
                     self.state = self.load_state()
                     last_reload = current
+                if (
+                    current - last_global_sync >= GLOBAL_SYNC_INTERVAL_SECONDS
+                    and self.state["profile"].get("privacy", {}).get("share_global", True)
+                ):
+                    self.sync_global()
+                    last_global_sync = current
                 if (
                     current - last_broadcast >= 15
                     and self.state["profile"]["privacy"].get("share_lan", True)
@@ -1596,6 +2244,16 @@ def main():
     elif command == "interact" and len(sys.argv) >= 3:
         action = sys.argv[3] if len(sys.argv) >= 4 else "high-five"
         ok, message = engine.interact(sys.argv[2], action)
+        print_result(ok, message)
+    elif command == "global-refresh":
+        ok, message = engine.sync_global()
+        print_result(ok, message, global_status=engine.get_full_status().get("global_status", {}))
+    elif command == "global-ping" and len(sys.argv) >= 3:
+        action = sys.argv[3] if len(sys.argv) >= 4 else "hello"
+        ok, message = engine.global_ping(sys.argv[2], action)
+        print_result(ok, message)
+    elif command == "block-global" and len(sys.argv) >= 3:
+        ok, message = engine.block_global(sys.argv[2])
         print_result(ok, message)
     elif command == "poll-events":
         print(json.dumps({"events": engine.pop_events()}))

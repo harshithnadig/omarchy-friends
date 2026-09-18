@@ -16,13 +16,16 @@ _No response_
 
 ### Maintainer notes
 
-Omarchy Friends is deliberately local-first: it discovers only opted-in peers
-on the local broadcast network, supports manual gathering rooms for meetups,
-uses bounded interests to surface shared ground, shows real signals rather than
-a global feed, and has no hosted relay or simulated users. LAN packets are
-plaintext and unauthenticated; the README documents that boundary. The
-repository contains the manifest, installation and removal instructions,
-license, tests, and Quickshell validation commands.
+Omarchy Friends now has a federated global lobby as well as its local radar:
+each running install gets a generated pseudonymous secp256k1 identity, publishes
+signed presence to public Nostr relays, and can receive bounded one-click waves
+without exchanging a Friend Code. It never publishes an IP address, real name,
+or account credential. Global visibility is explicit in the UI and can be
+hidden instantly; public relays can still observe the signed pseudonymous
+events they carry. The local radar, gathering rooms, bounded interests, real
+signals, and co-work invites remain available. The repository contains the
+manifest, installation and removal instructions, license, tests, and
+Quickshell validation commands.
 The click-to-open Friends Deck repair is included in the current `main` head.
 
 ### Submission checklist

@@ -16,6 +16,8 @@ Item {
         handle: "OmarchyHacker",
         avatar: "👾",
         code: "OMAR-0000-000",
+        public_key: "",
+        global_visible: true,
         status: "coding",
         status_name: "In The Zone",
         status_emoji: "🚀",
@@ -30,11 +32,14 @@ Item {
         project_url: "",
         interests: [],
         room: "",
-        privacy: { share_window: true, share_music: true, share_lan: true, share_project: true, share_theme: false, share_interests: true, share_room: true }
+        privacy: { share_window: true, share_music: true, share_lan: true, share_project: true, share_theme: false, share_interests: true, share_room: true, share_global: true }
     })
     property var matchedPeer: null
     property var friends: []
     property var lanPeers: []
+    property var globalPeers: []
+    property var globalPings: []
+    property var globalStatus: ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     property var worldPulse: []
     property var cowork: ({ active: false, mode: "", remaining_seconds: 0, buddy_code: "", buddy_name: "", buddy_avatar: "", total_seconds: 0 })
     property var coworkInvites: []
@@ -212,6 +217,29 @@ Item {
         })
     }
 
+    function refreshGlobal() {
+        runAction([root.binPath, "global-refresh"], function(output) {
+            root.reportResult(output, "World refreshed")
+            root.refresh()
+            root.pollEvents()
+        })
+    }
+
+    function pingGlobal(publicKey, action) {
+        root.friendInteracted(action || "hello", publicKey)
+        runAction([root.binPath, "global-ping", publicKey, action || "hello"], function(output) {
+            root.reportResult(output, "Wave sent")
+            root.refresh()
+        })
+    }
+
+    function blockGlobal(publicKey) {
+        runAction([root.binPath, "block-global", publicKey], function(output) {
+            root.reportResult(output, "Builder hidden")
+            root.refresh()
+        })
+    }
+
     function copyFriendCode() {
         copyProc.command = ["wl-copy", root.profile.code || ""]
         copyProc.running = true
@@ -275,6 +303,9 @@ Item {
                     if (data.matched_peer !== undefined) root.matchedPeer = data.matched_peer
                     if (data.friends) root.friends = data.friends
                     if (data.lan_peers) root.lanPeers = data.lan_peers
+                    if (data.global_peers) root.globalPeers = data.global_peers
+                    if (data.global_pings) root.globalPings = data.global_pings
+                    if (data.global_status) root.globalStatus = data.global_status
                     if (data.world_pulse) root.worldPulse = data.world_pulse
                     if (data.cowork) root.cowork = data.cowork
                     if (data.cowork_invites) root.coworkInvites = data.cowork_invites

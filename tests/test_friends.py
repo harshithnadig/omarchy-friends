@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import time
 import unittest
+import json
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from unittest.mock import patch
@@ -58,6 +59,97 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertIsNone(status["matched_peer"])
         self.assertEqual(status["friends"], [])
         self.assertEqual(status["world_pulse"], [])
+
+    def test_global_identity_and_presence_are_signed_without_friend_code(self):
+        identity = self.engine.state["global_identity"]
+        self.assertRegex(identity["public_key"], r"^[0-9a-f]{64}$")
+        self.assertRegex(identity["secret_key"], r"^[0-9a-f]{64}$")
+        with patch.object(friends_module, "get_active_window", return_value="Neovim"), patch.object(
+            friends_module, "get_active_music", return_value=""
+        ):
+            event = self.engine._global_presence_event()
+        self.assertTrue(friends_module.verify_event(event))
+        self.assertEqual(event["kind"], friends_module.GLOBAL_PRESENCE_KIND)
+        self.assertNotIn("code", json.loads(event["content"]))
+
+    def test_global_directory_merges_a_real_signed_installer(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Kitty"):
+                event = remote._global_presence_event()
+            peer = self.engine._global_peer_from_event(event)
+            self.assertIsNotNone(peer)
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            status = self.engine.get_full_status()
+            self.assertEqual(len(status["global_peers"]), 1)
+            self.assertEqual(status["global_peers"][0]["source"], "global")
+            self.assertEqual(status["global_peers"][0]["handle"], remote.state["profile"]["handle"])
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
+    def test_global_ping_targets_public_key_and_is_signed(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                peer = self.engine._global_peer_from_event(remote._global_presence_event())
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            published = []
+            with patch.object(
+                self.engine,
+                "_publish_global_event",
+                side_effect=lambda event: published.append(event) or (True, {}),
+            ):
+                ok, message = self.engine.global_ping(peer["public_key"], "hello")
+            self.assertTrue(ok, message)
+            self.assertEqual(len(published), 1)
+            self.assertTrue(friends_module.verify_event(published[0]))
+            self.assertIn(peer["public_key"], self.engine._event_tag_values(published[0], "p"))
+            self.assertEqual(json.loads(published[0]["content"])["type"], "ping")
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
+    def test_global_refresh_delivers_incoming_wave_once(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                presence = remote._global_presence_event()
+            ping_content = json.dumps(
+                {
+                    "app": "omarchy-friends",
+                    "v": 1,
+                    "type": "ping",
+                    "action": "hello",
+                    "handle": remote.state["profile"]["handle"],
+                    "avatar": remote.state["profile"]["avatar"],
+                },
+                separators=(",", ":"),
+            )
+            ping = friends_module.build_event(
+                remote.state["global_identity"]["secret_key"],
+                friends_module.GLOBAL_PING_KIND,
+                [
+                    ["p", self.engine.state["global_identity"]["public_key"]],
+                    ["t", friends_module.GLOBAL_PING_TAG],
+                ],
+                ping_content,
+            )
+            with patch.object(
+                self.engine,
+                "_global_relay_sync",
+                return_value={"published": True, "presence": [presence], "pings": [ping]},
+            ), patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                ok, message = self.engine.sync_global()
+            self.assertTrue(ok, message)
+            self.assertEqual(len(self.engine.get_full_status()["global_peers"]), 1)
+            self.assertEqual(len(self.engine.get_full_status()["global_pings"]), 1)
+            self.assertEqual(len(self.engine.pop_events()), 1)
+            self.engine.sync_global()
+            self.assertEqual(len(self.engine.pop_events()), 0)
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
 
     def test_presence_match_and_trusted_friend(self):
         self.engine.set_interests(["linux", "music", "invalid", "linux", "design", "games"])

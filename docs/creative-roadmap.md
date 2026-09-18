@@ -21,6 +21,17 @@ discovery, and trust over a large volume of half-finished plugins.
 Friends should therefore own the narrow space between a status indicator and a
 chat app: a small, consent-aware moment of human connection.
 
+## Shipped in 3.0
+
+* A federated **Omarchy World**: every running install gets a generated
+  pseudonymous identity and appears automatically without a Friend Code.
+* Dependency-free Nostr transport with BIP-340 signatures, relay fallback,
+  expiry, and a configurable relay list.
+* One-click global waves, coffee offers, and kudos; incoming waves are
+  deduped, notified, and rate-limited.
+* Global visibility and block controls, with no IP address, real name, or
+  account credential in the presence payload.
+
 ## Shipped in 2.2
 
 * Real local UDP presence with expiry and bounded packet sizes.
@@ -44,22 +55,23 @@ chat app: a small, consent-aware moment of human connection.
 
 1. **Presence rituals:** one-tap “I’m here”, “pair for 25”, and “ship bell”
    signals with a clear pending/accepted state. No chat box.
-2. **Beacon history:** show “what changed since last seen” for a trusted peer,
+2. **Beacon history:** show “what changed since last seen” for a world peer,
    using only their explicitly shared status/project fields.
-3. **Pairing card:** generate a printable or copyable Friend Code card with a
-   one-sentence privacy explanation, so two people can pair without account
-   setup.
+3. **Relay health and community relays:** make relay latency visible and let
+   Omarchy communities add a trusted relay without changing the identity model.
 4. **Conversation memory:** keep a tiny, local-only record of mutual signals so
    a returning peer feels familiar without creating a public social graph.
-5. **Graceful transport upgrades:** add an explicitly configured unicast or
-   encrypted transport only after the consent and key model is designed; do
-   not quietly turn Friend Codes into authentication.
+5. **Private transport upgrade:** add an explicitly configured encrypted
+   unicast path only after the consent and key model is designed; do not turn
+   Friend Codes into authentication quietly.
 
 ## Non-goals
 
-* A global matchmaking service or hosted social graph.
+* A centralized global matchmaking service or hosted social graph owned by the
+  plugin author.
 * Fake companion users, generated replies, or a pre-populated activity feed.
-* Freeform chat, public profiles, inferred location, or background telemetry.
+* Freeform public chat, real-name profiles, inferred location, or background
+  telemetry.
 * Another pet, Pomodoro, radio, or generic notification plugin.
 
 ## Quality gates
@@ -67,10 +79,11 @@ chat app: a small, consent-aware moment of human connection.
 Before each release, verify:
 
 1. A fresh install starts empty and says why.
-2. Every visible online person can be traced to a recent presence packet.
-3. Every outgoing interaction has a target, consent boundary, and failure
-   state.
-4. Privacy defaults and network limitations are documented in the README.
+2. Every visible online person can be traced to a recent signed presence
+   event or a recent local presence packet.
+3. Every outgoing interaction has a target, bounded payload, and failure state.
+4. Privacy defaults, relay visibility, and network limitations are documented
+   in the README.
 5. The repository passes the Omarchy validator, QML lint, unit tests, and
    whitespace checks.
 

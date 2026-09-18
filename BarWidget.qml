@@ -96,7 +96,7 @@ BarWidget {
             var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
             var handle = root.service && root.service.profile ? root.service.profile.handle : "Me"
             var stName = root.service && root.service.profile ? root.service.profile.status_name : "Ready"
-            return "Omarchy Friends · local radar (" + count + " online)\n" + handle + ": " + stName + "\nLeft-click: Friends Deck • Right-click: Cycle Status • Middle: Copy Code"
+            return "Omarchy Friends · Omarchy World (" + count + " online)\n" + handle + ": " + stName + "\nLeft-click: Friends Deck • Right-click: Cycle Status • Middle: Copy Code"
         }
 
         onPressed: function(button) {

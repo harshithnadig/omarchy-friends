@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
   "name": "Omarchy Friends",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "A local-first human layer for Omarchy: gathering rooms, shared interests, opt-in peer presence, small signals, and real co-work invites.",
+  "description": "A pseudonymous global lobby for Omarchy: discover active builders automatically, send friendly waves, and co-work without exchanging codes.",
   "homepage": "https://github.com/harshithnadig/omarchy-friends",
   "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
@@ -18,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "Friends",
-    "description": "Meetup rooms, shared-ground matching, opt-in presence, and explicit co-work invites",
+    "description": "A live Omarchy World with automatic discovery, friendly pings, shared interests, and real co-work invites",
     "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right"

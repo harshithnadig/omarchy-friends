@@ -41,19 +41,24 @@ PopupCard {
         project_url: "",
         interests: [],
         room: "",
-        privacy: { share_window: true, share_music: true, share_lan: true, share_project: true, share_theme: false, share_interests: true, share_room: true }
+        privacy: { share_window: true, share_music: true, share_lan: true, share_project: true, share_theme: false, share_interests: true, share_room: true, share_global: true }
     })
 
     readonly property var matchedPeer: service && service.matchedPeer ? service.matchedPeer : null
     readonly property var friendsList: service && service.friends ? service.friends : []
     readonly property var lanList: service && service.lanPeers ? service.lanPeers : []
+    readonly property var globalList: service && service.globalPeers ? service.globalPeers : []
+    readonly property var globalPings: service && service.globalPings ? service.globalPings : []
+    readonly property var globalStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     readonly property var worldPulse: service && service.worldPulse ? service.worldPulse : []
     readonly property var cowork: service && service.cowork ? service.cowork : ({ active: false, mode: "", remaining_seconds: 0, buddy_name: "", buddy_avatar: "", total_seconds: 0 })
     readonly property var coworkInvites: service && service.coworkInvites ? service.coworkInvites : []
     readonly property var availableInterests: service && service.availableInterests ? service.availableInterests : []
     readonly property var stats: service && service.stats ? service.stats : ({ hackers_met: 0, friends_made: 0, cowork_completed: 0, high_fives_sent: 0, high_fives_received: 0, rices_shared: 0 })
 
-    property string currentTab: "match"
+    // Open on the global lobby: the first click should show people, not a
+    // setup form or an empty local-only radar.
+    property string currentTab: "friends"
     property bool avatarPickerOpen: false
     property string copyFeedback: ""
     property string projectInputName: ""
@@ -505,7 +510,7 @@ PopupCard {
             Repeater {
                 model: [
                     { id: "match",    label: "📡 Local Radar" },
-                    { id: "friends",  label: "👥 Friends (" + root.friendsList.length + ")" },
+                    { id: "friends",  label: "🌍 World (" + root.globalList.length + ")" },
                     { id: "pulse",    label: "✦ Local Pulse" },
                     { id: "beacon",   label: "🚀 My Beacon" }
                 ]
@@ -991,8 +996,336 @@ PopupCard {
             spacing: Style.space(8)
             visible: root.currentTab === "friends"
 
+            Rectangle {
+                width: parent.width
+                height: worldHeroCol.implicitHeight + Style.space(18)
+                radius: Math.max(8, Style.cornerRadius)
+                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.10)
+                border.width: 1
+                border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.30)
+
+                Column {
+                    id: worldHeroCol
+                    anchors.fill: parent
+                    anchors.margins: Style.space(10)
+                    spacing: Style.space(6)
+
+                    Row {
+                        width: parent.width
+                        spacing: Style.space(8)
+
+                        Text {
+                            text: "🌍"
+                            font.pixelSize: Style.space(22)
+                        }
+
+                        Column {
+                            width: parent.width - Style.space(108)
+                            spacing: Style.space(1)
+
+                            Text {
+                                text: "Omarchy World"
+                                color: root.fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.subtitle
+                                font.bold: true
+                            }
+
+                            Text {
+                                text: root.globalStatus.visible ? "People building on Omarchy right now" : "You are hidden from the world"
+                                color: root.mutedColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+                        }
+
+                        Rectangle {
+                            height: Style.space(26)
+                            width: worldRefreshLabel.implicitWidth + Style.space(12)
+                            radius: Style.space(6)
+                            color: worldRefreshMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.20) : Qt.rgba(fg.r, fg.g, fg.b, 0.10)
+
+                            Text {
+                                id: worldRefreshLabel
+                                anchors.centerIn: parent
+                                text: "↻ Refresh"
+                                color: root.fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                font.bold: true
+                            }
+
+                            MouseArea {
+                                id: worldRefreshMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (root.service) root.service.refreshGlobal()
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: Style.space(6)
+
+                        Text {
+                            text: root.globalStatus.visible ? "● LIVE" : "○ HIDDEN"
+                            color: root.globalStatus.visible ? "#10b981" : root.mutedColor
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        Text {
+                            text: root.globalStatus.visible ? (root.globalList.length + " online · " + (root.globalStatus.relay_count || 0) + "/" + (root.globalStatus.relay_total || 0) + " relays") : "Turn on Global visibility in My Beacon"
+                            color: root.mutedColor
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                        }
+                    }
+
+                    Text {
+                        visible: root.globalStatus.last_error && root.globalStatus.last_error !== ""
+                        width: parent.width
+                        text: "⚠ " + (root.globalStatus.last_error || "")
+                        color: "#f59e0b"
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                visible: root.globalPings.length > 0
+                height: visible ? incomingWorldCol.implicitHeight + Style.space(16) : 0
+                radius: Style.space(6)
+                color: Qt.rgba(0.96, 0.62, 0.04, 0.09)
+                border.width: 1
+                border.color: Qt.rgba(0.96, 0.62, 0.04, 0.25)
+
+                Column {
+                    id: incomingWorldCol
+                    anchors.fill: parent
+                    anchors.margins: Style.space(8)
+                    spacing: Style.space(5)
+
+                    Text {
+                        text: "✨ Incoming waves"
+                        color: "#f59e0b"
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                    }
+
+                    Repeater {
+                        model: root.globalPings
+
+                        Row {
+                            width: parent.width
+                            spacing: Style.space(6)
+
+                            Text {
+                                text: modelData.icon || "👋"
+                                font.pixelSize: Style.space(16)
+                            }
+
+                            Text {
+                                width: parent.width - Style.space(92)
+                                text: (modelData.handle || "A builder") + " sent you " + (modelData.action || "a wave")
+                                color: root.fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                            }
+
+                            Rectangle {
+                                width: incomingReplyLabel.implicitWidth + Style.space(10)
+                                height: Style.space(24)
+                                radius: Style.space(4)
+                                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+
+                                Text {
+                                    id: incomingReplyLabel
+                                    anchors.centerIn: parent
+                                    text: "👋 Wave back"
+                                    color: root.accentColor
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    font.bold: true
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.service) root.service.pingGlobal(modelData.public_key, "hello")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Repeater {
+                model: root.globalList
+
+                Rectangle {
+                    width: parent.width
+                    height: worldRow.implicitHeight + Style.space(16)
+                    radius: Style.space(7)
+                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.04)
+                    border.width: 1
+                    border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+                    property var worldPeer: modelData
+
+                    Row {
+                        id: worldRow
+                        anchors.fill: parent
+                        anchors.margins: Style.space(8)
+                        spacing: Style.space(9)
+
+                        Item {
+                            width: Style.space(38)
+                            height: Style.space(38)
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: width / 2
+                                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
+                                border.width: 1.5
+                                border.color: root.accentColor
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.avatar || "👾"
+                                    font.pixelSize: Style.space(19)
+                                }
+                            }
+
+                            Rectangle {
+                                width: Style.space(10)
+                                height: Style.space(10)
+                                radius: 5
+                                color: "#10b981"
+                                border.width: 1.5
+                                border.color: root.bg
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                            }
+                        }
+
+                        Column {
+                            width: parent.width - Style.space(150)
+                            spacing: Style.space(2)
+
+                            Row {
+                                spacing: Style.space(6)
+
+                                Text {
+                                    text: modelData.handle || "Omarchy Builder"
+                                    color: root.fg
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.body
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    text: (modelData.status_emoji || "•") + " " + (modelData.status_text || "online")
+                                    color: root.accentColor
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: (modelData.project_name ? "🔨 " + modelData.project_name : (modelData.activity || "Building in private")) + (modelData.music ? " · 🎧 " + modelData.music : "")
+                                color: root.mutedColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                visible: modelData.common_ground && modelData.common_ground.length > 0
+                                width: parent.width
+                                text: "✨ " + (modelData.common_ground || []).join(" · ")
+                                color: root.accentColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(4)
+
+                            Repeater {
+                                model: [
+                                    { action: "hello", label: "👋" },
+                                    { action: "coffee", label: "☕" },
+                                    { action: "kudos", label: "⚡" }
+                                ]
+
+                                Rectangle {
+                                    width: Style.space(28)
+                                    height: Style.space(28)
+                                    radius: Style.space(6)
+                                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.09)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        font.pixelSize: Style.space(13)
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (root.service) root.service.pingGlobal(worldPeer.public_key, modelData.action)
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: Style.space(28)
+                                height: Style.space(28)
+                                radius: Style.space(6)
+                                color: "transparent"
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "⋯"
+                                    color: root.mutedColor
+                                    font.pixelSize: Style.space(16)
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.service) root.service.blockGlobal(modelData.public_key)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Text {
-                text: "Trusted friends"
+                visible: root.globalList.length === 0
+                width: parent.width
+                text: root.globalStatus.visible ? "No one is online yet — leave Friends running and be the first signal." : "You are hidden. Turn on Global visibility in My Beacon to appear here."
+                color: root.mutedColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+            }
+
+            Text {
+                text: "Private shortcuts"
                 color: root.fg
                 font.family: Style.font.family
                 font.pixelSize: Style.font.subtitle
@@ -1000,7 +1333,7 @@ PopupCard {
             }
 
             Text {
-                text: "Save a real peer by Friend Code. Offline friends stay private until they reappear on LAN."
+                text: "No code is needed above. Friend Codes are only an optional private shortcut for people you already know."
                 color: root.mutedColor
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -1439,7 +1772,7 @@ PopupCard {
             visible: root.currentTab === "beacon"
 
             Text {
-                text: "My Beacon · shared only with your chosen fields"
+                text: "My Beacon · your pseudonymous world profile"
                 color: root.fg
                 font.family: Style.font.family
                 font.pixelSize: Style.font.subtitle
@@ -1674,6 +2007,14 @@ PopupCard {
             }
 
             Text {
+                text: "Your generated identity appears in Omarchy World automatically. No account or Friend Code is needed."
+                color: root.mutedColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+            }
+
+            Text {
                 text: "Privacy controls"
                 color: root.fg
                 font.family: Style.font.family
@@ -1687,6 +2028,7 @@ PopupCard {
 
                 Repeater {
                     model: [
+                        { id: "share_global", label: "🌍 World" },
                         { id: "share_lan", label: "LAN radar" },
                         { id: "share_project", label: "Project" },
                         { id: "share_window", label: "App" },
