@@ -551,6 +551,16 @@ class FriendsEngine:
             global_state["last_sync"] = safe_int(old_global.get("last_sync"))
             global_state["last_publish"] = safe_int(old_global.get("last_publish"))
             global_state["last_error"] = trim_text(old_global.get("last_error"), 180)
+            global_state["relays"] = {
+                trim_text(relay_url, 180): {
+                    "online": bool(info.get("online")),
+                    "accepted": bool(info.get("accepted")),
+                    "acknowledged": bool(info.get("acknowledged")),
+                    "error": trim_text(info.get("error"), 120),
+                }
+                for relay_url, info in (old_global.get("relays") or {}).items()
+                if isinstance(info, dict) and trim_text(relay_url, 180)
+            }
             global_state["blocked_pubkeys"] = [
                 key
                 for key in old_global.get("blocked_pubkeys", [])

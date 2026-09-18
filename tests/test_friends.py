@@ -158,9 +158,13 @@ class TestFriendsEngine(unittest.TestCase):
             with patch.object(friends_module, "get_active_window", return_value="Kitty"):
                 peer = self.engine._global_peer_from_event(remote._global_presence_event())
             self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            self.engine.state["global"]["relays"] = {
+                "wss://nos.lol": {"online": True, "accepted": True, "acknowledged": True}
+            }
             self.engine.save_state()
             restarted = friends_module.FriendsEngine(state_dir=self.test_dir)
             self.assertEqual(len(restarted.get_full_status()["global_peers"]), 1)
+            self.assertTrue(restarted.state["global"]["relays"]["wss://nos.lol"]["online"])
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)
 
