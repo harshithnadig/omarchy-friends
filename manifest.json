@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
   "name": "Omarchy Friends",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "A pseudonymous global lobby for Omarchy: discover active builders, spark real conversations, and pair for a 25-minute focus ritual without exchanging codes.",
+  "description": "A pseudonymous global lobby for Omarchy: discover active builders, spark real conversations, pair for focus, and suggest the next great ritual.",
   "homepage": "https://github.com/harshithnadig/omarchy-friends",
   "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
@@ -18,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "Friends",
-    "description": "A live Omarchy World with automatic discovery, daily sparks, shared interests, and explicit 25-minute focus rituals",
+    "description": "A live Omarchy World with daily sparks, explicit focus rituals, and a user-powered feature idea box",
     "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right"
