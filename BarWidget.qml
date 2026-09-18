@@ -11,6 +11,8 @@ BarWidget {
     property var service: null
     property bool cardOpen: false
     readonly property Item button: buttonItem
+    readonly property bool opened: cardOpen
+    readonly property bool popoutSwitchClosing: false
 
     function resolveService() {
         if (!service && bar && bar.shell && typeof bar.shell.serviceFor === "function") {
@@ -41,7 +43,20 @@ BarWidget {
     implicitHeight: barSize
 
     function toggleCard() {
-        cardOpen = !cardOpen
+        if (cardOpen) close()
+        else open()
+    }
+
+    function open() {
+        cardOpen = true
+    }
+
+    function close() {
+        cardOpen = false
+    }
+
+    function closeForPopoutSwitch() {
+        close()
     }
 
     function cycleStatus() {
@@ -118,6 +133,9 @@ BarWidget {
         onLoaded: {
             if (item) {
                 item.hostWidget = root
+                Qt.callLater(function() {
+                    if (item) item.hostWidget = root
+                })
             }
         }
     }

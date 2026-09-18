@@ -68,25 +68,6 @@ PopupCard {
     property bool actionNoticeGood: true
     property string roomInput: ""
 
-    Connections {
-        target: root.service
-        function onFriendCodeResult(ok, message) {
-            root.addFriendStatus = message || "Friend Code was not saved"
-            root.addFriendSuccess = ok
-            friendStatusTimer.restart()
-        }
-        function onActionResult(ok, message) {
-            root.actionNotice = message || "Done"
-            root.actionNoticeGood = ok
-            actionNoticeTimer.restart()
-        }
-        function onEventReceived(event) {
-            root.actionNotice = event && event.message ? event.message : "A nearby builder sent a signal"
-            root.actionNoticeGood = true
-            actionNoticeTimer.restart()
-        }
-    }
-
     contentWidth: root.fittedContentWidth(Style.space(450))
     contentHeight: root.fittedContentHeight(mainColumn.implicitHeight)
 
@@ -94,6 +75,34 @@ PopupCard {
         id: mainColumn
         width: parent.width
         spacing: Style.space(12)
+
+        // PopupCard's contentItem accepts visual items only. Keep signal
+        // wiring in an invisible QQuickItem so it does not get mistaken for
+        // popup content during construction.
+        Item {
+            width: 0
+            height: 0
+            visible: false
+
+            Connections {
+                target: root.service
+                function onFriendCodeResult(ok, message) {
+                    root.addFriendStatus = message || "Friend Code was not saved"
+                    root.addFriendSuccess = ok
+                    friendStatusTimer.restart()
+                }
+                function onActionResult(ok, message) {
+                    root.actionNotice = message || "Done"
+                    root.actionNoticeGood = ok
+                    actionNoticeTimer.restart()
+                }
+                function onEventReceived(event) {
+                    root.actionNotice = event && event.message ? event.message : "A nearby builder sent a signal"
+                    root.actionNoticeGood = true
+                    actionNoticeTimer.restart()
+                }
+            }
+        }
 
         // -------------------------------------------------------------
         // ACTIVE CO-WORKING BANNER (If session is running)
