@@ -31,6 +31,13 @@ chat app: a small, consent-aware moment of human connection.
 * The local-first idea box remains the feedback loop for proposing the next
   human connection ritual.
 
+## Shipped in 3.4
+
+* A visual hierarchy pass: compact identity header, text-first navigation,
+  fewer peer actions, and collapsed Friend Code tools.
+* The first-open World view now has one job: show whether anyone is around and
+  offer the smallest useful next action.
+
 ## Shipped in 3.0
 
 * A federated **Omarchy World**: every running install gets a generated

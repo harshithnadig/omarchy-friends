@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
   "name": "Omarchy Friends",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "A pseudonymous global lobby for Omarchy: discover active builders, join Hack Circles, use keyboard-first signals, and suggest the next great ritual.",
+  "description": "A calm, pseudonymous global lobby for Omarchy: discover active builders, join Hack Circles, and start a real conversation.",
   "homepage": "https://github.com/harshithnadig/omarchy-friends",
   "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
@@ -18,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "Friends",
-    "description": "A live Omarchy World with Hack Circles, keyboard-first signals, daily sparks, and a user-powered feature idea box",
+    "description": "A focused Omarchy World with Hack Circles, daily sparks, and lightweight human connection tools",
     "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right"
