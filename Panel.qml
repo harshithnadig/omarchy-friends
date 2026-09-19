@@ -77,6 +77,7 @@ PopupCard {
     property bool suggestionOpen: false
     property string suggestionText: ""
     property string suggestionNotice: ""
+    property bool privateToolsOpen: false
     property bool shortcutHelpOpen: false
     property int keyboardPeerIndex: 0
     readonly property string suggestionIssueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
@@ -1680,16 +1681,48 @@ PopupCard {
                 wrapMode: Text.WordWrap
             }
 
-            Text {
-                text: "Private shortcuts"
-                color: root.fg
-                font.family: Style.font.family
-                font.pixelSize: Style.font.subtitle
-                font.bold: true
+            Row {
+                width: parent.width
+
+                Text {
+                    width: parent.width - privateToolsButton.width
+                    text: "Saved friends"
+                    color: root.fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.subtitle
+                    font.bold: true
+                }
+
+                Rectangle {
+                    id: privateToolsButton
+                    width: privateToolsButtonLabel.implicitWidth + Style.space(14)
+                    height: Style.space(24)
+                    radius: Style.space(5)
+                    color: privateToolsMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.12) : "transparent"
+
+                    Text {
+                        id: privateToolsButtonLabel
+                        anchors.centerIn: parent
+                        text: root.privateToolsOpen ? "Done" : "Add by code"
+                        color: root.accentColor
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        font.bold: true
+                    }
+
+                    MouseArea {
+                        id: privateToolsMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.privateToolsOpen = !root.privateToolsOpen
+                    }
+                }
             }
 
             Text {
-                text: "No code is needed above. Friend Codes are only an optional private shortcut for people you already know."
+                visible: root.privateToolsOpen
+                text: "Add someone you already know. Friend Codes are optional and stay local."
                 color: root.mutedColor
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -1699,6 +1732,7 @@ PopupCard {
             Row {
                 width: parent.width
                 spacing: Style.space(6)
+                visible: root.privateToolsOpen
 
                 Rectangle {
                     width: Style.space(150)
@@ -1797,7 +1831,7 @@ PopupCard {
             }
 
             Text {
-                visible: root.addFriendStatus !== ""
+                visible: root.privateToolsOpen && root.addFriendStatus !== ""
                 text: root.addFriendStatus
                 color: root.addFriendSuccess ? "#10b981" : root.mutedColor
                 font.family: Style.font.family
@@ -2481,7 +2515,7 @@ PopupCard {
                 Text {
                     width: parent.width - suggestOpenButton.width - Style.space(38)
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Have an idea that would make Friends better?"
+                    text: "Have an idea?"
                     color: root.mutedColor
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
