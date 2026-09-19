@@ -22,6 +22,12 @@ available when people are nearby.
 * **🍅 Focus ritual:** Invite a real builder to pair for 25 minutes. The
   invite expires, the other person explicitly joins, and both sides get a
   shared local countdown without opening another social app.
+* **🛠 Hack Circles:** Join a lightweight shared room such as Ship It, Open
+  Source, Rice Club, or Night Owls. It uses the existing opt-in room signal,
+  so people can find a temporary tribe without creating a chat server.
+* **⌨️ Friends Deck:** Press `?` for help, `h/l` to move between tabs, `j/k` to
+  select a person, `Enter` to say hello, `s` to send the World Spark, and `f`
+  to offer a focus ritual.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
 * **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for

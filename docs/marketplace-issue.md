@@ -16,7 +16,7 @@ _No response_
 
 ### Maintainer notes
 
-Omarchy Friends 3.2.0 now has a federated global lobby as well as its local radar:
+Omarchy Friends 3.3.0 now has a federated global lobby as well as its local radar:
 each running install gets a generated pseudonymous secp256k1 identity, publishes
 signed presence to public Nostr relays, and can receive bounded one-click waves
 without exchanging a Friend Code. World Spark provides a bounded daily opener,
@@ -26,8 +26,11 @@ or account credential. The deck also includes a local-first suggestion box
 with an explicit copy/open-GitHub handoff; it never submits an issue silently.
 Global visibility is explicit in the UI and can be
 hidden instantly; public relays can still observe the signed pseudonymous
-events they carry. The local radar, gathering rooms, bounded interests, real
-signals, and co-work invites remain available. The repository contains the
+events they carry. Hack Circles make the existing opt-in room signal useful with
+one-click temporary rooms, and the keyboard-first Friends Deck provides `?`,
+`h/l`, `j/k`, Enter, `s`, `f`, and `r` shortcuts. The local radar, gathering
+rooms, bounded interests, real signals, and co-work invites remain available.
+The repository contains the
 manifest, installation and removal instructions, license, tests, and
 Quickshell validation commands.
 The click-to-open Friends Deck repair is included in the current `main` head.

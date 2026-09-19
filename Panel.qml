@@ -77,7 +77,89 @@ PopupCard {
     property bool suggestionOpen: false
     property string suggestionText: ""
     property string suggestionNotice: ""
+    property bool shortcutHelpOpen: false
+    property int keyboardPeerIndex: 0
     readonly property string suggestionIssueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
+
+    function selectTabByDelta(delta) {
+        var tabs = ["match", "friends", "pulse", "beacon"]
+        var current = tabs.indexOf(root.currentTab)
+        if (current < 0) current = 0
+        current = (current + delta + tabs.length) % tabs.length
+        root.currentTab = tabs[current]
+    }
+
+    function moveKeyboardPeer(delta) {
+        if (root.currentTab !== "friends") root.currentTab = "friends"
+        if (root.globalList.length === 0) return
+        root.keyboardPeerIndex = Math.max(0, Math.min(root.globalList.length - 1, root.keyboardPeerIndex + delta))
+    }
+
+    function keyboardPeer() {
+        if (!root.globalList || root.globalList.length === 0) return null
+        return root.globalList[Math.max(0, Math.min(root.globalList.length - 1, root.keyboardPeerIndex))]
+    }
+
+    function circleCount(name) {
+        var count = 0
+        var wanted = String(name || "").toLowerCase()
+        for (var i = 0; i < root.globalList.length; i++) {
+            if (String(root.globalList[i].room || "").toLowerCase() === wanted) count++
+        }
+        return count
+    }
+
+    function toggleCircle(name) {
+        if (!root.service) return
+        var current = String(root.profile.room || "").toLowerCase()
+        root.service.setRoom(current === String(name || "").toLowerCase() ? "" : name)
+    }
+
+    function handleKeyboard(event) {
+        if (!root.open || suggestionEditor.activeFocus || projNameBox.activeFocus || projDescBox.activeFocus || projUrlBox.activeFocus || roomBox.activeFocus || friendCodeEditor.activeFocus || friendHandleEditor.activeFocus) return
+        if (event.key === Qt.Key_Escape) {
+            root.close()
+            event.accepted = true
+            return
+        }
+        if (event.text === "?") {
+            root.shortcutHelpOpen = !root.shortcutHelpOpen
+            event.accepted = true
+            return
+        }
+        if (event.key === Qt.Key_Left || event.text === "h") {
+            root.selectTabByDelta(-1)
+            event.accepted = true
+            return
+        }
+        if (event.key === Qt.Key_Right || event.text === "l") {
+            root.selectTabByDelta(1)
+            event.accepted = true
+            return
+        }
+        if (event.key === Qt.Key_1) { root.currentTab = "match"; event.accepted = true; return }
+        if (event.key === Qt.Key_2) { root.currentTab = "friends"; event.accepted = true; return }
+        if (event.key === Qt.Key_3) { root.currentTab = "pulse"; event.accepted = true; return }
+        if (event.key === Qt.Key_4) { root.currentTab = "beacon"; event.accepted = true; return }
+        if (event.key === Qt.Key_Down || event.text === "j") {
+            root.moveKeyboardPeer(1)
+            event.accepted = true
+            return
+        }
+        if (event.key === Qt.Key_Up || event.text === "k") {
+            root.moveKeyboardPeer(-1)
+            event.accepted = true
+            return
+        }
+        var typed = (event.text || "").toLowerCase()
+        var peer = root.keyboardPeer()
+        if (typed === "r" && root.currentTab === "friends" && root.service) root.service.refreshGlobal()
+        else if (typed === "s" && root.currentTab === "friends" && root.service) root.service.sparkWorld()
+        else if (typed === "f" && root.currentTab === "friends" && peer && root.service) root.service.inviteGlobalFocus(peer.public_key)
+        else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.currentTab === "friends" && peer && root.service) root.service.pingGlobal(peer.public_key, "hello")
+        else return
+        event.accepted = true
+    }
 
     function suggestionPayload() {
         return "Omarchy Friends feature idea:\n\n" + root.suggestionText.trim()
@@ -135,6 +217,22 @@ PopupCard {
                     root.actionNoticeGood = true
                     actionNoticeTimer.restart()
                 }
+            }
+        }
+
+        Item {
+            id: keyCatcher
+            width: 1
+            height: 1
+            focus: root.open
+            Keys.priority: Keys.BeforeItem
+            Keys.onPressed: function(event) { root.handleKeyboard(event) }
+        }
+
+        Connections {
+            target: root
+            function onOpenChanged() {
+                if (root.open) Qt.callLater(function() { keyCatcher.forceActiveFocus() })
             }
         }
 
@@ -643,6 +741,16 @@ PopupCard {
                     }
                 }
             }
+        }
+
+        Text {
+            visible: root.shortcutHelpOpen
+            width: parent.width
+            text: "⌨ h/l tabs · j/k people · Enter hello · s spark · f focus · r refresh · Esc close"
+            color: root.mutedColor
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
         }
 
         // -------------------------------------------------------------
@@ -1301,6 +1409,104 @@ PopupCard {
 
             Rectangle {
                 width: parent.width
+                height: circleCol.implicitHeight + Style.space(16)
+                radius: Style.space(7)
+                color: Qt.rgba(fg.r, fg.g, fg.b, 0.04)
+                border.width: 1
+                border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+
+                Column {
+                    id: circleCol
+                    anchors.fill: parent
+                    anchors.margins: Style.space(8)
+                    spacing: Style.space(5)
+
+                    Row {
+                        width: parent.width
+                        spacing: Style.space(7)
+
+                        Text {
+                            text: "🛠"
+                            font.pixelSize: Style.space(16)
+                        }
+
+                        Column {
+                            width: parent.width - Style.space(24)
+                            spacing: Style.space(1)
+
+                            Text {
+                                text: "Hack Circles"
+                                color: root.fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.bodySmall
+                                font.bold: true
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: "Join a shared room for a little while — no chat room or account required."
+                                color: root.mutedColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    Flow {
+                        width: parent.width
+                        spacing: Style.space(5)
+
+                        Repeater {
+                            model: [
+                                { name: "SHIP IT", emoji: "🚀" },
+                                { name: "OPEN SOURCE", emoji: "🧩" },
+                                { name: "RICE CLUB", emoji: "🎨" },
+                                { name: "NIGHT OWLS", emoji: "🌙" }
+                            ]
+
+                            Rectangle {
+                                readonly property bool joined: String(root.profile.room || "").toLowerCase() === modelData.name.toLowerCase()
+                                readonly property int liveCount: root.circleCount(modelData.name)
+                                width: circleChipLabel.implicitWidth + Style.space(14)
+                                height: Style.space(25)
+                                radius: Style.space(6)
+                                color: joined ? root.accentColor : Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                                border.width: 1
+                                border.color: joined ? root.accentColor : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
+
+                                Text {
+                                    id: circleChipLabel
+                                    anchors.centerIn: parent
+                                    text: (joined ? "● " : "○ ") + modelData.emoji + " " + modelData.name + (liveCount > 0 ? " · " + liveCount : "")
+                                    color: joined ? root.bg : root.fg
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    font.bold: joined
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.toggleCircle(modelData.name)
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: root.profile.room ? "Joined " + root.profile.room + " · visible only when Room sharing is on" : "Pick one to become easier to find by shared intent."
+                        color: root.mutedColor
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
                 visible: root.globalPings.length > 0
                 height: visible ? incomingWorldCol.implicitHeight + Style.space(16) : 0
                 radius: Style.space(6)
@@ -1382,8 +1588,9 @@ PopupCard {
                     height: worldRow.implicitHeight + Style.space(16)
                     radius: Style.space(7)
                     color: Qt.rgba(fg.r, fg.g, fg.b, 0.04)
-                    border.width: 1
-                    border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+                    property bool keyboardSelected: root.currentTab === "friends" && index === root.keyboardPeerIndex
+                    border.width: keyboardSelected ? 2 : 1
+                    border.color: keyboardSelected ? root.accentColor : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
                     property var worldPeer: modelData
 
                     Row {

@@ -21,6 +21,16 @@ discovery, and trust over a large volume of half-finished plugins.
 Friends should therefore own the narrow space between a status indicator and a
 chat app: a small, consent-aware moment of human connection.
 
+## Shipped in 3.3
+
+* A keyboard-first Friends Deck with visible shortcuts, peer selection, and
+  one-key hello, World Spark, focus, and refresh actions.
+* Hack Circles: four lightweight room presets that turn the existing opt-in
+  gathering-room signal into temporary shared intent, with live counts when
+  other builders are in the same room.
+* The local-first idea box remains the feedback loop for proposing the next
+  human connection ritual.
+
 ## Shipped in 3.0
 
 * A federated **Omarchy World**: every running install gets a generated
