@@ -1153,7 +1153,7 @@ PopupCard {
                             spacing: Style.space(1)
 
                             Text {
-                                text: "People building right now"
+                                text: "World"
                                 color: root.fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.subtitle
@@ -1161,7 +1161,7 @@ PopupCard {
                             }
 
                             Text {
-                                text: root.globalStatus.visible ? "A small, live lobby for Omarchy builders" : "You are hidden from the world"
+                                text: root.globalStatus.visible ? "Builders online now" : "You are hidden from the world"
                                 color: root.mutedColor
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
@@ -1206,7 +1206,7 @@ PopupCard {
                         }
 
                         Text {
-                            text: root.globalStatus.visible ? (root.globalList.length + " online · " + (root.globalStatus.relay_count || 0) + "/" + (root.globalStatus.relay_total || 0) + " relays") : "Turn on Global visibility in My Beacon"
+                            text: root.globalStatus.visible ? (root.globalList.length + " online") : "Turn on visibility in Profile"
                             color: root.mutedColor
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
@@ -1238,8 +1238,11 @@ PopupCard {
                             spacing: Style.space(8)
 
                             Text {
-                                text: "✨"
-                                font.pixelSize: Style.space(18)
+                                text: "SPARK"
+                                color: "#f59e0b"
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                font.bold: true
                             }
 
                             Column {
@@ -1247,7 +1250,7 @@ PopupCard {
                                 spacing: Style.space(1)
 
                                 Text {
-                                    text: "WORLD SPARK"
+                                    text: "Daily opener"
                                     color: "#f59e0b"
                                     font.family: Style.font.family
                                     font.pixelSize: Style.font.caption
@@ -1344,17 +1347,12 @@ PopupCard {
                         width: parent.width
                         spacing: Style.space(7)
 
-                        Text {
-                            text: "🛠"
-                            font.pixelSize: Style.space(16)
-                        }
-
-                        Column {
-                            width: parent.width - Style.space(24)
+                                Column {
+                            width: parent.width
                             spacing: Style.space(1)
 
                             Text {
-                                text: "Hack Circles"
+                                text: "Rooms"
                                 color: root.fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.bodySmall
@@ -1363,7 +1361,7 @@ PopupCard {
 
                             Text {
                                 width: parent.width
-                                text: "Join a shared room for a little while — no chat room or account required."
+                                text: "Join a room to be easier to find."
                                 color: root.mutedColor
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
@@ -1415,7 +1413,7 @@ PopupCard {
 
                     Text {
                         width: parent.width
-                        text: root.profile.room ? "Joined " + root.profile.room + " · visible only when Room sharing is on" : "Pick one to become easier to find by shared intent."
+                        text: root.profile.room ? "Joined " + root.profile.room : "Choose a room"
                         color: root.mutedColor
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -1673,7 +1671,7 @@ PopupCard {
             Text {
                 visible: root.globalList.length === 0
                 width: parent.width
-                text: root.globalStatus.visible ? "No one is online yet — leave Friends running and be the first signal." : "You are hidden. Turn on Global visibility in My Beacon to appear here."
+                text: root.globalStatus.visible ? "No builders live yet." : "Turn on visibility in Profile to appear here."
                 color: root.mutedColor
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
