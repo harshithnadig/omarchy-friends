@@ -498,35 +498,34 @@ PopupCard {
         // -------------------------------------------------------------
         Rectangle {
             width: parent.width
-            height: profileHeaderCol.implicitHeight + Style.space(16)
-            radius: Math.max(6, Style.cornerRadius)
-            color: Qt.rgba(fg.r, fg.g, fg.b, 0.05)
+            height: profileHeaderCol.implicitHeight + Style.space(14)
+            radius: Style.space(8)
+            color: Qt.rgba(fg.r, fg.g, fg.b, 0.035)
             border.width: 1
-            border.color: Qt.rgba(fg.r, fg.g, fg.b, 0.1)
+            border.color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
 
             Column {
                 id: profileHeaderCol
                 anchors.fill: parent
-                anchors.margins: Style.space(10)
-                spacing: Style.space(8)
+                anchors.margins: Style.space(8)
+                spacing: Style.space(5)
 
                 Row {
                     width: parent.width
-                    spacing: Style.space(10)
+                    spacing: Style.space(9)
 
-                    // Avatar button
                     Rectangle {
-                        width: Style.space(42)
-                        height: Style.space(42)
+                        width: Style.space(36)
+                        height: Style.space(36)
                         radius: width / 2
-                        color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.18)
-                        border.width: 1.5
+                        color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.14)
+                        border.width: 1
                         border.color: accentColor
 
                         Text {
                             anchors.centerIn: parent
                             text: root.profile.avatar || "👾"
-                            font.pixelSize: Style.space(22)
+                            font.pixelSize: Style.space(19)
                         }
 
                         MouseArea {
@@ -537,92 +536,53 @@ PopupCard {
                     }
 
                     Column {
-                        width: parent.width - Style.space(54)
-                        spacing: Style.space(3)
+                        width: parent.width - Style.space(90)
+                        spacing: Style.space(1)
 
-                        Row {
-                            spacing: Style.space(6)
-                            Text {
-                                text: root.profile.handle || "OmarchyHacker"
-                                color: root.fg
-                                font.family: Style.font.family
-                                font.pixelSize: Style.font.subtitle
-                                font.bold: true
-                            }
-
-                            Rectangle {
-                                height: Style.space(18)
-                                width: myStatusPill.implicitWidth + Style.space(10)
-                                radius: height / 2
-                                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
-
-                                Text {
-                                    id: myStatusPill
-                                    anchors.centerIn: parent
-                                    text: (root.profile.status_emoji || "🚀") + " " + (root.profile.status_name || "In The Zone")
-                                    color: root.accentColor
-                                    font.family: Style.font.family
-                                    font.pixelSize: Style.font.caption
-                                    font.bold: true
-                                }
-                            }
-                        }
-
-                        Row {
-                            spacing: Style.space(8)
-
-                            Text {
-                                text: root.profile.code || "OMAR-0000-000"
-                                color: root.mutedColor
-                                font.family: Style.font.family
-                                font.pixelSize: Style.font.bodySmall
-                                font.bold: true
-                            }
-
-                            Rectangle {
-                                height: Style.space(18)
-                                width: copyBtnLabel.implicitWidth + Style.space(10)
-                                radius: Style.space(4)
-                                color: copyBtnMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.18) : Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-
-                                Text {
-                                    id: copyBtnLabel
-                                    anchors.centerIn: parent
-                                    text: root.copyFeedback !== "" ? root.copyFeedback : "📋 Copy Code"
-                                    color: root.copyFeedback !== "" ? root.accentColor : root.fg
-                                    font.family: Style.font.family
-                                    font.pixelSize: Style.font.caption
-                                }
-
-                                MouseArea {
-                                    id: copyBtnMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (root.service) root.service.copyFriendCode()
-                                        root.copyFeedback = "Copied! ✓"
-                                        copyResetTimer.restart()
-                                    }
-                                }
-                            }
+                        Text {
+                            text: root.profile.handle || "OmarchyHacker"
+                            color: root.fg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.subtitle
+                            font.bold: true
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            visible: root.profile.room !== ""
-                            text: root.profile.room ? "🪩 " + root.profile.room : ""
-                            color: root.accentColor
+                            text: (root.profile.status_emoji || "•") + " " + (root.profile.status_name || "Ready") + (root.profile.room ? "  ·  " + root.profile.room : "")
+                            color: root.mutedColor
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
                             elide: Text.ElideRight
                         }
                     }
+
+                    Rectangle {
+                        width: Style.space(34)
+                        height: Style.space(26)
+                        radius: Style.space(6)
+                        color: avatarEditMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.12) : "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "···"
+                            color: root.mutedColor
+                            font.pixelSize: Style.font.body
+                        }
+
+                        MouseArea {
+                            id: avatarEditMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.avatarPickerOpen = !root.avatarPickerOpen
+                        }
+                    }
                 }
 
-                // Avatar Picker Grid
                 Flow {
                     width: parent.width
-                    spacing: Style.space(6)
+                    spacing: Style.space(5)
                     visible: root.avatarPickerOpen
 
                     Repeater {
@@ -631,7 +591,7 @@ PopupCard {
                             width: Style.space(28)
                             height: Style.space(28)
                             radius: Style.space(6)
-                            color: avGridMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.2) : Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                            color: avGridMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.16) : Qt.rgba(fg.r, fg.g, fg.b, 0.06)
 
                             Text {
                                 anchors.centerIn: parent
@@ -652,51 +612,6 @@ PopupCard {
                         }
                     }
                 }
-
-                // Live status chips
-                Flow {
-                    width: parent.width
-                    spacing: Style.space(5)
-
-                    Repeater {
-                        model: [
-                            { id: "coding", emoji: "🚀", name: "In Flow" },
-                            { id: "coffee", emoji: "☕", name: "Coffee" },
-                            { id: "vibe",   emoji: "🎧", name: "Vibe" },
-                            { id: "debug",  emoji: "🐛", name: "Debug" },
-                            { id: "night",  emoji: "🌙", name: "Late Night" },
-                            { id: "rice",   emoji: "🛠️", name: "Ricing" }
-                        ]
-
-                        Rectangle {
-                            height: Style.space(22)
-                            width: chipLabel.implicitWidth + Style.space(12)
-                            radius: height / 2
-                            readonly property bool isCur: root.profile.status === modelData.id
-                            color: isCur ? root.accentColor : (stChipMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.14) : Qt.rgba(fg.r, fg.g, fg.b, 0.06))
-                            border.width: 1
-                            border.color: isCur ? root.accentColor : Qt.rgba(fg.r, fg.g, fg.b, 0.1)
-
-                            Text {
-                                id: chipLabel
-                                anchors.centerIn: parent
-                                text: modelData.emoji + " " + modelData.name
-                                color: isCur ? root.bg : root.fg
-                                font.family: Style.font.family
-                                font.pixelSize: Style.font.caption
-                                font.bold: isCur
-                            }
-
-                            MouseArea {
-                                id: stChipMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: if (root.service) root.service.setStatus(modelData.id)
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -709,15 +624,15 @@ PopupCard {
 
             Repeater {
                 model: [
-                    { id: "match",    label: "📡 Local Radar" },
-                    { id: "friends",  label: "🌍 World (" + root.globalList.length + ")" },
-                    { id: "pulse",    label: "✦ Local Pulse" },
-                    { id: "beacon",   label: "🚀 My Beacon" }
+                    { id: "match",    label: "Local" },
+                    { id: "friends",  label: "World  " + root.globalList.length },
+                    { id: "pulse",    label: "Pulse" },
+                    { id: "beacon",   label: "Profile" }
                 ]
 
                 Rectangle {
                     height: Style.space(26)
-                    width: tabBtnLabel.implicitWidth + Style.space(14)
+                    width: tabBtnLabel.implicitWidth + Style.space(16)
                     radius: Style.space(6)
                     readonly property bool isSelectedTab: root.currentTab === modelData.id
                     color: isSelectedTab ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.22) : (tabBtnMouse.containsMouse ? Qt.rgba(fg.r, fg.g, fg.b, 0.1) : "transparent")
@@ -1225,8 +1140,11 @@ PopupCard {
                         spacing: Style.space(8)
 
                         Text {
-                            text: "🌍"
-                            font.pixelSize: Style.space(22)
+                            text: "WORLD"
+                            color: root.accentColor
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
                         }
 
                         Column {
@@ -1234,7 +1152,7 @@ PopupCard {
                             spacing: Style.space(1)
 
                             Text {
-                                text: "Omarchy World"
+                                text: "People building right now"
                                 color: root.fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.subtitle
@@ -1242,7 +1160,7 @@ PopupCard {
                             }
 
                             Text {
-                                text: root.globalStatus.visible ? "People building on Omarchy right now" : "You are hidden from the world"
+                                text: root.globalStatus.visible ? "A small, live lobby for Omarchy builders" : "You are hidden from the world"
                                 color: root.mutedColor
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
@@ -1279,7 +1197,7 @@ PopupCard {
                         spacing: Style.space(6)
 
                         Text {
-                            text: root.globalStatus.visible ? "● LIVE" : "○ HIDDEN"
+                            text: root.globalStatus.visible ? "LIVE" : "HIDDEN"
                             color: root.globalStatus.visible ? "#10b981" : root.mutedColor
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
@@ -1328,7 +1246,7 @@ PopupCard {
                                 spacing: Style.space(1)
 
                                 Text {
-                                    text: "Today's World Spark"
+                                    text: "WORLD SPARK"
                                     color: "#f59e0b"
                                     font.family: Style.font.family
                                     font.pixelSize: Style.font.caption
@@ -1358,7 +1276,7 @@ PopupCard {
                                         Text {
                                             id: sparkButtonLabel
                                             anchors.centerIn: parent
-                                            text: "Spark someone"
+                                            text: "Send spark"
                                             color: root.bg
                                             font.family: Style.font.family
                                             font.pixelSize: Style.font.caption
@@ -1386,7 +1304,7 @@ PopupCard {
                                         Text {
                                             id: focusButtonLabel
                                             anchors.centerIn: parent
-                                            text: "🍅 Pair for 25m"
+                                            text: "Offer 25m focus"
                                             color: root.fg
                                             font.family: Style.font.family
                                             font.pixelSize: Style.font.caption
@@ -1630,7 +1548,7 @@ PopupCard {
                         }
 
                         Column {
-                            width: parent.width - Style.space(212)
+                            width: parent.width - Style.space(174)
                             spacing: Style.space(2)
 
                             Row {
@@ -1677,56 +1595,73 @@ PopupCard {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(4)
 
-                            Repeater {
-                                model: [
-                                    { action: "focus", label: "🍅" },
-                                    { action: "hello", label: "👋" },
-                                    { action: "coffee", label: "☕" },
-                                    { action: "kudos", label: "⚡" }
-                                ]
+                            Rectangle {
+                                width: helloActionLabel.implicitWidth + Style.space(16)
+                                height: Style.space(28)
+                                radius: Style.space(6)
+                                color: helloActionMouse.containsMouse ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.20) : Qt.rgba(fg.r, fg.g, fg.b, 0.08)
 
-                                Rectangle {
-                                    width: Style.space(28)
-                                    height: Style.space(28)
-                                    radius: Style.space(6)
-                                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.09)
+                                Text {
+                                    id: helloActionLabel
+                                    anchors.centerIn: parent
+                                    text: "Say hi"
+                                    color: root.fg
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    font.bold: true
+                                }
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: modelData.label
-                                        font.pixelSize: Style.space(13)
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        enabled: modelData.action !== "focus" || !root.globalFocus || root.globalFocus.status === "idle"
-                                        onClicked: {
-                                            if (!root.service) return
-                                            if (modelData.action === "focus") root.service.inviteGlobalFocus(worldPeer.public_key)
-                                            else root.service.pingGlobal(worldPeer.public_key, modelData.action)
-                                        }
-                                    }
+                                MouseArea {
+                                    id: helloActionMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.service) root.service.pingGlobal(worldPeer.public_key, "hello")
                                 }
                             }
 
                             Rectangle {
-                                width: Style.space(28)
+                                width: focusActionLabel.implicitWidth + Style.space(16)
+                                height: Style.space(28)
+                                radius: Style.space(6)
+                                color: Qt.rgba(0.45, 0.32, 0.95, 0.24)
+                                opacity: !root.globalFocus || root.globalFocus.status === "idle" ? 1 : 0.45
+
+                                Text {
+                                    id: focusActionLabel
+                                    anchors.centerIn: parent
+                                    text: "Focus"
+                                    color: root.fg
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    font.bold: true
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: !root.globalFocus || root.globalFocus.status === "idle"
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (root.service) root.service.inviteGlobalFocus(worldPeer.public_key)
+                                }
+                            }
+
+                            Rectangle {
+                                width: Style.space(24)
                                 height: Style.space(28)
                                 radius: Style.space(6)
                                 color: "transparent"
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "⋯"
+                                    text: "×"
                                     color: root.mutedColor
-                                    font.pixelSize: Style.space(16)
+                                    font.pixelSize: Style.font.body
                                 }
 
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (root.service) root.service.blockGlobal(modelData.public_key)
+                                    onClicked: if (root.service) root.service.blockGlobal(worldPeer.public_key)
                                 }
                             }
                         }
