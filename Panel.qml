@@ -1126,7 +1126,7 @@ PopupCard {
                 TextInput {
                     anchors.fill: parent
                     anchors.margins: Style.space(9)
-                    text: root.handleDraft || root.profile.handle || "quiet-builder"
+                    text: root.handleDraft
                     color: fg
                     font.family: Style.font.family
                     font.pixelSize: Style.font.bodySmall
@@ -1355,7 +1355,7 @@ PopupCard {
                 TextInput {
                     anchors.fill: parent
                     anchors.margins: Style.space(9)
-                    text: root.projectNameDraft || root.profile.project_name || ""
+                    text: root.projectNameDraft
                     color: fg
                     font.family: Style.font.family
                     font.pixelSize: Style.font.bodySmall
@@ -1372,7 +1372,7 @@ PopupCard {
                 TextEdit {
                     anchors.fill: parent
                     anchors.margins: Style.space(9)
-                    text: root.projectDescDraft || root.profile.project_desc || ""
+                    text: root.projectDescDraft
                     color: fg
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
