@@ -187,17 +187,17 @@ PopupCard {
         }
     }
 
-    Timer {
-        id: noticeTimer
-        interval: 2600
-        onTriggered: root.notice = ""
-    }
-
     Item {
         width: 1
         height: 1
         visible: false
         focus: root.open
+
+        Timer {
+            id: noticeTimer
+            interval: 2600
+            onTriggered: root.notice = ""
+        }
 
         Keys.onPressed: function(event) {
             root.keyPressed(event)
