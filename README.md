@@ -13,6 +13,9 @@ available when people are nearby.
 * **🌍 Omarchy World:** See recently active, real plugin installations across
   the internet. Presence expires after 150 seconds, so the list is a live
   lobby, not a fake social feed.
+* **✦ Showcase:** Browse the projects and setup beacons that builders choose
+  to share, then say hello when something catches your eye. Add your own from
+  Profile so your setup can become someone else’s starting point.
 * **👋 One-click connection:** Wave, offer coffee, or send kudos from any
   world profile. Incoming waves appear in the deck and as a desktop
   notification. No Friend Code is required.

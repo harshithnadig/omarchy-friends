@@ -1152,6 +1152,7 @@ PopupCard {
                         spacing: Style.space(8)
 
                         Text {
+                            visible: false
                             text: "WORLD"
                             color: root.accentColor
                             font.family: Style.font.family
@@ -1164,7 +1165,7 @@ PopupCard {
                             spacing: Style.space(1)
 
                             Text {
-                                text: "World"
+                                text: "Builders online"
                                 color: root.fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.subtitle
@@ -1172,7 +1173,7 @@ PopupCard {
                             }
 
                             Text {
-                                text: root.globalStatus.visible ? "Builders online now" : "You are hidden from the world"
+                                text: root.globalStatus.visible ? (root.globalList.length + " right now") : "Hidden from World"
                                 color: root.mutedColor
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
@@ -1206,6 +1207,7 @@ PopupCard {
                     }
 
                     Row {
+                        visible: false
                         spacing: Style.space(6)
 
                         Text {
@@ -1235,6 +1237,7 @@ PopupCard {
                     }
 
                     Rectangle {
+                        visible: false
                         width: parent.width
                         height: sparkRow.implicitHeight + Style.space(12)
                         radius: Style.space(6)
@@ -1341,6 +1344,7 @@ PopupCard {
             }
 
             Rectangle {
+                visible: false
                 width: parent.width
                 height: circleCol.implicitHeight + Style.space(16)
                 radius: Style.space(7)
@@ -2053,6 +2057,63 @@ PopupCard {
                 wrapMode: Text.WordWrap
             }
 
+            Rectangle {
+                width: parent.width
+                height: Style.space(42)
+                radius: Style.space(7)
+                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
+                border.width: 1
+                border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
+
+                Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(10)
+                    anchors.rightMargin: Style.space(8)
+                    spacing: Style.space(8)
+
+                    Text {
+                        text: "✦"
+                        color: root.accentColor
+                        font.pixelSize: Style.space(18)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                        width: parent.width - showcaseShareLabel.implicitWidth - Style.space(34)
+                        text: root.profile.project_name ? "Your setup is ready to be discovered." : "Give people a starting point for a conversation."
+                        color: root.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Rectangle {
+                        width: showcaseShareLabel.implicitWidth + Style.space(14)
+                        height: Style.space(26)
+                        radius: Style.space(6)
+                        color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Text {
+                            id: showcaseShareLabel
+                            anchors.centerIn: parent
+                            text: root.profile.project_name ? "Edit setup" : "Share setup"
+                            color: root.accentColor
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.currentTab = "beacon"
+                        }
+                    }
+                }
+            }
+
             Repeater {
                 model: root.showcasePeers()
 
@@ -2147,7 +2208,7 @@ PopupCard {
             Text {
                 visible: root.showcasePeers().length === 0
                 width: parent.width
-                text: root.globalStatus.visible ? "No shared setups yet. Add a project in Profile to start the gallery." : "Turn on visibility in Profile to see the showcase."
+                text: root.globalStatus.visible ? "No shared setups yet. Be the first one in the gallery." : "Turn on visibility in Profile to see the showcase."
                 color: root.mutedColor
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
