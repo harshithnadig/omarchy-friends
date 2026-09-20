@@ -27,6 +27,7 @@ PopupCard {
 
     property string tab: "world"
     property int selectedPeer: 0
+    property string worldQuery: ""
     property bool ideaOpen: false
     property string ideaText: ""
     property string handleDraft: ""
@@ -50,6 +51,19 @@ PopupCard {
         var result = []
         for (var i = 0; i < root.world.length; i++) {
             if (root.world[i].project_name || root.world[i].project_desc || root.world[i].project_url) result.push(root.world[i])
+        }
+        return result
+    }
+    function visibleWorld() {
+        var query = root.worldQuery.trim().toLowerCase()
+        if (query === "") return root.world
+        var result = []
+        for (var i = 0; i < root.world.length; i++) {
+            var peer = root.world[i]
+            var ground = peer.common_ground || []
+            var groundText = ground.join ? ground.join(" ") : String(ground)
+            var haystack = [peer.handle || "", peer.project_name || "", peer.activity || "", groundText].join(" ").toLowerCase()
+            if (haystack.indexOf(query) !== -1) result.push(peer)
         }
         return result
     }
@@ -86,9 +100,9 @@ PopupCard {
         if (event.key === Qt.Key_3) { root.tab = "activity"; event.accepted = true; return }
         if (event.key === Qt.Key_4) { openProfile(); event.accepted = true; return }
         if (event.text === "r" && root.tab === "world" && root.service) { root.service.refreshGlobal(); event.accepted = true; return }
-        if (event.key === Qt.Key_Down || event.text === "j") { root.selectedPeer = Math.min(Math.max(0, root.world.length - 1), root.selectedPeer + 1); event.accepted = true; return }
+        if (event.key === Qt.Key_Down || event.text === "j") { root.selectedPeer = Math.min(Math.max(0, root.visibleWorld().length - 1), root.selectedPeer + 1); event.accepted = true; return }
         if (event.key === Qt.Key_Up || event.text === "k") { root.selectedPeer = Math.max(0, root.selectedPeer - 1); event.accepted = true; return }
-        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.tab === "world" && root.world.length > 0) { sayHi(root.world[root.selectedPeer]); event.accepted = true }
+        if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.tab === "world" && root.visibleWorld().length > 0) { sayHi(root.visibleWorld()[root.selectedPeer]); event.accepted = true }
     }
 
     Timer { id: noticeTimer; interval: 2600; onTriggered: root.notice = "" }
@@ -160,8 +174,20 @@ PopupCard {
             visible: root.tab === "world"; width: parent.width; spacing: Style.space(9)
             Row {
                 width: parent.width; spacing: Style.space(8)
-                Column { width: parent.width - refreshButton.width - Style.space(8); spacing: Style.space(2); Text { text: "World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }; Text { text: root.worldStatus.visible ? root.world.length + " builders online" : "You are hidden"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
+                Column { width: parent.width - refreshButton.width - Style.space(8); spacing: Style.space(2); Text { text: "World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }; Text { text: root.worldStatus.visible ? (root.worldQuery === "" ? root.world.length + " builders online" : root.visibleWorld().length + " of " + root.world.length + " builders") : "You are hidden"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
                 Rectangle { id: refreshButton; width: refreshText.implicitWidth + Style.space(16); height: Style.space(28); radius: height / 2; color: Qt.rgba(fg.r, fg.g, fg.b, 0.08); Text { id: refreshText; anchors.centerIn: parent; text: "Refresh"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.refreshGlobal() } }
+            }
+
+            Rectangle {
+                visible: root.world.length > 3
+                width: parent.width
+                height: Style.space(31)
+                radius: height / 2
+                color: Qt.rgba(fg.r, fg.g, fg.b, 0.06)
+                border.width: root.worldQuery !== "" ? 1 : 0
+                border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                Text { visible: root.worldQuery === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(12); anchors.verticalCenter: parent.verticalCenter; text: "Search builders or projects"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                TextInput { id: worldSearch; anchors.fill: parent; anchors.leftMargin: Style.space(12); anchors.rightMargin: Style.space(12); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter; text: root.worldQuery; onTextChanged: root.worldQuery = text }
             }
 
             Rectangle {
@@ -170,7 +196,7 @@ PopupCard {
             }
 
             Repeater {
-                model: root.world
+                model: root.visibleWorld()
                 Rectangle {
                     width: parent.width; height: worldRow.implicitHeight + Style.space(18); radius: Style.space(8)
                     color: index === root.selectedPeer ? Qt.rgba(accent.r, accent.g, accent.b, 0.1) : Qt.rgba(fg.r, fg.g, fg.b, 0.045)
@@ -184,6 +210,7 @@ PopupCard {
                 visible: root.world.length === 0; width: parent.width; height: emptyWorld.implicitHeight + Style.space(22); radius: Style.space(9); color: Qt.rgba(accent.r, accent.g, accent.b, 0.07)
                 Column { id: emptyWorld; anchors.centerIn: parent; width: parent.width - Style.space(36); spacing: Style.space(5); Text { width: parent.width; text: root.worldStatus.visible ? "You are early." : "You are hidden."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }; Text { width: parent.width; text: root.worldStatus.visible ? "Share your setup and give the next builder a reason to say hello." : "Open Profile when you are ready to appear."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }; Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: emptyWorldAction.implicitWidth + Style.space(20); height: Style.space(28); radius: height / 2; color: accent; Text { id: emptyWorldAction; anchors.centerIn: parent; text: root.worldStatus.visible ? "Share setup" : "Open Profile"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }; MouseArea { anchors.fill: parent; onClicked: root.openProfile() } } }
             }
+            Text { visible: root.world.length > 0 && root.visibleWorld().length === 0; width: parent.width; text: "No builders match that search."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
         }
 
         Column {
@@ -214,7 +241,7 @@ PopupCard {
                 width: parent.width
                 spacing: Style.space(5)
                 Repeater {
-                    model: root.service && root.service.availableStatuses && root.service.availableStatuses.length ? root.service.availableStatuses : [{ id: "coding", name: "In the zone", emoji: "🚀" }, { id: "learning", name: "Learning", emoji: "📚" }, { id: "building", name: "Building", emoji: "🔨" }, { id: "available", name: "Up for a chat", emoji: "💬" }]
+                    model: root.service && root.service.availableStatuses && root.service.availableStatuses.length ? root.service.availableStatuses : [{ id: "coding", name: "Coding", emoji: "💻" }, { id: "vibe", name: "Vibing", emoji: "✨" }, { id: "coffee", name: "Coffee", emoji: "☕" }, { id: "debug", name: "Debugging", emoji: "🐛" }, { id: "night", name: "Night owl", emoji: "🌙" }, { id: "rice", name: "Ricing", emoji: "🍚" }]
                     Rectangle {
                         height: Style.space(25)
                         width: statusChip.implicitWidth + Style.space(14)
