@@ -174,7 +174,7 @@ PopupCard {
             visible: root.tab === "world"; width: parent.width; spacing: Style.space(9)
             Row {
                 width: parent.width; spacing: Style.space(8)
-                Column { width: parent.width - refreshButton.width - Style.space(8); spacing: Style.space(2); Text { text: "World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }; Text { text: root.worldStatus.visible ? (root.worldQuery === "" ? root.world.length + " builders online" : root.visibleWorld().length + " of " + root.world.length + " builders") : "You are hidden"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
+                Column { width: parent.width - refreshButton.width - Style.space(8); spacing: Style.space(2); Text { text: "World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }; Text { text: root.worldStatus.last_error ? "World sync paused" : (root.worldStatus.visible ? (root.worldQuery === "" ? root.world.length + " builders online" : root.visibleWorld().length + " of " + root.world.length + " builders") : "You are hidden"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
                 Rectangle { id: refreshButton; width: refreshText.implicitWidth + Style.space(16); height: Style.space(28); radius: height / 2; color: Qt.rgba(fg.r, fg.g, fg.b, 0.08); Text { id: refreshText; anchors.centerIn: parent; text: "Refresh"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.refreshGlobal() } }
             }
 
@@ -208,7 +208,7 @@ PopupCard {
 
             Rectangle {
                 visible: root.world.length === 0; width: parent.width; height: emptyWorld.implicitHeight + Style.space(22); radius: Style.space(9); color: Qt.rgba(accent.r, accent.g, accent.b, 0.07)
-                Column { id: emptyWorld; anchors.centerIn: parent; width: parent.width - Style.space(36); spacing: Style.space(5); Text { width: parent.width; text: root.worldStatus.visible ? "You are early." : "You are hidden."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }; Text { width: parent.width; text: root.worldStatus.visible ? "Share your setup and give the next builder a reason to say hello." : "Open Profile when you are ready to appear."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }; Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: emptyWorldAction.implicitWidth + Style.space(20); height: Style.space(28); radius: height / 2; color: accent; Text { id: emptyWorldAction; anchors.centerIn: parent; text: root.worldStatus.visible ? "Share setup" : "Open Profile"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }; MouseArea { anchors.fill: parent; onClicked: root.openProfile() } } }
+                Column { id: emptyWorld; anchors.centerIn: parent; width: parent.width - Style.space(36); spacing: Style.space(5); Text { width: parent.width; text: root.worldStatus.last_error ? "World is taking a break." : (root.worldStatus.visible ? "You are early." : "You are hidden."); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }; Text { width: parent.width; text: root.worldStatus.last_error ? "Refresh in a moment. You can still finish your profile while it reconnects." : (root.worldStatus.visible ? "Share your setup and give the next builder a reason to say hello." : "Open Profile when you are ready to appear."); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }; Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: emptyWorldAction.implicitWidth + Style.space(20); height: Style.space(28); radius: height / 2; color: accent; Text { id: emptyWorldAction; anchors.centerIn: parent; text: root.worldStatus.last_error ? "Try again" : (root.worldStatus.visible ? "Share setup" : "Open Profile"); color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }; MouseArea { anchors.fill: parent; onClicked: { if (root.worldStatus.last_error && root.service) root.service.refreshGlobal(); else root.openProfile() } } } }
             }
             Text { visible: root.world.length > 0 && root.visibleWorld().length === 0; width: parent.width; text: "No builders match that search."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
         }
@@ -236,6 +236,24 @@ PopupCard {
             Text { text: "Choose what people see when you appear in World."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             Text { text: "Name"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Rectangle { width: parent.width; height: Style.space(32); radius: Style.space(6); color: Qt.rgba(fg.r, fg.g, fg.b, 0.08); TextInput { anchors.fill: parent; anchors.margins: Style.space(8); text: root.handleDraft || root.profile.handle || "OmarchyHacker"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; onTextChanged: root.handleDraft = text } }
+            Text { text: "Avatar"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Flow {
+                width: parent.width
+                spacing: Style.space(5)
+                Repeater {
+                    model: root.service && root.service.availableAvatars && root.service.availableAvatars.length ? root.service.availableAvatars : ["👾", "🦊", "🤖", "🐱", "🚀", "🧙", "🦉", "🐙", "⚡", "☕", "🎮", "🐧"]
+                    Rectangle {
+                        width: Style.space(29)
+                        height: Style.space(29)
+                        radius: height / 2
+                        color: root.profile.avatar === modelData ? Qt.rgba(accent.r, accent.g, accent.b, 0.22) : Qt.rgba(fg.r, fg.g, fg.b, 0.06)
+                        border.width: root.profile.avatar === modelData ? 1 : 0
+                        border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.4)
+                        Text { anchors.centerIn: parent; text: modelData; font.pixelSize: Style.space(16) }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.setAvatar(modelData) }
+                    }
+                }
+            }
             Text { text: "Status"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Flow {
                 width: parent.width
