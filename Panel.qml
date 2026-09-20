@@ -110,6 +110,15 @@ PopupCard {
         return count
     }
 
+    function showcasePeers() {
+        var result = []
+        for (var i = 0; i < root.globalList.length; i++) {
+            var peer = root.globalList[i]
+            if (peer.project_name || peer.project_desc || peer.project_url) result.push(peer)
+        }
+        return result
+    }
+
     function toggleCircle(name) {
         if (!root.service) return
         var current = String(root.profile.room || "").toLowerCase()
@@ -140,8 +149,9 @@ PopupCard {
         }
         if (event.key === Qt.Key_1) { root.currentTab = "match"; event.accepted = true; return }
         if (event.key === Qt.Key_2) { root.currentTab = "friends"; event.accepted = true; return }
-        if (event.key === Qt.Key_3) { root.currentTab = "pulse"; event.accepted = true; return }
-        if (event.key === Qt.Key_4) { root.currentTab = "beacon"; event.accepted = true; return }
+        if (event.key === Qt.Key_3) { root.currentTab = "showcase"; event.accepted = true; return }
+        if (event.key === Qt.Key_4) { root.currentTab = "pulse"; event.accepted = true; return }
+        if (event.key === Qt.Key_5) { root.currentTab = "beacon"; event.accepted = true; return }
         if (event.key === Qt.Key_Down || event.text === "j") {
             root.moveKeyboardPeer(1)
             event.accepted = true
@@ -627,6 +637,7 @@ PopupCard {
                 model: [
                     { id: "match",    label: "Local" },
                     { id: "friends",  label: "World  " + root.globalList.length },
+                    { id: "showcase", label: "Showcase  " + root.showcasePeers().length },
                     { id: "pulse",    label: "Pulse" },
                     { id: "beacon",   label: "Profile" }
                 ]
@@ -2019,7 +2030,134 @@ PopupCard {
         }
 
         // -------------------------------------------------------------
-        // TAB 3: LOCAL PULSE (REAL SIGNALS FROM THIS SESSION)
+        // TAB 3: SHOWCASE (PROJECTS AND RICE)
+        // -------------------------------------------------------------
+        Column {
+            width: parent.width
+            spacing: Style.space(8)
+            visible: root.currentTab === "showcase"
+
+            Text {
+                text: "Showcase · what builders are making"
+                color: root.fg
+                font.family: Style.font.family
+                font.pixelSize: Style.font.subtitle
+                font.bold: true
+            }
+
+            Text {
+                text: "A quieter way to find inspiration and people on your wavelength."
+                color: root.mutedColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+            }
+
+            Repeater {
+                model: root.showcasePeers()
+
+                Rectangle {
+                    width: parent.width
+                    height: showcaseRow.implicitHeight + Style.space(16)
+                    radius: Style.space(7)
+                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.04)
+                    border.width: 1
+                    border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+
+                    Row {
+                        id: showcaseRow
+                        anchors.fill: parent
+                        anchors.margins: Style.space(8)
+                        spacing: Style.space(9)
+
+                        Text {
+                            text: modelData.avatar || "👾"
+                            font.pixelSize: Style.space(22)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Column {
+                            width: parent.width - Style.space(92)
+                            spacing: Style.space(3)
+
+                            Row {
+                                spacing: Style.space(6)
+                                Text {
+                                    text: modelData.project_name || "Omarchy setup"
+                                    color: root.fg
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.body
+                                    font.bold: true
+                                }
+                                Text {
+                                    text: "by " + (modelData.handle || "a builder")
+                                    color: root.mutedColor
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: modelData.project_desc || "A setup worth exploring"
+                                color: root.mutedColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                wrapMode: Text.WordWrap
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                visible: modelData.common_ground && modelData.common_ground.length > 0
+                                width: parent.width
+                                text: "✦ " + (modelData.common_ground || []).join(" · ")
+                                color: root.accentColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        Rectangle {
+                            width: showcaseSayHiLabel.implicitWidth + Style.space(14)
+                            height: Style.space(26)
+                            radius: Style.space(6)
+                            color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+
+                            Text {
+                                id: showcaseSayHiLabel
+                                anchors.centerIn: parent
+                                text: "Say hi"
+                                color: root.accentColor
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                font.bold: true
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (root.service) root.service.pingGlobal(modelData.public_key, "hello")
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                visible: root.showcasePeers().length === 0
+                width: parent.width
+                text: root.globalStatus.visible ? "No shared setups yet. Add a project in Profile to start the gallery." : "Turn on visibility in Profile to see the showcase."
+                color: root.mutedColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        // -------------------------------------------------------------
+        // TAB 4: LOCAL PULSE (REAL SIGNALS FROM THIS SESSION)
         // -------------------------------------------------------------
         Column {
             width: parent.width
