@@ -1685,15 +1685,65 @@ PopupCard {
                 }
             }
 
-            Text {
+            Rectangle {
                 visible: root.globalList.length === 0
                 width: parent.width
-                text: root.globalStatus.visible ? "No builders live yet." : "Turn on visibility in Profile to appear here."
-                color: root.mutedColor
-                font.family: Style.font.family
-                font.pixelSize: Style.font.bodySmall
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
+                height: emptyWorldCol.implicitHeight + Style.space(20)
+                radius: Style.space(9)
+                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.06)
+                border.width: 1
+                border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.16)
+
+                Column {
+                    id: emptyWorldCol
+                    anchors.centerIn: parent
+                    width: parent.width - Style.space(32)
+                    spacing: Style.space(5)
+
+                    Text {
+                        width: parent.width
+                        text: root.globalStatus.visible ? "You are early." : "You are hidden."
+                        color: root.fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: root.globalStatus.visible ? "Share your setup and give the next builder a reason to say hello." : "Turn on World visibility in Profile when you are ready."
+                        color: root.mutedColor
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: emptyWorldActionLabel.implicitWidth + Style.space(18)
+                        height: Style.space(28)
+                        radius: Style.space(6)
+                        color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
+
+                        Text {
+                            id: emptyWorldActionLabel
+                            anchors.centerIn: parent
+                            text: root.globalStatus.visible ? "Share setup" : "Open Profile"
+                            color: root.accentColor
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.currentTab = "beacon"
+                        }
+                    }
+                }
             }
 
             Row {
