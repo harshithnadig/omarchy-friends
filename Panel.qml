@@ -209,6 +209,40 @@ PopupCard {
             Text { text: "Choose what people see when you appear in World."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             Text { text: "Name"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Rectangle { width: parent.width; height: Style.space(32); radius: Style.space(6); color: Qt.rgba(fg.r, fg.g, fg.b, 0.08); TextInput { anchors.fill: parent; anchors.margins: Style.space(8); text: root.handleDraft || root.profile.handle || "OmarchyHacker"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; onTextChanged: root.handleDraft = text } }
+            Text { text: "Status"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Flow {
+                width: parent.width
+                spacing: Style.space(5)
+                Repeater {
+                    model: root.service && root.service.availableStatuses && root.service.availableStatuses.length ? root.service.availableStatuses : [{ id: "coding", name: "In the zone", emoji: "🚀" }, { id: "learning", name: "Learning", emoji: "📚" }, { id: "building", name: "Building", emoji: "🔨" }, { id: "available", name: "Up for a chat", emoji: "💬" }]
+                    Rectangle {
+                        height: Style.space(25)
+                        width: statusChip.implicitWidth + Style.space(14)
+                        radius: height / 2
+                        color: root.profile.status === modelData.id ? Qt.rgba(accent.r, accent.g, accent.b, 0.2) : Qt.rgba(fg.r, fg.g, fg.b, 0.06)
+                        border.width: root.profile.status === modelData.id ? 1 : 0
+                        border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                        Text { id: statusChip; anchors.centerIn: parent; text: modelData.emoji + " " + modelData.name; color: root.profile.status === modelData.id ? accent : muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: root.profile.status === modelData.id }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.setStatus(modelData.id) }
+                    }
+                }
+            }
+            Rectangle {
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: root.profile.privacy && root.profile.privacy.share_global ? Qt.rgba(0.06, 0.73, 0.51, 0.1) : Qt.rgba(fg.r, fg.g, fg.b, 0.06)
+                border.width: 1
+                border.color: root.profile.privacy && root.profile.privacy.share_global ? Qt.rgba(0.06, 0.73, 0.51, 0.28) : Qt.rgba(fg.r, fg.g, fg.b, 0.1)
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(8)
+                    spacing: Style.space(8)
+                    Text { text: root.profile.privacy && root.profile.privacy.share_global ? "●" : "○"; color: root.profile.privacy && root.profile.privacy.share_global ? "#10b981" : muted; font.pixelSize: Style.space(14); anchors.verticalCenter: parent.verticalCenter }
+                    Text { width: parent.width - visibilityAction.width - Style.space(24); text: root.profile.privacy && root.profile.privacy.share_global ? "Visible in World" : "Hidden from World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
+                    Rectangle { id: visibilityAction; width: visibilityText.implicitWidth + Style.space(12); height: Style.space(23); radius: height / 2; color: Qt.rgba(fg.r, fg.g, fg.b, 0.08); anchors.verticalCenter: parent.verticalCenter; Text { id: visibilityText; anchors.centerIn: parent; text: "Change"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.togglePrivacy("share_global") } }
+                }
+            }
             Text { text: "Showcase"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Text { text: "A project name and one sentence is enough."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
             Rectangle { width: parent.width; height: Style.space(32); radius: Style.space(6); color: Qt.rgba(fg.r, fg.g, fg.b, 0.08); TextInput { anchors.fill: parent; anchors.margins: Style.space(8); text: root.projectNameDraft || root.profile.project_name || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; onTextChanged: root.projectNameDraft = text } }
