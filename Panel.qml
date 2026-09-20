@@ -1635,6 +1635,7 @@ PopupCard {
                             }
 
                             Rectangle {
+                                visible: false
                                 width: focusActionLabel.implicitWidth + Style.space(16)
                                 height: Style.space(28)
                                 radius: Style.space(6)
@@ -1660,6 +1661,7 @@ PopupCard {
                             }
 
                             Rectangle {
+                                visible: false
                                 width: Style.space(24)
                                 height: Style.space(28)
                                 radius: Style.space(6)
