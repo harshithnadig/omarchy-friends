@@ -34,6 +34,7 @@ PopupCard {
     property string projectNameDraft: ""
     property string projectDescDraft: ""
     property string projectUrlDraft: ""
+    property var interestsDraft: []
     property string notice: ""
 
     readonly property string issueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
@@ -75,12 +76,22 @@ PopupCard {
         root.projectNameDraft = root.profile.project_name || ""
         root.projectDescDraft = root.profile.project_desc || ""
         root.projectUrlDraft = root.profile.project_url || ""
+        root.interestsDraft = (root.profile.interests || []).slice ? (root.profile.interests || []).slice() : []
     }
     function saveProfile() {
         if (!root.service) return
         if (root.handleDraft.trim() !== "") root.service.setHandle(root.handleDraft)
         root.service.setProject(root.projectNameDraft, root.projectDescDraft, root.projectUrlDraft)
         showNotice("Profile saved")
+    }
+    function toggleInterest(id) {
+        var next = (root.interestsDraft || []).slice()
+        var index = next.indexOf(id)
+        if (index >= 0) next.splice(index, 1)
+        else if (next.length < 5) next.push(id)
+        else { showNotice("Choose up to five interests"); return }
+        root.interestsDraft = next
+        if (root.service) root.service.setInterests(next)
     }
     function submitIdea() {
         if (root.ideaText.trim() === "") { showNotice("Write an idea first"); return }
@@ -269,6 +280,25 @@ PopupCard {
                         border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
                         Text { id: statusChip; anchors.centerIn: parent; text: modelData.emoji + " " + modelData.name; color: root.profile.status === modelData.id ? accent : muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: root.profile.status === modelData.id }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.setStatus(modelData.id) }
+                    }
+                }
+            }
+            Text { text: "Interests"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Text { text: "Pick a few so World can show shared ground."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Flow {
+                width: parent.width
+                spacing: Style.space(5)
+                Repeater {
+                    model: root.service && root.service.availableInterests && root.service.availableInterests.length ? root.service.availableInterests : [{ id: "linux", name: "Linux", emoji: "🐧" }, { id: "open-source", name: "Open source", emoji: "🧩" }, { id: "coding", name: "Coding", emoji: "💻" }, { id: "design", name: "Design", emoji: "🎨" }, { id: "hardware", name: "Hardware", emoji: "🔧" }, { id: "music", name: "Music", emoji: "🎧" }, { id: "writing", name: "Writing", emoji: "✍️" }, { id: "games", name: "Games", emoji: "🎮" }]
+                    Rectangle {
+                        height: Style.space(25)
+                        width: interestChip.implicitWidth + Style.space(14)
+                        radius: height / 2
+                        color: root.interestsDraft.indexOf(modelData.id) >= 0 ? Qt.rgba(accent.r, accent.g, accent.b, 0.2) : Qt.rgba(fg.r, fg.g, fg.b, 0.06)
+                        border.width: root.interestsDraft.indexOf(modelData.id) >= 0 ? 1 : 0
+                        border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                        Text { id: interestChip; anchors.centerIn: parent; text: modelData.emoji + " " + modelData.name; color: root.interestsDraft.indexOf(modelData.id) >= 0 ? accent : muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: root.interestsDraft.indexOf(modelData.id) >= 0 }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.toggleInterest(modelData.id) }
                     }
                 }
             }
