@@ -34,6 +34,10 @@ PopupCard {
     property int selectedPeer: 0
     property bool ideaOpen: false
     property string ideaText: ""
+    property bool feedbackOpen: false
+    property string feedbackText: ""
+    property bool bugOpen: false
+    property string bugText: ""
     property string handleDraft: ""
     property string projectNameDraft: ""
     property string projectDescDraft: ""
@@ -41,14 +45,19 @@ PopupCard {
     property var interestsDraft: []
     property string notice: ""
     property string messageDraft: ""
+    property string mediaDraft: ""
+    property string selectedFriendKey: ""
+    property string lastReadMessageId: ""
 
     readonly property string issueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
+    readonly property string feedbackUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=feedback&title=Omarchy%20Friends%20feedback"
+    readonly property string bugUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20bug"
 
     contentWidth: root.fittedContentWidth(Style.space(460))
     contentHeight: root.fittedContentHeight(deck.implicitHeight)
 
     function tabList() {
-        return ["world", "friends", "showcase", "activity", "profile"]
+        return ["world", "friends", "messages", "showcase", "profile"]
     }
 
     function moveTab(delta) {
@@ -91,6 +100,122 @@ PopupCard {
             }
         }
         return result
+    }
+
+    function incomingFriendRequests() {
+        var result = []
+        for (var i = 0; i < root.pings.length; i++) {
+            var ping = root.pings[i]
+            if (ping && ping.action === "friend_request") result.push(ping)
+        }
+        return result
+    }
+
+    function friendshipFor(publicKey) {
+        return publicKey && root.friendships[publicKey] ? root.friendships[publicKey] : null
+    }
+
+    function requestFor(publicKey) {
+        var requests = root.incomingFriendRequests()
+        for (var i = 0; i < requests.length; i++) {
+            if (requests[i].public_key === publicKey) return requests[i]
+        }
+        return null
+    }
+
+    function selectedFriend() {
+        var list = root.friendsList()
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].public_key === root.selectedFriendKey) return list[i]
+        }
+        return list.length > 0 ? list[0] : null
+    }
+
+    function conversationMessages() {
+        var friend = root.selectedFriend()
+        if (!friend) return []
+        var result = []
+        for (var i = 0; i < root.messages.length; i++) {
+            var message = root.messages[i]
+            if (message && message.public_key === friend.public_key) result.push(message)
+        }
+        return result.slice(Math.max(0, result.length - 16))
+    }
+
+    function unreadMessageCount() {
+        var afterMarker = root.lastReadMessageId === ""
+        var count = 0
+        for (var i = 0; i < root.messages.length; i++) {
+            var message = root.messages[i]
+            if (!message) continue
+            if (message.id === root.lastReadMessageId) {
+                afterMarker = true
+                continue
+            }
+            if (afterMarker && message.incoming) count++
+        }
+        return count
+    }
+
+    function markMessagesRead() {
+        if (root.messages.length > 0) root.lastReadMessageId = root.messages[root.messages.length - 1].id || ""
+    }
+
+    function chooseFriend(peer) {
+        if (!peer || !peer.public_key) return
+        root.selectedFriendKey = peer.public_key
+    }
+
+    function friendActionLabel(peer) {
+        var friendship = root.friendshipFor(peer && peer.public_key)
+        if (friendship && friendship.status === "friends") return "Message"
+        if (friendship && friendship.status === "pending") return "Requested"
+        if (root.requestFor(peer && peer.public_key)) return "Accept"
+        return "Add friend"
+    }
+
+    function activateFriend(peer) {
+        if (!peer || !peer.public_key) return
+        var friendship = root.friendshipFor(peer.public_key)
+        if (friendship && friendship.status === "friends") {
+            root.chooseFriend(peer)
+            root.tab = "messages"
+            return
+        }
+        var request = root.requestFor(peer.public_key)
+        if (request && root.service) {
+            root.service.acceptFriendRequest(request.id)
+            return
+        }
+        if (!friendship || friendship.status !== "pending") root.askToBeFriends(peer)
+        else root.showNotice("Friend request is waiting for acceptance")
+    }
+
+    function sendMessage() {
+        var friend = root.selectedFriend()
+        var text = root.messageDraft.trim()
+        var media = root.mediaDraft.trim()
+        if (!friend || !root.service) {
+            root.showNotice("Accept a friend request before messaging")
+            return
+        }
+        if (!text && !media) {
+            root.showNotice("Write a message or paste a media link")
+            return
+        }
+        root.service.sendDm(friend.public_key, text, media)
+        root.messageDraft = ""
+        root.mediaDraft = ""
+    }
+
+    function openSharedUrl(url) {
+        if (url && (url.indexOf("https://") === 0 || url.indexOf("http://") === 0)) {
+            Quickshell.execDetached(["xdg-open", url])
+        }
+    }
+
+    onTabChanged: {
+        if (root.tab === "messages") Qt.callLater(root.markMessagesRead)
     }
 
     function showNotice(message) {
@@ -147,6 +272,30 @@ PopupCard {
         showNotice("Copied and opened GitHub")
     }
 
+    function submitFeedback() {
+        if (root.feedbackText.trim() === "") {
+            showNotice("Write a little feedback first")
+            return
+        }
+        var payload = "Omarchy Friends feedback:\n\n" + root.feedbackText.trim()
+        Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(payload) + " | wl-copy"])
+        Quickshell.execDetached(["xdg-open", root.feedbackUrl])
+        root.feedbackOpen = false
+        showNotice("Copied feedback and opened GitHub")
+    }
+
+    function submitBug() {
+        if (root.bugText.trim() === "") {
+            showNotice("Describe what went wrong first")
+            return
+        }
+        var payload = "Omarchy Friends bug report:\n\n" + root.bugText.trim()
+        Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(payload) + " | wl-copy"])
+        Quickshell.execDetached(["xdg-open", root.bugUrl])
+        root.bugOpen = false
+        showNotice("Copied bug report and opened GitHub")
+    }
+
     function keyPressed(event) {
         if (!root.open) return
         if (event.key === Qt.Key_Escape) {
@@ -170,16 +319,21 @@ PopupCard {
             return
         }
         if (event.key === Qt.Key_2) {
-            root.tab = "showcase"
+            root.tab = "friends"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_3) {
-            root.tab = "activity"
+            root.tab = "messages"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_4) {
+            root.tab = "showcase"
+            event.accepted = true
+            return
+        }
+        if (event.key === Qt.Key_5) {
             openProfile()
             event.accepted = true
             return
@@ -367,18 +521,22 @@ PopupCard {
                 model: [
                     { id: "world", label: "World" },
                     { id: "friends", label: "Friends" },
+                    { id: "messages", label: "Messages" },
                     { id: "showcase", label: "Showcase" },
-                    { id: "activity", label: "Activity" },
                     { id: "profile", label: "Profile" }
                 ]
 
                 Item {
-                    width: parent.width / 4
+                    width: parent.width / 5
                     height: parent.height
 
                     Text {
                         anchors.centerIn: parent
-                        text: modelData.label
+                        text: modelData.id === "friends" && root.incomingFriendRequests().length > 0
+                            ? modelData.label + " (" + root.incomingFriendRequests().length + ")"
+                            : modelData.id === "messages" && root.unreadMessageCount() > 0
+                                ? modelData.label + " (" + root.unreadMessageCount() + ")"
+                                : modelData.label
                         color: root.tab === modelData.id ? accent : muted
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -749,8 +907,8 @@ PopupCard {
                             Text {
                                 id: hiText
                                 anchors.centerIn: parent
-                                text: "Add friend"
-                                color: fg
+                                text: root.friendActionLabel(modelData)
+                                color: root.friendshipFor(modelData.public_key) && root.friendshipFor(modelData.public_key).status === "friends" ? accent : fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
@@ -759,7 +917,7 @@ PopupCard {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.askToBeFriends(modelData)
+                                onClicked: root.activateFriend(modelData)
                             }
                         }
                     }
@@ -785,41 +943,209 @@ PopupCard {
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(18) }
             Text { text: "Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            Text { text: "People who accepted your friend request."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            Rectangle {
-                visible: root.friendsList().length > 0
-                width: parent.width; height: Style.space(36); radius: Style.space(7); color: soft
-                TextInput {
-                    anchors.fill: parent; anchors.margins: Style.space(9)
-                    text: root.messageDraft; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption
-                    onTextChanged: root.messageDraft = text
-                    onAccepted: {
-                        var friend = root.friendsList()[0]
-                        if (root.service && friend && root.messageDraft.trim() !== "") {
-                            root.service.sendDm(friend.public_key, root.messageDraft)
-                            root.messageDraft = ""
+            Text { text: "Accept people here, then open a private conversation in Messages."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Text { visible: root.incomingFriendRequests().length > 0; text: "Pending requests"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Repeater {
+                model: root.incomingFriendRequests()
+                Rectangle {
+                    width: parent.width
+                    height: Style.space(56)
+                    radius: Style.space(9)
+                    color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: Style.space(10)
+                        spacing: Style.space(9)
+                        Text { text: modelData.avatar || "👾"; font.pixelSize: Style.space(22); anchors.verticalCenter: parent.verticalCenter }
+                        Column {
+                            width: parent.width - acceptRequestButton.width - Style.space(38)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            Text { text: modelData.handle || "A builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            Text { text: "wants to be friends"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        }
+                        Rectangle {
+                            id: acceptRequestButton
+                            width: acceptRequestText.implicitWidth + Style.space(16)
+                            height: Style.space(28)
+                            radius: height / 2
+                            color: accent
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text { id: acceptRequestText; anchors.centerIn: parent; text: "Accept"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.acceptFriendRequest(modelData.id) }
                         }
                     }
                 }
             }
-            Text { visible: root.friendsList().length > 0; text: "Type a private message and press Enter."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-            Text {
-                visible: root.messages.length > 0
-                width: parent.width
-                text: root.messages.length > 0 ? ((root.messages[root.messages.length - 1].incoming ? "← " : "→ ") + root.messages[root.messages.length - 1].handle + ": " + root.messages[root.messages.length - 1].text) : ""
-                color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap
-            }
             Repeater {
                 model: root.friendsList()
                 Rectangle {
-                    width: parent.width; height: Style.space(48); radius: Style.space(9); color: soft
-                    Row { anchors.fill: parent; anchors.margins: Style.space(10); spacing: Style.space(9)
-                        Text { text: modelData.avatar || "👾"; font.pixelSize: Style.space(22) }
-                        Text { text: modelData.handle || "Omarchy friend"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+                    width: parent.width
+                    height: Style.space(56)
+                    radius: Style.space(9)
+                    color: root.selectedFriendKey === modelData.public_key ? Qt.rgba(accent.r, accent.g, accent.b, 0.12) : soft
+                    border.width: root.selectedFriendKey === modelData.public_key ? 1 : 0
+                    border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: Style.space(10)
+                        spacing: Style.space(9)
+                        Text { text: modelData.avatar || "👾"; font.pixelSize: Style.space(22); anchors.verticalCenter: parent.verticalCenter }
+                        Column {
+                            width: parent.width - messageFriendButton.width - Style.space(38)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            Text { text: modelData.handle || "Omarchy friend"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            Text { text: "Private chat available"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        }
+                        Rectangle {
+                            id: messageFriendButton
+                            width: messageFriendText.implicitWidth + Style.space(16)
+                            height: Style.space(28)
+                            radius: height / 2
+                            color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text { id: messageFriendText; anchors.centerIn: parent; text: "Message"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.chooseFriend(modelData); root.tab = "messages" } }
+                        }
                     }
                 }
             }
-            Text { visible: root.friendsList().length === 0; width: parent.width; text: "Add a builder from World. Accepted requests stay here."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
+            Text { visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0; width: parent.width; text: "Add a builder from World. Accepted requests and conversations stay here."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+        }
+
+        Column {
+            id: messagesPanel
+            visible: root.tab === "messages"
+            width: parent.width
+            height: visible ? implicitHeight : 0
+            spacing: Style.space(12)
+            Item { width: 1; height: Style.space(18) }
+            Text { text: "Messages"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+            Text { text: "Private, encrypted conversations with your Omarchy friends."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Flow {
+                width: parent.width
+                spacing: Style.space(6)
+                Repeater {
+                    model: root.friendsList()
+                    Rectangle {
+                        width: friendChipText.implicitWidth + Style.space(22)
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: root.selectedFriendKey === modelData.public_key ? Qt.rgba(accent.r, accent.g, accent.b, 0.2) : soft
+                        border.width: root.selectedFriendKey === modelData.public_key ? 1 : 0
+                        border.color: accent
+                        Text { id: friendChipText; anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
+                    }
+                }
+            }
+            Text { visible: root.friendsList().length === 0; width: parent.width; text: "Accept a friend request before starting a private chat."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+            Text { visible: root.selectedFriend() !== null; text: root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Rectangle {
+                visible: root.selectedFriend() !== null
+                width: parent.width
+                height: Math.max(Style.space(72), chatHistory.implicitHeight + Style.space(18))
+                radius: Style.space(9)
+                color: soft
+                Column {
+                    id: chatHistory
+                    width: parent.width - Style.space(18)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top
+                    anchors.topMargin: Style.space(9)
+                    spacing: Style.space(7)
+                    Repeater {
+                        model: root.conversationMessages()
+                        Column {
+                            width: parent.width
+                            spacing: Style.space(3)
+                            Row {
+                                width: parent.width
+                                layoutDirection: modelData.incoming ? Qt.LeftToRight : Qt.RightToLeft
+                                Rectangle {
+                                    width: Math.min(parent.width - Style.space(26), Style.space(330))
+                                    height: messageBubble.implicitHeight + Style.space(14)
+                                    radius: Style.space(8)
+                                    color: modelData.incoming ? Qt.rgba(fg.r, fg.g, fg.b, 0.08) : Qt.rgba(accent.r, accent.g, accent.b, 0.18)
+                                    Column {
+                                        id: messageBubble
+                                        width: parent.width - Style.space(14)
+                                        anchors.centerIn: parent
+                                        spacing: Style.space(5)
+                                        Text { visible: modelData.text !== ""; width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                        Repeater {
+                                            model: modelData.media || []
+                                            Rectangle {
+                                                width: parent.width
+                                                height: Style.space(28)
+                                                radius: height / 2
+                                                color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
+                                                Text { anchors.centerIn: parent; text: (modelData.kind === "image" ? "🖼 " : modelData.kind === "video" ? "🎞 " : modelData.kind === "audio" ? "🎧 " : "🔗 ") + "Open shared " + modelData.kind; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openSharedUrl(modelData.url) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Text { width: parent.width; text: (modelData.incoming ? "← " : "→ ") + (modelData.handle || "Friend"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: modelData.incoming ? Text.AlignLeft : Text.AlignRight }
+                        }
+                    }
+                    Text { visible: root.conversationMessages().length === 0; width: parent.width; text: "No messages yet. Say hello or share a link."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
+                }
+            }
+            Rectangle {
+                visible: root.selectedFriend() !== null
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: soft
+                TextInput {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(10)
+                    text: root.messageDraft
+                    color: fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    onTextChanged: root.messageDraft = text
+                    onAccepted: root.sendMessage()
+                }
+                Text { visible: root.messageDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Write a message…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+            }
+            Rectangle {
+                visible: root.selectedFriend() !== null
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: soft
+                TextInput {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(10)
+                    text: root.mediaDraft
+                    color: fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    onTextChanged: root.mediaDraft = text
+                    onAccepted: root.sendMessage()
+                }
+                Text { visible: root.mediaDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an image, video, audio, or file link (optional)"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false; elide: Text.ElideRight; width: parent.width - Style.space(20) }
+            }
+            Row {
+                visible: root.selectedFriend() !== null
+                width: parent.width
+                spacing: Style.space(8)
+                Text { width: parent.width - sendMessageButton.width - Style.space(8); text: "Links are shared inside the encrypted message; Friends never uploads a file without your permission."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; anchors.verticalCenter: parent.verticalCenter }
+                Rectangle {
+                    id: sendMessageButton
+                    width: sendMessageButtonText.implicitWidth + Style.space(20)
+                    height: Style.space(32)
+                    radius: height / 2
+                    color: accent
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text { id: sendMessageButtonText; anchors.centerIn: parent; text: "Send"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendMessage() }
+                }
+            }
         }
 
         Column {
@@ -1047,9 +1373,9 @@ PopupCard {
 
         Column {
             id: activityPanel
-            visible: root.tab === "activity"
+            visible: false
             width: parent.width
-            height: visible ? implicitHeight : 0
+            height: 0
             spacing: Style.space(12)
 
             Item { width: 1; height: Style.space(18) }
@@ -1574,6 +1900,170 @@ PopupCard {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: root.submitIdea()
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: root.feedbackOpen ? feedbackColumn.implicitHeight + Style.space(18) : Style.space(32)
+                radius: Style.space(8)
+                color: soft
+
+                Column {
+                    id: feedbackColumn
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(7)
+
+                    Row {
+                        width: parent.width
+
+                        Text {
+                            width: parent.width - feedbackToggle.width
+                            text: "Send feedback"
+                            color: fg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        Rectangle {
+                            id: feedbackToggle
+                            width: Style.space(52)
+                            height: Style.space(24)
+                            radius: height / 2
+                            color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.feedbackOpen ? "Close" : "Open"
+                                color: muted
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.feedbackOpen = !root.feedbackOpen
+                            }
+                        }
+                    }
+
+                    TextEdit {
+                        visible: root.feedbackOpen
+                        width: parent.width
+                        height: Style.space(54)
+                        text: root.feedbackText
+                        color: fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        wrapMode: TextEdit.Wrap
+                        onTextChanged: root.feedbackText = text
+                    }
+
+                    Rectangle {
+                        visible: root.feedbackOpen
+                        width: parent.width
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: Qt.rgba(accent.r, accent.g, accent.b, 0.75)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Copy feedback and open GitHub"
+                            color: bg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.submitFeedback()
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: root.bugOpen ? bugColumn.implicitHeight + Style.space(18) : Style.space(32)
+                radius: Style.space(8)
+                color: Qt.rgba(0.95, 0.35, 0.25, 0.08)
+
+                Column {
+                    id: bugColumn
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(7)
+
+                    Row {
+                        width: parent.width
+
+                        Text {
+                            width: parent.width - bugToggle.width
+                            text: "Report a bug"
+                            color: fg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        Rectangle {
+                            id: bugToggle
+                            width: Style.space(52)
+                            height: Style.space(24)
+                            radius: height / 2
+                            color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.bugOpen ? "Close" : "Open"
+                                color: muted
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.bugOpen = !root.bugOpen
+                            }
+                        }
+                    }
+
+                    TextEdit {
+                        visible: root.bugOpen
+                        width: parent.width
+                        height: Style.space(54)
+                        text: root.bugText
+                        color: fg
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        wrapMode: TextEdit.Wrap
+                        onTextChanged: root.bugText = text
+                    }
+
+                    Rectangle {
+                        visible: root.bugOpen
+                        width: parent.width
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: Qt.rgba(0.95, 0.35, 0.25, 0.8)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Copy bug report and open GitHub"
+                            color: bg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.submitBug()
                         }
                     }
                 }

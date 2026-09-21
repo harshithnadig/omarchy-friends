@@ -23,9 +23,10 @@ available when people are nearby.
 * **🤝 Mutual Friends:** Send a friend request from World, accept it explicitly,
   and keep accepted people in the Friends tab.
 * **🔒 Private DMs:** Accepted friends can send short encrypted one-to-one
-  messages from the Friends tab. Messages are stored locally after delivery;
-  relays carry only signed ciphertext. Requests, blocks, and visibility remain
-  under the recipient's control.
+  messages from the dedicated Messages tab. Messages are stored locally after
+  delivery; relays carry only signed ciphertext. Paste an image, video, audio,
+  or file URL to share media without uploading a file to a third party.
+  Requests, blocks, and visibility remain under the recipient's control.
 * **✨ World Spark:** Get a daily bounded opener and send it to the best live
   match, so meeting someone starts with an actual question instead of a
   blank chat box.
@@ -37,7 +38,8 @@ available when people are nearby.
   so people can find a temporary tribe without creating a chat server.
 * **⌨️ Friends Deck:** Press `?` for help, `h/l` to move between tabs, `j/k` to
   select a person, `Enter` to say hello, `s` to send the World Spark, and `f`
-  to offer a focus ritual.
+  to offer a focus ritual. The tab shortcuts are `1` World, `2` Friends,
+  `3` Messages, `4` Showcase, and `5` Profile.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
 * **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for
@@ -45,9 +47,9 @@ available when people are nearby.
 * **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
   signals, or keep using only the local radar. Friend Codes remain an
   optional private shortcut for people who already know each other.
-* **💡 Suggest a feature:** Write a short feature suggestion in the deck, copy
-  it with context, and optionally open the repository's feature-request form.
-  Nothing is submitted automatically.
+* **💡 Suggest, feedback, and bug reports:** Write a note in Profile, copy it
+  with context, and optionally open the matching GitHub form. Nothing is
+  submitted automatically.
 
 ## How global discovery works
 

@@ -285,8 +285,9 @@ Item {
         runAction([root.binPath, "accept-friend", pingId], function(output) { root.reportResult(output, "You are now friends"); root.refresh() })
     }
 
-    function sendDm(publicKey, text) {
-        runAction([root.binPath, "send-dm", publicKey, text || ""], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
+    function sendDm(publicKey, text, mediaUrl) {
+        var payload = JSON.stringify({ text: text || "", media_url: mediaUrl || "" })
+        runAction([root.binPath, "send-dm", publicKey, payload], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
     }
 
     function blockGlobal(publicKey) {

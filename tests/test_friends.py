@@ -532,14 +532,42 @@ class TestFriendsEngine(unittest.TestCase):
             receiver.state["global"]["friendships"][sender_key] = {"status": "friends", "handle": "Sender"}
             events = []
             with patch.object(self.engine, "_publish_global_event", side_effect=lambda event: events.append(event) or (True, {})):
-                ok, message = self.engine.send_dm(receiver_key, "hello privately")
+                ok, message = self.engine.send_dm(receiver_key, "hello privately", "https://cdn.example.test/omarchy.png")
             self.assertTrue(ok, message)
             received = receiver._global_dm_from_event(events[0])
             self.assertEqual(received["text"], "hello privately")
+            self.assertEqual(received["media"], [{"url": "https://cdn.example.test/omarchy.png", "kind": "image"}])
             receiver.state["global"]["friendships"].pop(sender_key)
             self.assertFalse(receiver._global_dm_from_event(events[0]))
         finally:
             shutil.rmtree(receiver_dir, ignore_errors=True)
+
+    def test_global_friendships_and_messages_survive_state_migration(self):
+        state_file = Path(self.test_dir) / "friends_state.json"
+        peer_key = friends_module.generate_keypair()["public_key"]
+        state_file.write_text(
+            json.dumps(
+                {
+                    "global_identity": self.engine.state["global_identity"],
+                    "global": {
+                        "friendships": {peer_key: {"status": "friends", "handle": "Saved friend", "avatar": "🦊"}},
+                        "messages": [{
+                            "id": "a" * 64,
+                            "public_key": peer_key,
+                            "handle": "Saved friend",
+                            "text": "kept after upgrade",
+                            "media": [{"url": "https://cdn.example.test/clip.mp4"}],
+                            "timestamp": int(time.time()),
+                            "incoming": True,
+                        }],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        migrated = friends_module.FriendsEngine(state_dir=self.test_dir)
+        self.assertEqual(migrated.state["global"]["friendships"][peer_key]["status"], "friends")
+        self.assertEqual(migrated.state["global"]["messages"][0]["media"][0]["kind"], "video")
 
 
 if __name__ == "__main__":

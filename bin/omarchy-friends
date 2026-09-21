@@ -45,6 +45,9 @@ MAX_SEEN_EVENT_IDS = 128
 MAX_ROOM_LENGTH = 24
 MAX_INCOMING_SIGNALS_PER_MINUTE = 12
 MAX_SIGNAL_RECEIPTS = 96
+MAX_MESSAGES = 80
+MAX_MEDIA_ITEMS = 4
+MAX_MEDIA_URL_LENGTH = 500
 GLOBAL_PRESENCE_KIND = 30078
 GLOBAL_PING_KIND = 1
 GLOBAL_DM_KIND = 4
@@ -256,6 +259,56 @@ def safe_url(value):
     if value and not value.startswith(("https://", "http://")):
         return ""
     return value
+
+
+def safe_media_url(value):
+    """Keep shared attachments to links; never fetch or upload user files."""
+    value = trim_text(value, MAX_MEDIA_URL_LENGTH)
+    if not value or not value.startswith(("https://", "http://")):
+        return ""
+    if any(ord(character) < 32 for character in value):
+        return ""
+    return value
+
+
+def media_kind(url):
+    path = url.split("?", 1)[0].split("#", 1)[0].lower()
+    if path.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")):
+        return "image"
+    if path.endswith((".mp4", ".webm", ".mov", ".mkv")):
+        return "video"
+    if path.endswith((".mp3", ".wav", ".ogg", ".m4a", ".flac")):
+        return "audio"
+    return "link"
+
+
+def normalize_media_items(value):
+    """Normalize a small list of shareable URLs for encrypted message payloads."""
+    if isinstance(value, str):
+        value = [{"url": value}]
+    elif isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, (list, tuple)):
+        return []
+    result = []
+    seen = set()
+    for item in value:
+        if isinstance(item, str):
+            url = safe_media_url(item)
+            requested_kind = ""
+        elif isinstance(item, dict):
+            url = safe_media_url(item.get("url"))
+            requested_kind = trim_text(item.get("kind"), 12).lower()
+        else:
+            continue
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        kind = requested_kind if requested_kind in ("image", "video", "audio", "link") else media_kind(url)
+        result.append({"url": url, "kind": kind})
+        if len(result) >= MAX_MEDIA_ITEMS:
+            break
+    return result
 
 
 def normalize_interests(value):
@@ -627,6 +680,27 @@ class FriendsEngine:
                 for item in old_global.get("pings", [])
                 if (normalized := self._normalize_global_ping(item))
             ][-GLOBAL_MAX_PINGS:]
+            friendships = {}
+            for public_key, friendship in (old_global.get("friendships") or {}).items():
+                public_key = trim_text(public_key, 64).lower()
+                if not is_valid_public_key(public_key) or not isinstance(friendship, dict):
+                    continue
+                status = trim_text(friendship.get("status"), 12)
+                if status not in ("pending", "friends"):
+                    continue
+                item = {
+                    "status": status,
+                    "request_id": trim_text(friendship.get("request_id"), 40),
+                    "handle": trim_text(friendship.get("handle"), 24) or "A builder",
+                    "avatar": friendship.get("avatar") if friendship.get("avatar") in AVAILABLE_AVATARS else "👾",
+                }
+                friendships[public_key] = item
+            global_state["friendships"] = friendships
+            global_state["messages"] = [
+                normalized
+                for item in old_global.get("messages", [])
+                if (normalized := self._normalize_global_message(item))
+            ][-MAX_MESSAGES:]
             global_state["sent_pings"] = [
                 {
                     "public_key": trim_text(item.get("public_key"), 64).lower(),
@@ -831,6 +905,25 @@ class FriendsEngine:
             "timestamp": timestamp,
             "time_ago": format_age(timestamp),
             "read": bool(item.get("read", False)),
+        }
+
+    def _normalize_global_message(self, item):
+        if not isinstance(item, dict):
+            return None
+        message_id = trim_text(item.get("id"), 64).lower()
+        public_key = trim_text(item.get("public_key"), 64).lower()
+        text = trim_text(item.get("text"), 2000)
+        media = normalize_media_items(item.get("media"))
+        if not message_id or not is_valid_public_key(public_key) or (not text and not media):
+            return None
+        return {
+            "id": message_id,
+            "public_key": public_key,
+            "handle": trim_text(item.get("handle"), 24) or "A friend",
+            "text": text,
+            "media": media,
+            "timestamp": safe_int(item.get("timestamp"), now_seconds()),
+            "incoming": bool(item.get("incoming", False)),
         }
 
     def _normalize_pulse(self, item):
@@ -1101,10 +1194,30 @@ class FriendsEngine:
             return None
         try:
             payload = json.loads(event.get("content", "{}"))
-            text = decrypt_private_text(self._global_identity()["secret_key"], sender, payload)
+            decrypted = decrypt_private_text(self._global_identity()["secret_key"], sender, payload)
         except (KeyError, TypeError, ValueError, UnicodeError, base64.binascii.Error):
             return None
-        return {"id": event.get("id"), "public_key": sender, "handle": friendship.get("handle", "A friend"), "text": trim_text(text, 2000), "timestamp": safe_int(event.get("created_at")), "incoming": True}
+        text = decrypted
+        media = []
+        try:
+            envelope = json.loads(decrypted)
+        except (TypeError, ValueError):
+            envelope = None
+        if isinstance(envelope, dict) and envelope.get("v") == 1:
+            text = envelope.get("text", "")
+            media = normalize_media_items(envelope.get("media"))
+        text = trim_text(text, 2000)
+        if not text and not media:
+            return None
+        return {
+            "id": event.get("id"),
+            "public_key": sender,
+            "handle": friendship.get("handle", "A friend"),
+            "text": text,
+            "media": media,
+            "timestamp": safe_int(event.get("created_at")),
+            "incoming": True,
+        }
 
     def _allow_global_signal(self, public_key):
         cutoff = now_seconds() - 60
@@ -1207,15 +1320,21 @@ class FriendsEngine:
         self.save_state()
         return True, "You are now friends"
 
-    def send_dm(self, public_key, text):
+    def send_dm(self, public_key, text, media_url=""):
         public_key = trim_text(public_key, 64).lower()
         text = trim_text(text, 2000)
-        if not text:
-            return False, "Write a message first"
+        media = normalize_media_items(media_url)
+        if not text and not media:
+            return False, "Write a message or add a media link first"
         if self.state.setdefault("global", {}).setdefault("friendships", {}).get(public_key, {}).get("status") != "friends":
             return False, "DMs are available after you become friends"
         try:
-            payload = encrypt_private_text(self._global_identity()["secret_key"], public_key, text)
+            envelope = {"v": 1, "text": text, "media": media}
+            payload = encrypt_private_text(
+                self._global_identity()["secret_key"],
+                public_key,
+                json.dumps(envelope, separators=(",", ":")),
+            )
         except (TypeError, ValueError):
             return False, "That friend key is invalid"
         event = build_event(self._global_identity()["secret_key"], GLOBAL_DM_KIND, [["p", public_key], ["t", GLOBAL_DM_TAG], ["alt", "Omarchy Friends private message"]], json.dumps(payload, separators=(",", ":")))
@@ -1225,8 +1344,8 @@ class FriendsEngine:
             self.save_state()
             return False, "Could not send the private message"
         friend = self.state["global"]["friendships"][public_key]
-        self.state["global"].setdefault("messages", []).append({"id": event["id"], "public_key": public_key, "handle": friend.get("handle", "Friend"), "text": text, "timestamp": now_seconds(), "incoming": False})
-        self.state["global"]["messages"] = self.state["global"]["messages"][-80:]
+        self.state["global"].setdefault("messages", []).append({"id": event["id"], "public_key": public_key, "handle": friend.get("handle", "Friend"), "text": text, "media": media, "timestamp": now_seconds(), "incoming": False})
+        self.state["global"]["messages"] = self.state["global"]["messages"][-MAX_MESSAGES:]
         self.save_state()
         return True, "Private message sent"
 
@@ -1540,7 +1659,7 @@ class FriendsEngine:
                 global_state.setdefault("messages", []).append(message)
                 processed_ids.append(message["id"])
                 self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
-        global_state["messages"] = global_state.get("messages", [])[-80:]
+        global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
         for ping in pings:
             if ping["id"] in processed_ids or any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
                 continue
@@ -2659,7 +2778,18 @@ def main():
         ok, message = engine.accept_friend_request(sys.argv[2])
         print_result(ok, message)
     elif command == "send-dm" and len(sys.argv) >= 4:
-        ok, message = engine.send_dm(sys.argv[2], " ".join(sys.argv[3:]))
+        raw_message = " ".join(sys.argv[3:])
+        message_text = raw_message
+        media_url = ""
+        if len(sys.argv) == 4:
+            try:
+                message_payload = json.loads(sys.argv[3])
+            except (TypeError, ValueError):
+                message_payload = None
+            if isinstance(message_payload, dict) and ("text" in message_payload or "media_url" in message_payload or "media" in message_payload):
+                message_text = message_payload.get("text", "")
+                media_url = message_payload.get("media_url", message_payload.get("media", ""))
+        ok, message = engine.send_dm(sys.argv[2], message_text, media_url)
         print_result(ok, message)
     elif command == "block-global" and len(sys.argv) >= 3:
         ok, message = engine.block_global(sys.argv[2])
