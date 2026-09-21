@@ -1029,13 +1029,13 @@ PopupCard {
                 Repeater {
                     model: root.friendsList()
                     Rectangle {
-                        width: friendChipText.implicitWidth + Style.space(22)
+                        width: Math.min(friendChipText.implicitWidth + Style.space(22), parent.width)
                         height: Style.space(30)
                         radius: height / 2
                         color: root.selectedFriendKey === modelData.public_key ? Qt.rgba(accent.r, accent.g, accent.b, 0.2) : soft
                         border.width: root.selectedFriendKey === modelData.public_key ? 1 : 0
                         border.color: accent
-                        Text { id: friendChipText; anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        Text { id: friendChipText; width: parent.width - Style.space(22); anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
                     }
                 }
