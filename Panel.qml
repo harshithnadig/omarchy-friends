@@ -104,6 +104,19 @@ PopupCard {
         return result
     }
 
+    function pendingFriendsList() {
+        var result = []
+        for (var key in root.friendships) {
+            var pending = root.friendships[key]
+            if (pending && pending.status === "pending") {
+                var item = Object.assign({}, pending)
+                item.public_key = key
+                result.push(item)
+            }
+        }
+        return result
+    }
+
     function incomingFriendRequests() {
         var result = []
         for (var i = 0; i < root.pings.length; i++) {
@@ -1116,6 +1129,29 @@ PopupCard {
                     }
                 }
             }
+            Text { visible: root.pendingFriendsList().length > 0; text: "Waiting for acceptance"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Repeater {
+                model: root.pendingFriendsList()
+                Rectangle {
+                    width: parent.width
+                    height: Style.space(52)
+                    radius: Style.space(9)
+                    color: soft
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: Style.space(10)
+                        spacing: Style.space(9)
+                        Text { text: modelData.avatar || "👾"; font.pixelSize: Style.space(20); anchors.verticalCenter: parent.verticalCenter }
+                        Column {
+                            width: parent.width - Style.space(28)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            Text { text: modelData.handle || "A builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            Text { text: "Invite sent · waiting for them to accept"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        }
+                    }
+                }
+            }
             Repeater {
                 model: root.friendsList()
                 Rectangle {
@@ -1151,7 +1187,7 @@ PopupCard {
                 }
             }
             Rectangle {
-                visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0
+                visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0 && root.pendingFriendsList().length === 0
                 width: parent.width
                 height: friendsEmptyColumn.implicitHeight + Style.space(28)
                 radius: Style.space(12)
