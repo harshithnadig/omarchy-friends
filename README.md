@@ -51,6 +51,8 @@ available when people are nearby.
 * **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
   signals, or keep using only the local radar. Friend Codes remain an
   optional private shortcut for people who already know each other.
+* **🧭 Friendly first-run path:** Empty Friends and Messages screens now have
+  one-click actions to discover builders, copy your invite, or return to World.
 * **💡 Suggest, feedback, and bug reports:** Write a note in Profile, copy it
   with context, and optionally open the matching GitHub form. Nothing is
   submitted automatically.

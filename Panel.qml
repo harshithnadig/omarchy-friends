@@ -1091,7 +1091,48 @@ PopupCard {
                     }
                 }
             }
-            Text { visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0; width: parent.width; text: "Invite a builder from World. Accepted chats and conversations stay here."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+            Rectangle {
+                visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0
+                width: parent.width
+                height: friendsEmptyColumn.implicitHeight + Style.space(28)
+                radius: Style.space(12)
+                color: soft
+                border.width: 1
+                border.color: line
+
+                Column {
+                    id: friendsEmptyColumn
+                    anchors.centerIn: parent
+                    width: parent.width - Style.space(34)
+                    spacing: Style.space(8)
+
+                    Text { width: parent.width; text: "Your people are one hello away."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Text { width: parent.width; text: "Find a builder in World, or share your invite link with someone you already know."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: Style.space(7)
+
+                        Rectangle {
+                            width: friendsDiscoverText.implicitWidth + Style.space(20)
+                            height: Style.space(30)
+                            radius: height / 2
+                            color: accent
+                            Text { id: friendsDiscoverText; anchors.centerIn: parent; text: "Discover people"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.tab = "world" }
+                        }
+
+                        Rectangle {
+                            width: friendsInviteText.implicitWidth + Style.space(20)
+                            height: Style.space(30)
+                            radius: height / 2
+                            color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
+                            Text { id: friendsInviteText; anchors.centerIn: parent; text: "Copy invite"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
+                        }
+                    }
+                }
+            }
         }
 
         Column {
@@ -1120,7 +1161,35 @@ PopupCard {
                     }
                 }
             }
-            Text { visible: root.friendsList().length === 0; width: parent.width; text: "Accept a friend request before starting a private chat."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+            Rectangle {
+                visible: root.friendsList().length === 0
+                width: parent.width
+                height: messagesEmptyColumn.implicitHeight + Style.space(28)
+                radius: Style.space(12)
+                color: soft
+                border.width: 1
+                border.color: line
+
+                Column {
+                    id: messagesEmptyColumn
+                    anchors.centerIn: parent
+                    width: parent.width - Style.space(34)
+                    spacing: Style.space(8)
+
+                    Text { width: parent.width; text: "Your inbox is ready."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Text { width: parent.width; text: "Accept a chat invite first. Then every conversation will stay in this one private inbox."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: messagesDiscoverText.implicitWidth + Style.space(22)
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: accent
+                        Text { id: messagesDiscoverText; anchors.centerIn: parent; text: "Open World"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.tab = "world" }
+                    }
+                }
+            }
             Text { visible: root.selectedFriend() !== null; text: root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Rectangle {
                 visible: root.selectedFriend() !== null
