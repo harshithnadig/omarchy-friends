@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.2.0"
+PLUGIN_VERSION = "4.3.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -68,7 +68,7 @@ GLOBAL_RELAYS = tuple(
     item.strip().rstrip("/")
     for item in os.environ.get(
         "OMARCHY_FRIENDS_RELAYS",
-        "wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band",
+        "wss://relay.primal.net,wss://nos.lol,wss://purplerelay.com,wss://nostr.mom,wss://relay.damus.io",
     ).split(",")
     if item.strip()
 )
@@ -1844,13 +1844,27 @@ class FriendsEngine:
                 continue
             if ping.get("action") == "friend_accept":
                 friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
-                if friendship.get("status") == "pending" and friendship.get("request_id") == ping.get("session_id"):
+                if friendship.get("status") == "pending" and (
+                    not ping.get("session_id")
+                    or not friendship.get("request_id")
+                    or friendship.get("request_id") == ping.get("session_id")
+                ):
                     global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
                     self.state["stats"]["friends_made"] += 1
                     self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now friends.", ping["id"])
                 processed_ids.append(ping["id"])
                 global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
                 continue
+            if ping.get("action") == "friend_request":
+                friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
+                if friendship.get("status") == "pending":
+                    global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
+                    self.state["stats"]["friends_made"] += 1
+                    self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now mutual friends.", ping["id"])
+                    self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"), allow_offline=True)
+                    processed_ids.append(ping["id"])
+                    global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+                    continue
             global_state.setdefault("pings", []).append(ping)
             peer = global_state.get("peers", {}).get(ping["public_key"], ping)
             icon, label = GLOBAL_ACTION_META[ping["action"]]

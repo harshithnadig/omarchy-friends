@@ -217,8 +217,8 @@ PopupCard {
     function friendActionLabel(peer) {
         var friendship = root.friendshipFor(peer && peer.public_key)
         if (friendship && friendship.status === "friends") return "Chat"
-        if (friendship && friendship.status === "pending") return "Chat requested"
         if (root.requestFor(peer && peer.public_key)) return "Accept"
+        if (friendship && friendship.status === "pending") return "Chat requested"
         if (peer && peer.can_chat === false) return "Invite update"
         return "Invite to chat"
     }
@@ -761,11 +761,11 @@ PopupCard {
 
             Repeater {
                 model: [
-                    { id: "world", label: "World" },
-                    { id: "friends", label: "Friends" },
-                    { id: "messages", label: "Messages" },
-                    { id: "community", label: "Community" },
-                    { id: "profile", label: "Profile" }
+                    { id: "world", label: "World", icon: "🌍" },
+                    { id: "friends", label: "Friends", icon: "👥" },
+                    { id: "messages", label: "Messages", icon: "💬" },
+                    { id: "community", label: "Community", icon: "🫂" },
+                    { id: "profile", label: "Profile", icon: "👤" }
                 ]
 
                 Item {
@@ -774,11 +774,12 @@ PopupCard {
 
                     Text {
                         anchors.centerIn: parent
-                        text: modelData.id === "friends" && root.incomingFriendRequests().length > 0
+                        z: 1
+                        text: modelData.icon + " " + (modelData.id === "friends" && root.incomingFriendRequests().length > 0
                             ? modelData.label + " (" + root.incomingFriendRequests().length + ")"
                             : modelData.id === "messages" && root.unreadMessageCount() > 0
                                 ? modelData.label + " (" + root.unreadMessageCount() + ")"
-                                : modelData.label
+                                : modelData.label)
                         color: root.tab === modelData.id ? accent : muted
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -787,12 +788,13 @@ PopupCard {
 
                     Rectangle {
                         visible: root.tab === modelData.id
-                        width: parent.width - Style.space(18)
-                        height: Style.space(2)
-                        radius: height / 2
-                        color: accent
-                        anchors.bottom: parent.bottom
+                        z: -1
+                        width: parent.width - Style.space(8)
+                        height: parent.height - Style.space(8)
+                        radius: Style.space(9)
+                        color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
                         anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
                     }
 
                     MouseArea {
