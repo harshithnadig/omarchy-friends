@@ -443,6 +443,16 @@ PopupCard {
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
                     }
+
+                    Text {
+                        text: root.worldStatus.last_error
+                            ? root.worldStatus.last_error
+                            : "● " + (root.worldStatus.relay_count || 0) + "/" + (root.worldStatus.relay_total || 0) + " relays · synced " + (root.worldStatus.last_sync_age || "never")
+                        color: root.worldStatus.last_error ? "#f59e0b" : muted
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
+                    }
                 }
 
                 Rectangle {
