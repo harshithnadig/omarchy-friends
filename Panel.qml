@@ -1643,7 +1643,7 @@ PopupCard {
 
         Column {
             id: showcasePanel
-            visible: root.tab === "showcase"
+            visible: false
             width: parent.width
             height: visible ? implicitHeight : 0
             spacing: Style.space(12)
