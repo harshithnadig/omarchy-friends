@@ -26,6 +26,10 @@ GENERATOR = (
     32670510020758816978083085130507043184471273380659243275938904335757337482424,
 )
 
+MAX_WEBSOCKET_FRAME_BYTES = 1024 * 1024
+MAX_WEBSOCKET_MESSAGE_BYTES = 4 * 1024 * 1024
+MAX_WEBSOCKET_FRAGMENTS = 128
+
 
 def _point_add(left, right):
     if left is None:
@@ -302,8 +306,13 @@ class WebSocketClient:
     def send_json(self, message):
         self._send_frame(0x1, json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
-    def _read_exact(self, length):
+    def _read_exact(self, length, deadline=None):
         while len(self._buffer) < length:
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise socket.timeout()
+                self.sock.settimeout(remaining)
             chunk = self.sock.recv(max(4096, length - len(self._buffer)))
             if not chunk:
                 raise EOFError("relay closed websocket")
@@ -314,24 +323,27 @@ class WebSocketClient:
     def recv_json(self, timeout=None):
         if self.sock is None:
             return None
-        self.sock.settimeout(self.timeout if timeout is None else max(0.05, timeout))
+        read_timeout = self.timeout if timeout is None else max(0.05, timeout)
+        deadline = time.monotonic() + read_timeout
         fragments = []
+        fragment_bytes = 0
+        fragment_count = 0
         try:
             while True:
-                header = self._read_exact(2)
+                header = self._read_exact(2, deadline)
                 first, second = header
                 opcode = first & 0x0F
                 final = bool(first & 0x80)
                 masked = bool(second & 0x80)
                 length = second & 0x7F
                 if length == 126:
-                    length = struct.unpack("!H", self._read_exact(2))[0]
+                    length = struct.unpack("!H", self._read_exact(2, deadline))[0]
                 elif length == 127:
-                    length = struct.unpack("!Q", self._read_exact(8))[0]
-                if length > 1024 * 1024:
+                    length = struct.unpack("!Q", self._read_exact(8, deadline))[0]
+                if length > MAX_WEBSOCKET_FRAME_BYTES:
                     raise ValueError("relay frame too large")
-                mask = self._read_exact(4) if masked else None
-                payload = self._read_exact(length)
+                mask = self._read_exact(4, deadline) if masked else None
+                payload = self._read_exact(length, deadline)
                 if mask:
                     payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
                 if opcode == 0x9:
@@ -340,13 +352,25 @@ class WebSocketClient:
                 if opcode == 0x8:
                     return None
                 if opcode == 0x0:
+                    if not fragments:
+                        raise ValueError("unexpected relay continuation frame")
+                    fragment_count += 1
+                    fragment_bytes += len(payload)
+                    if fragment_count > MAX_WEBSOCKET_FRAGMENTS or fragment_bytes > MAX_WEBSOCKET_MESSAGE_BYTES:
+                        raise ValueError("relay message fragments too large")
                     fragments.append(payload)
                     if not final:
                         continue
                     payload = b"".join(fragments)
                     fragments = []
+                    fragment_bytes = 0
+                    fragment_count = 0
                 elif opcode == 0x1:
                     if not final:
+                        fragment_count = 1
+                        fragment_bytes = len(payload)
+                        if fragment_bytes > MAX_WEBSOCKET_MESSAGE_BYTES:
+                            raise ValueError("relay message too large")
                         fragments = [payload]
                         continue
                 else:
