@@ -25,6 +25,7 @@ PopupCard {
     readonly property var world: service && service.globalPeers ? service.globalPeers : []
     readonly property var pulse: service && service.worldPulse ? service.worldPulse : []
     readonly property var pings: service && service.globalPings ? service.globalPings : []
+    readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, last_error: "" })
 
     property string tab: "world"
@@ -45,7 +46,7 @@ PopupCard {
     contentHeight: root.fittedContentHeight(deck.implicitHeight)
 
     function tabList() {
-        return ["world", "showcase", "activity", "profile"]
+        return ["world", "friends", "showcase", "activity", "profile"]
     }
 
     function moveTab(delta) {
@@ -73,6 +74,15 @@ PopupCard {
         for (var i = 0; i < root.world.length; i++) {
             var peer = root.world[i]
             if (peer.project_name || peer.project_desc || peer.project_url) result.push(peer)
+        }
+        return result
+    }
+
+    function friendsList() {
+        var result = []
+        for (var key in root.friendships) {
+            var friend = root.friendships[key]
+            if (friend && friend.status === "friends") result.push(friend)
         }
         return result
     }
@@ -341,6 +351,7 @@ PopupCard {
             Repeater {
                 model: [
                     { id: "world", label: "World" },
+                    { id: "friends", label: "Friends" },
                     { id: "showcase", label: "Showcase" },
                     { id: "activity", label: "Activity" },
                     { id: "profile", label: "Profile" }
@@ -737,6 +748,28 @@ PopupCard {
                 font.pixelSize: Style.font.caption
                 horizontalAlignment: Text.AlignHCenter
             }
+        }
+
+        Column {
+            id: friendsPanel
+            visible: root.tab === "friends"
+            width: parent.width
+            height: visible ? implicitHeight : 0
+            spacing: Style.space(12)
+            Item { width: 1; height: Style.space(18) }
+            Text { text: "Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+            Text { text: "People who accepted your friend request."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Repeater {
+                model: root.friendsList()
+                Rectangle {
+                    width: parent.width; height: Style.space(48); radius: Style.space(9); color: soft
+                    Row { anchors.fill: parent; anchors.margins: Style.space(10); spacing: Style.space(9)
+                        Text { text: modelData.avatar || "👾"; font.pixelSize: Style.space(22) }
+                        Text { text: modelData.handle || "Omarchy friend"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                }
+            }
+            Text { visible: root.friendsList().length === 0; width: parent.width; text: "Add a builder from World. Accepted requests stay here."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
         }
 
         Column {
