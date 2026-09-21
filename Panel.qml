@@ -483,7 +483,9 @@ PopupCard {
 
                     Text {
                         width: parent.width - pingButton.width - Style.space(36)
-                        text: root.pings[0] && root.pings[0].handle ? root.pings[0].handle + " waved at you" : "Someone waved at you"
+                        text: root.pings[0] && root.pings[0].action === "friend_request"
+                            ? (root.pings[0].handle || "Someone") + " wants to be friends"
+                            : (root.pings[0] && root.pings[0].handle ? root.pings[0].handle + " waved at you" : "Someone waved at you")
                         color: fg
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -502,7 +504,7 @@ PopupCard {
                         Text {
                             id: pingText
                             anchors.centerIn: parent
-                            text: "Wave back"
+                            text: root.pings[0] && root.pings[0].action === "friend_request" ? "Accept" : "Wave back"
                             color: bg
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
@@ -511,7 +513,10 @@ PopupCard {
 
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: if (root.service && root.pings[0]) root.service.pingGlobal(root.pings[0].public_key, "hello")
+                            onClicked: if (root.service && root.pings[0]) {
+                                if (root.pings[0].action === "friend_request") root.service.acceptFriendRequest(root.pings[0].id)
+                                else root.service.pingGlobal(root.pings[0].public_key, "hello")
+                            }
                         }
                     }
                 }
