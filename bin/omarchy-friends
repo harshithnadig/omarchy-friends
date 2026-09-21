@@ -36,6 +36,8 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
+PLUGIN_VERSION = "3.7.0"
+GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
 MAX_EVENTS = 48
@@ -847,6 +849,14 @@ class FriendsEngine:
         if not isinstance(status, str) or status not in AVAILABLE_STATUSES:
             status = "coding"
         status_info = AVAILABLE_STATUSES[status]
+        raw_capabilities = peer.get("capabilities")
+        capabilities = []
+        if isinstance(raw_capabilities, list):
+            capabilities = [
+                trim_text(item, 32)
+                for item in raw_capabilities
+                if isinstance(item, str) and trim_text(item, 32)
+            ][:8]
         return {
             "public_key": public_key,
             "handle": trim_text(peer.get("handle"), 24) or generate_global_handle(public_key),
@@ -868,6 +878,9 @@ class FriendsEngine:
             "source": "global",
             "online": bool(peer.get("online", False)),
             "relay_count": safe_int(peer.get("relay_count"), maximum=len(GLOBAL_RELAYS)),
+            "plugin_version": trim_text(peer.get("plugin_version"), 16),
+            "capabilities": capabilities,
+            "can_chat": "encrypted-dm-v1" in capabilities and "friend-requests-v1" in capabilities,
             "common_ground": [],
             "icebreaker": "",
         }
@@ -1076,6 +1089,8 @@ class FriendsEngine:
         content = {
             "app": "omarchy-friends",
             "v": 1,
+            "plugin_version": PLUGIN_VERSION,
+            "capabilities": list(GLOBAL_CAPABILITIES),
             "type": "presence",
             "handle": trim_text(profile.get("handle"), 24) or "Omarchy Builder",
             "avatar": profile.get("avatar") if profile.get("avatar") in AVAILABLE_AVATARS else "👾",
@@ -1304,8 +1319,17 @@ class FriendsEngine:
             return False, message
         peer = self.state["global"]["peers"].get(public_key, {})
         friendships[public_key] = {"status": "pending", "request_id": request_id, "handle": peer.get("handle", "A builder"), "avatar": peer.get("avatar", "👾")}
+        needs_update = not bool(peer.get("can_chat"))
+        if needs_update:
+            self.global_ping(
+                public_key,
+                "hello",
+                "Update to unlock chat: omarchy plugin update community.omarchy-friends --yes",
+            )
         self.save_state()
-        return True, "Friend request sent"
+        if needs_update:
+            return True, "Chat invite sent — they need to update Omarchy Friends before accepting"
+        return True, "Chat invite sent"
 
     def accept_friend_request(self, ping_id):
         ping = next((item for item in self.state.get("global", {}).get("pings", []) if item.get("id") == trim_text(ping_id, 64).lower()), None)

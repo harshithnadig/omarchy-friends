@@ -72,6 +72,73 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(event["kind"], friends_module.GLOBAL_PRESENCE_KIND)
         self.assertNotIn("code", json.loads(event["content"]))
 
+    def test_global_presence_advertises_chat_capability_and_plugin_version(self):
+        with patch.object(friends_module, "get_active_window", return_value="Neovim"), patch.object(
+            friends_module, "get_active_music", return_value=""
+        ):
+            event = self.engine._global_presence_event()
+        content = json.loads(event["content"])
+        self.assertEqual(content["plugin_version"], friends_module.PLUGIN_VERSION)
+        self.assertIn("friend-requests-v1", content["capabilities"])
+        self.assertIn("encrypted-dm-v1", content["capabilities"])
+
+    def test_capable_peer_friend_request_publishes_one_friend_request(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                peer = self.engine._global_peer_from_event(remote._global_presence_event())
+            self.assertTrue(peer["can_chat"])
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            published = []
+            with patch.object(
+                self.engine,
+                "_publish_global_event",
+                side_effect=lambda event: published.append(event) or (True, {}),
+            ):
+                ok, message = self.engine.request_friend(peer["public_key"])
+            self.assertTrue(ok, message)
+            self.assertEqual(len(published), 1)
+            self.assertEqual(json.loads(published[0]["content"])["action"], "friend_request")
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
+    def test_legacy_peer_friend_request_also_publishes_update_prompt(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            legacy_content = remote._global_presence_content()
+            legacy_content.pop("plugin_version", None)
+            legacy_content.pop("capabilities", None)
+            legacy_event = friends_module.build_event(
+                remote.state["global_identity"]["secret_key"],
+                friends_module.GLOBAL_PRESENCE_KIND,
+                [
+                    ["d", friends_module.GLOBAL_PRESENCE_TAG],
+                    ["t", "omarchy-friends"],
+                    ["alt", "Omarchy Friends online presence"],
+                ],
+                json.dumps(legacy_content, ensure_ascii=False, separators=(",", ":")),
+            )
+            peer = self.engine._global_peer_from_event(legacy_event)
+            self.assertFalse(peer["can_chat"])
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            published = []
+            with patch.object(
+                self.engine,
+                "_publish_global_event",
+                side_effect=lambda event: published.append(event) or (True, {}),
+            ):
+                ok, message = self.engine.request_friend(peer["public_key"])
+            self.assertTrue(ok, message)
+            self.assertEqual(len(published), 2)
+            actions = [json.loads(event["content"])["action"] for event in published]
+            self.assertEqual(actions, ["friend_request", "hello"])
+            hello = json.loads(published[1]["content"])
+            self.assertIn("omarchy plugin update community.omarchy-friends --yes", hello["prompt"])
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
     def test_global_directory_merges_a_real_signed_installer(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)

@@ -20,8 +20,9 @@ available when people are nearby.
 * **👋 One-click connection:** Wave, offer coffee, or send kudos from any
   world profile. Incoming waves appear in the deck and as a desktop
   notification. No Friend Code is required.
-* **🤝 Mutual Friends:** Send a friend request from World, accept it explicitly,
-  and keep accepted people in the Friends tab.
+* **🤝 Chat invites:** Invite a builder from World, accept chat invites
+  explicitly, and keep accepted people in the Friends tab. The action is named
+  **Invite to chat** so it is clear that accepting unlocks messaging.
 * **🔒 Private DMs:** Accepted friends can send short encrypted one-to-one
   messages from the dedicated Messages tab. Messages are stored locally after
   delivery; relays carry only signed ciphertext. Paste an image, video, audio,
@@ -79,6 +80,18 @@ Public relays can observe the pseudonymous signed events they carry; this is
 not end-to-end private chat. World Spark questions and focus invitations are
 bounded signed signals, not a freeform public inbox. A focus invitation expires
 after three minutes unless the recipient explicitly joins.
+
+### Updating older installs
+
+Chat invites and encrypted DMs require the current plugin capabilities. If a
+World profile shows **Invite update**, clicking it sends the person a visible
+update prompt with this exact command:
+
+    omarchy plugin update community.omarchy-friends --yes
+
+After updating, reopen Friends or run `omarchy-shell shell rescanPlugins` if
+the new Messages tab does not appear immediately. Older installations remain
+visible in World, but cannot accept chat invites until they update.
 
 ## Local radar and privacy
 

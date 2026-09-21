@@ -111,6 +111,14 @@ PopupCard {
         return result
     }
 
+    // Keep an actionable chat invite visible even when older waves are still buffered.
+    function primaryPing() {
+        for (var i = root.pings.length - 1; i >= 0; i--) {
+            if (root.pings[i] && root.pings[i].action === "friend_request") return root.pings[i]
+        }
+        return root.pings.length > 0 ? root.pings[root.pings.length - 1] : null
+    }
+
     function friendshipFor(publicKey) {
         return publicKey && root.friendships[publicKey] ? root.friendships[publicKey] : null
     }
@@ -168,10 +176,11 @@ PopupCard {
 
     function friendActionLabel(peer) {
         var friendship = root.friendshipFor(peer && peer.public_key)
-        if (friendship && friendship.status === "friends") return "Message"
-        if (friendship && friendship.status === "pending") return "Requested"
+        if (friendship && friendship.status === "friends") return "Chat"
+        if (friendship && friendship.status === "pending") return "Chat requested"
         if (root.requestFor(peer && peer.public_key)) return "Accept"
-        return "Add friend"
+        if (peer && peer.can_chat === false) return "Invite update"
+        return "Invite to chat"
     }
 
     function activateFriend(peer) {
@@ -679,9 +688,9 @@ PopupCard {
 
                     Text {
                         width: parent.width - pingButton.width - Style.space(36)
-                        text: root.pings[0] && root.pings[0].action === "friend_request"
-                            ? (root.pings[0].handle || "Someone") + " wants to be friends"
-                            : (root.pings[0] && root.pings[0].handle ? root.pings[0].handle + " waved at you" : "Someone waved at you")
+                        text: root.primaryPing() && root.primaryPing().action === "friend_request"
+                            ? (root.primaryPing().handle || "Someone") + " wants to chat"
+                            : (root.primaryPing() && root.primaryPing().handle ? root.primaryPing().handle + " waved at you" : "Someone waved at you")
                         color: fg
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -700,7 +709,7 @@ PopupCard {
                         Text {
                             id: pingText
                             anchors.centerIn: parent
-                            text: root.pings[0] && root.pings[0].action === "friend_request" ? "Accept" : "Wave back"
+                            text: root.primaryPing() && root.primaryPing().action === "friend_request" ? "Accept" : "Wave back"
                             color: bg
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
@@ -709,9 +718,9 @@ PopupCard {
 
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: if (root.service && root.pings[0]) {
-                                if (root.pings[0].action === "friend_request") root.service.acceptFriendRequest(root.pings[0].id)
-                                else root.service.pingGlobal(root.pings[0].public_key, "hello")
+                            onClicked: if (root.service && root.primaryPing()) {
+                                if (root.primaryPing().action === "friend_request") root.service.acceptFriendRequest(root.primaryPing().id)
+                                else root.service.pingGlobal(root.primaryPing().public_key, "hello")
                             }
                         }
                     }
@@ -943,7 +952,7 @@ PopupCard {
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(18) }
             Text { text: "Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            Text { text: "Accept people here, then open a private conversation in Messages."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Text { text: "Accept chat invites here, then open a private conversation in Messages."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             Text { visible: root.incomingFriendRequests().length > 0; text: "Pending requests"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Repeater {
                 model: root.incomingFriendRequests()
@@ -962,7 +971,7 @@ PopupCard {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
                             Text { text: modelData.handle || "A builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                            Text { text: "wants to be friends"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            Text { text: "wants to chat"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                         }
                         Rectangle {
                             id: acceptRequestButton
@@ -1011,7 +1020,7 @@ PopupCard {
                     }
                 }
             }
-            Text { visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0; width: parent.width; text: "Add a builder from World. Accepted requests and conversations stay here."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+            Text { visible: root.friendsList().length === 0 && root.incomingFriendRequests().length === 0; width: parent.width; text: "Invite a builder from World. Accepted chats and conversations stay here."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
         }
 
         Column {
