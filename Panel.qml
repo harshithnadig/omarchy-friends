@@ -49,6 +49,7 @@ PopupCard {
     property string messageDraft: ""
     property string mediaDraft: ""
     property string communityDraft: ""
+    property bool communityInfoOpen: false
     property string inviteDraft: ""
     property string selectedFriendKey: ""
     property string lastReadMessageId: ""
@@ -1367,8 +1368,58 @@ PopupCard {
             spacing: Style.space(12)
 
             Item { width: 1; height: Style.space(18) }
-            Text { text: "Community"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            Text { text: "Everyone on the updated Omarchy Friends plugin shares this room."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Row {
+                width: parent.width
+                height: Style.space(40)
+                Column {
+                    width: parent.width - communityInfoButton.width - Style.space(8)
+                    spacing: Style.space(2)
+                    Text { text: "Omarchy Community"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                    Text { text: (root.world.length + 1) + " members · open group"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                }
+                Rectangle {
+                    id: communityInfoButton
+                    width: communityInfoText.implicitWidth + Style.space(16)
+                    height: Style.space(28)
+                    radius: height / 2
+                    color: root.communityInfoOpen ? Qt.rgba(accent.r, accent.g, accent.b, 0.18) : soft
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text { id: communityInfoText; anchors.centerIn: parent; text: root.communityInfoOpen ? "Hide members" : "Members"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.communityInfoOpen = !root.communityInfoOpen }
+                }
+            }
+            Text { text: "Everyone on the updated plugin is added automatically. Say hello here before starting a DM."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+
+            Rectangle {
+                visible: root.communityInfoOpen
+                width: parent.width
+                height: communityMembersFlow.implicitHeight + Style.space(18)
+                radius: Style.space(9)
+                color: soft
+                Flow {
+                    id: communityMembersFlow
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(6)
+                    Repeater {
+                        model: root.world
+                        Rectangle {
+                            width: communityMemberText.implicitWidth + Style.space(16)
+                            height: Style.space(28)
+                            radius: height / 2
+                            color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                            Text { id: communityMemberText; anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder"); color: fg; font.family: Style.font.family; font.pixelSize: Style.space(11); elide: Text.ElideRight }
+                        }
+                    }
+                    Rectangle {
+                        width: communityYouText.implicitWidth + Style.space(16)
+                        height: Style.space(28)
+                        radius: height / 2
+                        color: Qt.rgba(accent.r, accent.g, accent.b, 0.16)
+                        Text { id: communityYouText; anchors.centerIn: parent; text: (root.profile.avatar || "👾") + " You"; color: accent; font.family: Style.font.family; font.pixelSize: Style.space(11); font.bold: true }
+                    }
+                }
+            }
 
             Rectangle {
                 width: parent.width
@@ -1417,7 +1468,7 @@ PopupCard {
                         anchors.fill: parent
                         anchors.margins: Style.space(9)
                         spacing: Style.space(3)
-                        Text { width: parent.width; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder") + (modelData.incoming ? "" : " · you"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        Text { width: parent.width; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder") + (modelData.incoming ? "" : " · you") + " · " + (modelData.time_ago || "now"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
                         Text { width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
                     }
                 }
