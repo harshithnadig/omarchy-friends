@@ -239,10 +239,21 @@ PopupCard {
         }
     }
 
-    Column {
-        id: deck
-        width: parent.width
-        spacing: 0
+    Flickable {
+        id: contentScroller
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: deck.implicitHeight
+        clip: true
+        interactive: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        Column {
+            id: deck
+            width: contentScroller.width
+            spacing: 0
 
         Row {
             width: parent.width
@@ -1567,6 +1578,7 @@ PopupCard {
                     }
                 }
             }
+        }
         }
     }
 }
