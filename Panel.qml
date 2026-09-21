@@ -46,6 +46,7 @@ PopupCard {
     property string notice: ""
     property string messageDraft: ""
     property string mediaDraft: ""
+    property string inviteDraft: ""
     property string selectedFriendKey: ""
     property string lastReadMessageId: ""
 
@@ -311,6 +312,28 @@ PopupCard {
         Quickshell.execDetached(["xdg-open", root.bugUrl])
         root.bugOpen = false
         showNotice("Copied bug report and opened GitHub")
+    }
+
+    function copyInviteLink() {
+        if (!root.profile.public_key) {
+            showNotice("Your invite link is not ready yet")
+            return
+        }
+        var invite = "omarchy-friends://invite/" + root.profile.public_key
+        Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(invite) + " | wl-copy"])
+        showNotice("Invite link copied")
+    }
+
+    function connectInvite() {
+        var value = root.inviteDraft.trim()
+        var prefix = "omarchy-friends://invite/"
+        if (value.indexOf(prefix) === 0) value = value.substring(prefix.length)
+        if (!/^[0-9a-fA-F]{64}$/.test(value)) {
+            showNotice("Paste a valid Omarchy Friends invite link")
+            return
+        }
+        if (root.service) root.service.requestFriendDirect(value.toLowerCase())
+        root.inviteDraft = ""
     }
 
     function keyPressed(event) {
@@ -1908,6 +1931,62 @@ PopupCard {
                         anchors.verticalCenter: parent.verticalCenter
                         Text { id: updateButtonText; anchors.centerIn: parent; text: "Update"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(82)
+                radius: Style.space(8)
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.08)
+
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(6)
+                    Row {
+                        width: parent.width
+                        Text { width: parent.width - inviteCopyButton.width; text: "Invite someone directly"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        Rectangle {
+                            id: inviteCopyButton
+                            width: inviteCopyText.implicitWidth + Style.space(16)
+                            height: Style.space(24)
+                            radius: height / 2
+                            color: accent
+                            Text { id: inviteCopyText; anchors.centerIn: parent; text: "Copy invite"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
+                        }
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: Style.space(32)
+                        radius: height / 2
+                        color: soft
+                        TextInput {
+                            anchors.fill: parent
+                            anchors.leftMargin: Style.space(10)
+                            anchors.rightMargin: connectInviteButton.width + Style.space(8)
+                            color: fg
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            text: root.inviteDraft
+                            onTextChanged: root.inviteDraft = text
+                            onAccepted: root.connectInvite()
+                        }
+                        Text { visible: root.inviteDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an invite link"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                        Rectangle {
+                            id: connectInviteButton
+                            anchors.right: parent.right
+                            anchors.rightMargin: Style.space(4)
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: connectInviteText.implicitWidth + Style.space(14)
+                            height: Style.space(25)
+                            radius: height / 2
+                            color: Qt.rgba(accent.r, accent.g, accent.b, 0.18)
+                            Text { id: connectInviteText; anchors.centerIn: parent; text: "Connect"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.connectInvite() }
+                        }
                     }
                 }
             }

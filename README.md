@@ -23,6 +23,9 @@ available when people are nearby.
 * **🤝 Chat invites:** Invite a builder from World, accept chat invites
   explicitly, and keep accepted people in the Friends tab. The action is named
   **Invite to chat** so it is clear that accepting unlocks messaging.
+  You can also open Profile, copy your personal `omarchy-friends://invite/...`
+  link, and send it anywhere. The recipient pastes it into **Connect** to send
+  a request even when you are not currently visible in their World list.
 * **🔒 Private DMs:** Accepted friends can send short encrypted one-to-one
   messages from the dedicated Messages tab. Messages are stored locally after
   delivery; relays carry only signed ciphertext. Paste an image, video, audio,
@@ -92,6 +95,14 @@ update prompt with this exact command:
 After updating, reopen Friends or run `omarchy-shell shell rescanPlugins` if
 the new Messages tab does not appear immediately. Older installations remain
 visible in World, but cannot accept chat invites until they update.
+
+### Direct invite links
+
+Open **Profile → Invite someone directly → Copy invite**. Share the copied
+`omarchy-friends://invite/<public-key>` text in any chat or community. A
+recipient opens Friends, pastes it into the same Profile card, and presses
+**Connect**. This creates a normal mutual friend request; both people still
+choose whether to accept before messages become available.
 
 ## Local radar and privacy
 

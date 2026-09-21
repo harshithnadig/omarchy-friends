@@ -281,6 +281,10 @@ Item {
         runAction([root.binPath, "request-friend", publicKey], function(output) { root.reportResult(output, "Friend request sent"); root.refresh() })
     }
 
+    function requestFriendDirect(publicKey) {
+        runAction([root.binPath, "request-friend-direct", publicKey], function(output) { root.reportResult(output, "Chat invite sent"); root.refresh() })
+    }
+
     function acceptFriendRequest(pingId) {
         runAction([root.binPath, "accept-friend", pingId], function(output) { root.reportResult(output, "You are now friends"); root.refresh() })
     }

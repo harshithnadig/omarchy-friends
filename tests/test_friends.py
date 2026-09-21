@@ -139,6 +139,26 @@ class TestFriendsEngine(unittest.TestCase):
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)
 
+    def test_direct_invite_link_can_start_chat_without_world_cache(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            remote_key = remote.state["global_identity"]["public_key"]
+            published = []
+            with patch.object(
+                self.engine,
+                "_publish_global_event",
+                side_effect=lambda event: published.append(event) or (True, {}),
+            ):
+                ok, message = self.engine.request_friend_direct(remote_key)
+            self.assertTrue(ok, message)
+            self.assertEqual(len(published), 2)
+            self.assertEqual(json.loads(published[0]["content"])["action"], "friend_request")
+            self.assertEqual(json.loads(published[1]["content"])["action"], "hello")
+            self.assertEqual(self.engine.state["global"]["friendships"][remote_key]["status"], "pending")
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
     def test_global_directory_merges_a_real_signed_installer(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)

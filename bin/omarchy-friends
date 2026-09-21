@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "3.7.0"
+PLUGIN_VERSION = "3.8.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -1331,11 +1331,40 @@ class FriendsEngine:
             return True, "Chat invite sent — they need to update Omarchy Friends before accepting"
         return True, "Chat invite sent"
 
+    def request_friend_direct(self, public_key):
+        """Send a chat invite from a copied invite link, even if World has not cached the peer."""
+        public_key = trim_text(public_key, 64).lower()
+        if not is_valid_public_key(public_key):
+            return False, "That invite link is not valid"
+        if public_key == self._global_identity()["public_key"]:
+            return False, "You cannot invite yourself"
+        friendships = self.state.setdefault("global", {}).setdefault("friendships", {})
+        if friendships.get(public_key, {}).get("status") in ("pending", "friends"):
+            return False, "Chat invite already sent"
+        request_id = uuid.uuid4().hex
+        ok, message = self.global_ping(public_key, "friend_request", session_id=request_id, allow_offline=True)
+        if not ok:
+            return False, message
+        self.global_ping(
+            public_key,
+            "hello",
+            "Open Omarchy Friends to accept this chat invite (update first if needed).",
+            allow_offline=True,
+        )
+        friendships[public_key] = {
+            "status": "pending",
+            "request_id": request_id,
+            "handle": generate_global_handle(public_key),
+            "avatar": generate_global_avatar(public_key),
+        }
+        self.save_state()
+        return True, "Chat invite sent from invite link"
+
     def accept_friend_request(self, ping_id):
         ping = next((item for item in self.state.get("global", {}).get("pings", []) if item.get("id") == trim_text(ping_id, 64).lower()), None)
         if not ping or ping.get("action") != "friend_request":
             return False, "That friend request is no longer available"
-        ok, message = self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"))
+        ok, message = self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"), allow_offline=True)
         if not ok:
             return False, message
         self.state["global"].setdefault("friendships", {})[ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
@@ -1730,7 +1759,7 @@ class FriendsEngine:
             return True, "World refreshed; presence is waiting for relay acceptance"
         return False, "World is offline; local radar still works"
 
-    def global_ping(self, public_key, action="hello", prompt="", session_id="", minutes=GLOBAL_FOCUS_DEFAULT_MINUTES):
+    def global_ping(self, public_key, action="hello", prompt="", session_id="", minutes=GLOBAL_FOCUS_DEFAULT_MINUTES, allow_offline=False):
         public_key = trim_text(public_key, 64).lower()
         if not is_valid_public_key(public_key):
             return False, "That world profile is not valid"
@@ -1738,8 +1767,8 @@ class FriendsEngine:
             return False, "Unknown world signal"
         if public_key in self.state.get("global", {}).get("blocked_pubkeys", []):
             return False, "That profile is blocked"
-        peer = self.state.get("global", {}).get("peers", {}).get(public_key)
-        if not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS:
+        peer = self.state.get("global", {}).get("peers", {}).get(public_key) or {}
+        if not allow_offline and (not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS):
             return False, "That builder is no longer online"
         if not self.state["profile"].get("privacy", {}).get("share_global", True):
             return False, "Turn on global visibility before sending a wave"
@@ -2797,6 +2826,9 @@ def main():
         print_result(ok, message)
     elif command == "request-friend" and len(sys.argv) >= 3:
         ok, message = engine.request_friend(sys.argv[2])
+        print_result(ok, message)
+    elif command == "request-friend-direct" and len(sys.argv) >= 3:
+        ok, message = engine.request_friend_direct(sys.argv[2])
         print_result(ok, message)
     elif command == "accept-friend" and len(sys.argv) >= 3:
         ok, message = engine.accept_friend_request(sys.argv[2])
