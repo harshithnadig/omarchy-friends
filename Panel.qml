@@ -423,7 +423,9 @@ PopupCard {
 
             Row {
                 width: parent.width
-                height: Style.space(34)
+                // Three status lines need real vertical room; otherwise the
+                // relay-health line is rendered but clipped by the header.
+                height: Style.space(54)
 
                 Column {
                     width: parent.width - refreshButton.width - Style.space(8)
