@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.0.0"
+PLUGIN_VERSION = "4.1.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096

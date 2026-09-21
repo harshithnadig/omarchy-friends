@@ -61,7 +61,7 @@ PopupCard {
     contentHeight: root.fittedContentHeight(deck.implicitHeight)
 
     function tabList() {
-        return ["world", "community", "friends", "messages", "showcase", "profile"]
+        return ["world", "friends", "messages", "community", "profile"]
     }
 
     function moveTab(delta) {
@@ -291,6 +291,8 @@ PopupCard {
     function saveProfile() {
         if (!root.service) return
         root.service.setProfile(root.handleDraft, root.projectNameDraft, root.projectDescDraft, root.projectUrlDraft)
+        root.service.setInterests(root.interestsDraft)
+        root.showNotice("Profile saved")
     }
 
     function toggleInterest(id) {
@@ -389,26 +391,21 @@ PopupCard {
             return
         }
         if (event.key === Qt.Key_2) {
-            root.tab = "community"
-            event.accepted = true
-            return
-        }
-        if (event.key === Qt.Key_3) {
             root.tab = "friends"
             event.accepted = true
             return
         }
-        if (event.key === Qt.Key_4) {
+        if (event.key === Qt.Key_3) {
             root.tab = "messages"
             event.accepted = true
             return
         }
-        if (event.key === Qt.Key_5) {
-            root.tab = "showcase"
+        if (event.key === Qt.Key_4) {
+            root.tab = "community"
             event.accepted = true
             return
         }
-        if (event.key === Qt.Key_6) {
+        if (event.key === Qt.Key_5) {
             openProfile()
             event.accepted = true
             return
@@ -484,7 +481,8 @@ PopupCard {
             visible: root.tab === "community"
             width: parent.width
             height: visible ? implicitHeight : 0
-            y: deck.y + Style.space(124)
+            y: deck.y + Style.space(154)
+            z: 1
             spacing: Style.space(12)
 
             Item { width: 1; height: Style.space(18) }
@@ -762,15 +760,14 @@ PopupCard {
             Repeater {
                 model: [
                     { id: "world", label: "World" },
-                    { id: "community", label: "Community" },
                     { id: "friends", label: "Friends" },
                     { id: "messages", label: "Messages" },
-                    { id: "showcase", label: "Showcase" },
+                    { id: "community", label: "Community" },
                     { id: "profile", label: "Profile" }
                 ]
 
                 Item {
-                    width: parent.width / 6
+                    width: parent.width / 5
                     height: parent.height
 
                     Text {
@@ -1901,6 +1898,15 @@ PopupCard {
                 color: muted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(36)
+                radius: height / 2
+                color: accent
+                Text { anchors.centerIn: parent; text: "Save changes"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.saveProfile() }
             }
 
             Text {

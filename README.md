@@ -45,8 +45,8 @@ available when people are nearby.
   so people can find a temporary tribe without creating a chat server.
 * **⌨️ Friends Deck:** Press `?` for help, `h/l` to move between tabs, `j/k` to
   select a person, `Enter` to say hello, `s` to send the World Spark, and `f`
-  to offer a focus ritual. The tab shortcuts are `1` World, `2` Community,
-  `3` Friends, `4` Messages, `5` Showcase, and `6` Profile.
+  to offer a focus ritual. The tab shortcuts are `1` World, `2` Friends,
+  `3` Messages, `4` Community, and `5` Profile.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
 * **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for
