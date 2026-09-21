@@ -165,6 +165,14 @@ PopupCard {
         return count
     }
 
+    function legacyPeerCount() {
+        var count = 0
+        for (var i = 0; i < root.world.length; i++) {
+            if (root.world[i] && root.world[i].can_chat === false) count++
+        }
+        return count
+    }
+
     function markMessagesRead() {
         if (root.messages.length > 0) root.lastReadMessageId = root.messages[root.messages.length - 1].id || ""
     }
@@ -796,6 +804,46 @@ PopupCard {
                                 if (!root.worldStatus.visible) root.openProfile()
                             }
                         }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: root.legacyPeerCount() > 0
+                width: parent.width
+                height: Style.space(52)
+                radius: Style.space(9)
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
+
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(8)
+
+                    Text {
+                        text: "↻"
+                        color: accent
+                        font.pixelSize: Style.space(18)
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Column {
+                        width: parent.width - updateWorldButton.width - Style.space(34)
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Style.space(2)
+                        Text { text: root.legacyPeerCount() + " builder" + (root.legacyPeerCount() === 1 ? " needs" : "s need") + " an update for DMs"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        Text { text: "Update Friends to keep chat invites compatible."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                    }
+
+                    Rectangle {
+                        id: updateWorldButton
+                        width: updateWorldText.implicitWidth + Style.space(16)
+                        height: Style.space(28)
+                        radius: height / 2
+                        color: accent
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text { id: updateWorldText; anchors.centerIn: parent; text: "Update"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
                     }
                 }
             }
