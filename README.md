@@ -71,9 +71,11 @@ Friends.
 
 The default relay set is:
 
-    wss://relay.damus.io
+    wss://relay.primal.net
     wss://nos.lol
-    wss://relay.nostr.band
+    wss://purplerelay.com
+    wss://nostr.mom
+    wss://relay.damus.io
 
 If one relay is unavailable, the others are tried. Advanced users can provide
 a comma-separated set with `OMARCHY_FRIENDS_RELAYS`. The client is dependency
