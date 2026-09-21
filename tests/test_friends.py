@@ -159,6 +159,22 @@ class TestFriendsEngine(unittest.TestCase):
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)
 
+    def test_community_message_is_signed_public_and_stored_locally(self):
+        published = []
+        with patch.object(
+            self.engine,
+            "_publish_global_event",
+            side_effect=lambda event: published.append(event) or (True, {}),
+        ):
+            ok, message = self.engine.send_community_message("Hello Omarchy builders")
+        self.assertTrue(ok, message)
+        self.assertEqual(len(published), 1)
+        event = published[0]
+        self.assertEqual(event["kind"], friends_module.GLOBAL_COMMUNITY_KIND)
+        self.assertIn(friends_module.GLOBAL_COMMUNITY_TAG, [tag[1] for tag in event["tags"] if tag[0] == "t"])
+        self.assertTrue(friends_module.verify_event(event))
+        self.assertEqual(self.engine.state["global"]["community"][0]["text"], "Hello Omarchy builders")
+
     def test_global_directory_merges_a_real_signed_installer(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)

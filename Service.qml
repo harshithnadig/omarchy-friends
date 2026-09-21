@@ -41,6 +41,7 @@ Item {
     property var globalPings: []
     property var globalFriendships: ({})
     property var globalMessages: []
+    property var globalCommunity: []
     property var globalStatus: ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     property string worldPrompt: "What tiny thing are you making better today?"
     property var globalFocus: ({ status: "idle", active: false, pending: false, buddy_name: "", buddy_avatar: "", remaining_seconds: 0, total_seconds: 0 })
@@ -294,6 +295,10 @@ Item {
         runAction([root.binPath, "send-dm", publicKey, payload], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
     }
 
+    function sendCommunity(text) {
+        runAction([root.binPath, "send-community", text || ""], function(output) { root.reportResult(output, "Community message sent"); root.refresh() })
+    }
+
     function updatePlugin() {
         runAction(["omarchy", "plugin", "update", "community.omarchy-friends", "--yes"], function(output, exitCode) {
             if (exitCode !== 0) {
@@ -399,6 +404,7 @@ Item {
                     if (data.global_pings) root.globalPings = data.global_pings
                     if (data.global_friendships) root.globalFriendships = data.global_friendships
                     if (data.global_messages) root.globalMessages = data.global_messages
+                    if (data.global_community) root.globalCommunity = data.global_community
                     if (data.global_status) root.globalStatus = data.global_status
                     if (data.world_prompt) root.worldPrompt = data.world_prompt
                     if (data.global_focus) root.globalFocus = data.global_focus

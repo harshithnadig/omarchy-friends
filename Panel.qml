@@ -27,6 +27,7 @@ PopupCard {
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
     readonly property var messages: service && service.globalMessages ? service.globalMessages : []
+    readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, last_error: "" })
 
     property string tab: "world"
@@ -47,6 +48,7 @@ PopupCard {
     property string notice: ""
     property string messageDraft: ""
     property string mediaDraft: ""
+    property string communityDraft: ""
     property string inviteDraft: ""
     property string selectedFriendKey: ""
     property string lastReadMessageId: ""
@@ -59,7 +61,7 @@ PopupCard {
     contentHeight: root.fittedContentHeight(deck.implicitHeight)
 
     function tabList() {
-        return ["world", "friends", "messages", "showcase", "profile"]
+        return ["world", "community", "friends", "messages", "showcase", "profile"]
     }
 
     function moveTab(delta) {
@@ -163,6 +165,20 @@ PopupCard {
             if (message && message.public_key === friend.public_key) result.push(message)
         }
         return result.slice(Math.max(0, result.length - 16))
+    }
+
+    function communityMessages() {
+        return root.community.slice ? root.community.slice(Math.max(0, root.community.length - 40)) : []
+    }
+
+    function sendCommunity() {
+        var text = root.communityDraft.trim()
+        if (!text) {
+            root.showNotice("Write something for the community first")
+            return
+        }
+        if (root.service) root.service.sendCommunity(text)
+        root.communityDraft = ""
     }
 
     function unreadMessageCount() {
@@ -373,21 +389,26 @@ PopupCard {
             return
         }
         if (event.key === Qt.Key_2) {
-            root.tab = "friends"
+            root.tab = "community"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_3) {
-            root.tab = "messages"
+            root.tab = "friends"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_4) {
-            root.tab = "showcase"
+            root.tab = "messages"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_5) {
+            root.tab = "showcase"
+            event.accepted = true
+            return
+        }
+        if (event.key === Qt.Key_6) {
             openProfile()
             event.accepted = true
             return
@@ -451,12 +472,121 @@ PopupCard {
         id: contentScroller
         anchors.fill: parent
         contentWidth: width
-        contentHeight: deck.implicitHeight
+        contentHeight: Math.max(deck.implicitHeight, communityPanel.y + communityPanel.implicitHeight)
         clip: true
         interactive: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        Column {
+            id: communityPanel
+            visible: root.tab === "community"
+            width: parent.width
+            height: visible ? implicitHeight : 0
+            y: deck.y + Style.space(124)
+            spacing: Style.space(12)
+
+            Item { width: 1; height: Style.space(18) }
+            Row {
+                width: parent.width
+                height: Style.space(42)
+                Column {
+                    width: parent.width - communityRefreshButton.width - Style.space(8)
+                    spacing: Style.space(2)
+                    Text { text: "Community"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                    Text { text: "A public room for Omarchy builders."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                }
+                Rectangle {
+                    id: communityRefreshButton
+                    width: communityRefreshText.implicitWidth + Style.space(18)
+                    height: Style.space(28)
+                    radius: height / 2
+                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text { id: communityRefreshText; anchors.centerIn: parent; text: "Refresh"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.refreshGlobal() }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(40)
+                radius: Style.space(8)
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
+                Text { anchors.fill: parent; anchors.margins: Style.space(10); text: "Public chat: anyone on the Omarchy Friends relay can read these messages. Never share private information."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Style.space(8)
+                Repeater {
+                    model: root.communityMessages()
+                    Rectangle {
+                        width: parent.width
+                        height: communityMessageColumn.implicitHeight + Style.space(16)
+                        radius: Style.space(9)
+                        color: modelData.incoming ? soft : Qt.rgba(accent.r, accent.g, accent.b, 0.12)
+                        Column {
+                            id: communityMessageColumn
+                            anchors.fill: parent
+                            anchors.margins: Style.space(9)
+                            spacing: Style.space(3)
+                            Row {
+                                width: parent.width
+                                spacing: Style.space(6)
+                                Text { text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                Text { text: modelData.incoming ? "" : " · you"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            }
+                            Text { width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: root.community.length === 0
+                width: parent.width
+                height: Style.space(110)
+                radius: Style.space(12)
+                color: soft
+                border.width: 1
+                border.color: line
+                Column {
+                    anchors.centerIn: parent
+                    width: parent.width - Style.space(34)
+                    spacing: Style.space(6)
+                    Text { width: parent.width; text: "Start the room."; color: fg; font.family: Style.font.family; font.pixelSize: Style.space(16); font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Text { width: parent.width; text: "Say what you are building and give the next person an easy reply."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: soft
+                TextInput {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(10)
+                    text: root.communityDraft
+                    color: fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    onTextChanged: root.communityDraft = text
+                    onAccepted: root.sendCommunity()
+                }
+                Text { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Message everyone…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+            }
+            Rectangle {
+                width: parent.width
+                height: Style.space(32)
+                radius: height / 2
+                color: accent
+                Text { anchors.centerIn: parent; text: "Send to community"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendCommunity() }
+            }
+        }
 
         Column {
             id: deck
@@ -632,6 +762,7 @@ PopupCard {
             Repeater {
                 model: [
                     { id: "world", label: "World" },
+                    { id: "community", label: "Community" },
                     { id: "friends", label: "Friends" },
                     { id: "messages", label: "Messages" },
                     { id: "showcase", label: "Showcase" },
@@ -639,7 +770,7 @@ PopupCard {
                 ]
 
                 Item {
-                    width: parent.width / 5
+                    width: parent.width / 6
                     height: parent.height
 
                     Text {

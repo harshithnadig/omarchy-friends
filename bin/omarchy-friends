@@ -36,8 +36,8 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "3.9.0"
-GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1")
+PLUGIN_VERSION = "4.0.0"
+GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
 MAX_EVENTS = 48
@@ -48,14 +48,17 @@ MAX_ROOM_LENGTH = 24
 MAX_INCOMING_SIGNALS_PER_MINUTE = 12
 MAX_SIGNAL_RECEIPTS = 96
 MAX_MESSAGES = 80
+MAX_COMMUNITY_MESSAGES = 120
 MAX_MEDIA_ITEMS = 4
 MAX_MEDIA_URL_LENGTH = 500
 GLOBAL_PRESENCE_KIND = 30078
 GLOBAL_PING_KIND = 1
 GLOBAL_DM_KIND = 4
+GLOBAL_COMMUNITY_KIND = 1
 GLOBAL_PRESENCE_TAG = "omarchy-friends-presence"
 GLOBAL_PING_TAG = "omarchy-friends-ping"
 GLOBAL_DM_TAG = "omarchy-friends-dm"
+GLOBAL_COMMUNITY_TAG = "omarchy-friends-community"
 GLOBAL_PEER_TTL_SECONDS = 150
 GLOBAL_SYNC_INTERVAL_SECONDS = 45
 GLOBAL_MAX_PEERS = 120
@@ -539,6 +542,7 @@ class FriendsEngine:
                 "incoming_receipts": [],
                 "friendships": {},
                 "messages": [],
+                "community": [],
                 "sent_pings": [],
                 "processed_event_ids": [],
                 "last_sync": 0,
@@ -703,6 +707,11 @@ class FriendsEngine:
                 for item in old_global.get("messages", [])
                 if (normalized := self._normalize_global_message(item))
             ][-MAX_MESSAGES:]
+            global_state["community"] = [
+                normalized
+                for item in old_global.get("community", [])
+                if (normalized := self._normalize_community_message(item))
+            ][-MAX_COMMUNITY_MESSAGES:]
             global_state["sent_pings"] = [
                 {
                     "public_key": trim_text(item.get("public_key"), 64).lower(),
@@ -935,6 +944,24 @@ class FriendsEngine:
             "handle": trim_text(item.get("handle"), 24) or "A friend",
             "text": text,
             "media": media,
+            "timestamp": safe_int(item.get("timestamp"), now_seconds()),
+            "incoming": bool(item.get("incoming", False)),
+        }
+
+    def _normalize_community_message(self, item):
+        if not isinstance(item, dict):
+            return None
+        message_id = trim_text(item.get("id"), 64).lower()
+        public_key = trim_text(item.get("public_key"), 64).lower()
+        text = trim_text(item.get("text"), 500)
+        if not message_id or not is_valid_public_key(public_key) or not text:
+            return None
+        return {
+            "id": message_id,
+            "public_key": public_key,
+            "handle": trim_text(item.get("handle"), 24) or generate_global_handle(public_key),
+            "avatar": item.get("avatar") if item.get("avatar") in AVAILABLE_AVATARS else "👾",
+            "text": text,
             "timestamp": safe_int(item.get("timestamp"), now_seconds()),
             "incoming": bool(item.get("incoming", False)),
         }
@@ -1234,6 +1261,29 @@ class FriendsEngine:
             "incoming": True,
         }
 
+    def _global_community_from_event(self, event):
+        if not verify_event(event) or int(event.get("kind", -1)) != GLOBAL_COMMUNITY_KIND:
+            return None
+        if GLOBAL_COMMUNITY_TAG not in self._event_tag_values(event, "t"):
+            return None
+        created_at = safe_int(event.get("created_at"))
+        if created_at < now_seconds() - 86400 or created_at > now_seconds() + 30:
+            return None
+        try:
+            content = json.loads(event.get("content", "{}"))
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(content, dict) or content.get("app") != "omarchy-friends" or content.get("type") != "community":
+            return None
+        message = self._normalize_community_message({
+            **content,
+            "id": event.get("id"),
+            "public_key": event.get("pubkey"),
+            "timestamp": created_at,
+            "incoming": True,
+        })
+        return message
+
     def _allow_global_signal(self, public_key):
         cutoff = now_seconds() - 60
         global_state = self.state.setdefault("global", {})
@@ -1402,6 +1452,47 @@ class FriendsEngine:
         self.save_state()
         return True, "Private message sent"
 
+    def send_community_message(self, text):
+        """Publish a short, signed message to the public Omarchy community room."""
+        text = trim_text(text, 500)
+        if not text:
+            return False, "Write a community message first"
+        if not self.state["profile"].get("privacy", {}).get("share_global", True):
+            return False, "Turn on global visibility before posting"
+        identity = self._global_identity()
+        event = build_event(
+            identity["secret_key"],
+            GLOBAL_COMMUNITY_KIND,
+            [["t", GLOBAL_COMMUNITY_TAG], ["alt", "Omarchy Friends community message"]],
+            json.dumps({
+                "app": "omarchy-friends",
+                "v": 1,
+                "type": "community",
+                "handle": self.state["profile"]["handle"],
+                "avatar": self.state["profile"]["avatar"],
+                "text": text,
+            }, ensure_ascii=False, separators=(",", ":")),
+        )
+        ok, relay_status = self._publish_global_event(event)
+        self.state["global"]["relays"].update(relay_status)
+        if not ok:
+            self.save_state()
+            return False, "Could not reach the community right now"
+        message = self._normalize_community_message({
+            "id": event["id"],
+            "public_key": identity["public_key"],
+            "handle": self.state["profile"]["handle"],
+            "avatar": self.state["profile"]["avatar"],
+            "text": text,
+            "timestamp": now_seconds(),
+            "incoming": False,
+        })
+        if message:
+            self.state["global"].setdefault("community", []).append(message)
+            self.state["global"]["community"] = self.state["global"]["community"][-MAX_COMMUNITY_MESSAGES:]
+        self.save_state()
+        return True, "Posted to the community"
+
     def _current_global_focus(self):
         focus = self.state.setdefault("global_focus", self._empty_global_focus())
         status = focus.get("status") if focus.get("status") in ("pending", "active") else "idle"
@@ -1565,7 +1656,8 @@ class FriendsEngine:
         """Publish presence and collect current presence plus addressed pings."""
         presence_sub = "ofp" + uuid.uuid4().hex[:12]
         ping_sub = "ofg" + uuid.uuid4().hex[:12]
-        result = {"published": False, "presence": [], "pings": [], "messages": []}
+        community_sub = "ofc" + uuid.uuid4().hex[:12]
+        result = {"published": False, "presence": [], "pings": [], "messages": [], "community": []}
         ok_seen = False
         with WebSocketClient(relay_url, timeout=3.5) as relay:
             relay.send_json(["EVENT", presence_event])
@@ -1594,9 +1686,21 @@ class FriendsEngine:
                     },
                 ]
             )
+            relay.send_json(
+                [
+                    "REQ",
+                    community_sub,
+                    {
+                        "kinds": [GLOBAL_COMMUNITY_KIND],
+                        "#t": [GLOBAL_COMMUNITY_TAG],
+                        "since": max(0, now_seconds() - 86400),
+                        "limit": MAX_COMMUNITY_MESSAGES,
+                    },
+                ]
+            )
             eose = set()
             deadline = time.monotonic() + 3.5
-            while time.monotonic() < deadline and len(eose) < 2:
+            while time.monotonic() < deadline and len(eose) < 3:
                 message = relay.recv_json(max(0.05, deadline - time.monotonic()))
                 if not isinstance(message, list) or not message:
                     continue
@@ -1612,6 +1716,8 @@ class FriendsEngine:
                             result["messages"].append(event)
                         else:
                             result["pings"].append(event)
+                    elif message[1] == community_sub:
+                        result["community"].append(message[2])
                 elif message[0] == "EOSE" and len(message) >= 2:
                     eose.add(message[1])
                 elif message[0] == "CLOSED" and len(message) >= 2:
@@ -1624,6 +1730,7 @@ class FriendsEngine:
             try:
                 relay.send_json(["CLOSE", presence_sub])
                 relay.send_json(["CLOSE", ping_sub])
+                relay.send_json(["CLOSE", community_sub])
             except OSError:
                 pass
         return result
@@ -1673,6 +1780,7 @@ class FriendsEngine:
         relay_counts = {}
         pings = []
         messages = []
+        community_events = []
         relay_status = {}
         successes = 0
         published = False
@@ -1696,6 +1804,7 @@ class FriendsEngine:
                     if ping:
                         pings.append(ping)
                 messages.extend(result.get("messages", []))
+                community_events.extend(result.get("community", []))
             except (OSError, ValueError, ssl.SSLError, EOFError) as error:
                 message = trim_text(error, 120)
                 errors.append(f"{relay_url}: {message}")
@@ -1713,6 +1822,13 @@ class FriendsEngine:
                 processed_ids.append(message["id"])
                 self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
         global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
+        community = global_state.setdefault("community", [])
+        for event in community_events:
+            message = self._global_community_from_event(event)
+            if message and message["id"] not in processed_ids:
+                community.append(message)
+                processed_ids.append(message["id"])
+        global_state["community"] = community[-MAX_COMMUNITY_MESSAGES:]
         for ping in pings:
             if ping["id"] in processed_ids or any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
                 continue
@@ -2631,6 +2747,7 @@ class FriendsEngine:
             "global_pings": global_pings,
             "global_friendships": global_state.get("friendships", {}),
             "global_messages": global_state.get("messages", []),
+            "global_community": global_state.get("community", []),
             "global_status": {
                 "visible": bool(privacy.get("share_global", True)),
                 "online_count": len(global_peers),
@@ -2846,6 +2963,9 @@ def main():
                 message_text = message_payload.get("text", "")
                 media_url = message_payload.get("media_url", message_payload.get("media", ""))
         ok, message = engine.send_dm(sys.argv[2], message_text, media_url)
+        print_result(ok, message)
+    elif command == "send-community" and len(sys.argv) >= 3:
+        ok, message = engine.send_community_message(" ".join(sys.argv[2:]))
         print_result(ok, message)
     elif command == "block-global" and len(sys.argv) >= 3:
         ok, message = engine.block_global(sys.argv[2])
