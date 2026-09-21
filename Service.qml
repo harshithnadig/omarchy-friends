@@ -282,6 +282,12 @@ Item {
 
     function runAction(cmdArgs, callback) {
         var proc = actionComponent.createObject(root, { command: cmdArgs, callback: callback })
+        if (!proc) {
+            var unavailable = JSON.stringify({ ok: false, message: "Friends could not start this action" })
+            root.reportResult(unavailable, "Friends could not start this action")
+            if (callback) callback(unavailable)
+            return
+        }
         proc.running = true
     }
 
@@ -301,11 +307,22 @@ Item {
             id: actionProcess
             property var callback: null
             property string resultText: ""
+            property string errorText: ""
             stdout: StdioCollector {
                 onStreamFinished: actionProcess.resultText = this.text
             }
+            stderr: StdioCollector {
+                onStreamFinished: actionProcess.errorText = this.text
+            }
             onExited: function(exitCode) {
-                if (callback) callback(resultText)
+                var output = resultText
+                if (exitCode !== 0 && (!output || output.trim() === "")) {
+                    output = JSON.stringify({
+                        ok: false,
+                        message: errorText.trim() || "Friends action failed (exit " + exitCode + ")"
+                    })
+                }
+                if (callback) callback(output)
                 destroy()
             }
         }

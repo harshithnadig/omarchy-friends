@@ -386,8 +386,9 @@ PopupCard {
 
             Text {
                 id: noticeText
-                anchors.fill: parent
-                anchors.margins: Style.space(7)
+                width: parent.width - Style.space(14)
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 text: root.notice
                 color: accent
                 font.family: Style.font.family

@@ -19,10 +19,17 @@ BarWidget {
             service = bar.shell.serviceFor(moduleName)
             if (service) {
                 service.eventReceived.connect(function(ev) {
-                    pulseAnimation.restart()
+                    // The service can resolve while this component is still
+                    // completing. Do not dereference the animations until
+                    // their ids have been constructed.
+                    Qt.callLater(function() {
+                        if (pulseAnimation) pulseAnimation.restart()
+                    })
                 })
                 service.friendInteracted.connect(function(action, target) {
-                    tapAnimation.restart()
+                    Qt.callLater(function() {
+                        if (tapAnimation) tapAnimation.restart()
+                    })
                 })
             }
         }
