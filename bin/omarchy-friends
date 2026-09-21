@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.3.1"
+PLUGIN_VERSION = "4.4.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -1365,17 +1365,20 @@ class FriendsEngine:
         if friendships.get(public_key, {}).get("status") in ("pending", "friends"):
             return False, "Friend request already sent"
         request_id = uuid.uuid4().hex
-        ok, message = self.global_ping(public_key, "friend_request", session_id=request_id)
+        ok, message = self.global_ping(public_key, "friend_request", session_id=request_id, allow_offline=True)
         if not ok:
             return False, message
         peer = self.state["global"]["peers"].get(public_key, {})
-        friendships[public_key] = {"status": "pending", "request_id": request_id, "handle": peer.get("handle", "A builder"), "avatar": peer.get("avatar", "👾")}
-        needs_update = not bool(peer.get("can_chat"))
+        handle = peer.get("handle") or generate_global_handle(public_key)
+        avatar = peer.get("avatar") or generate_global_avatar(public_key)
+        friendships[public_key] = {"status": "pending", "request_id": request_id, "handle": handle, "avatar": avatar}
+        needs_update = peer and not bool(peer.get("can_chat"))
         if needs_update:
             self.global_ping(
                 public_key,
                 "hello",
                 "Update to unlock chat: omarchy plugin update community.omarchy-friends --yes",
+                allow_offline=True,
             )
         self.save_state()
         if needs_update:
@@ -1899,7 +1902,7 @@ class FriendsEngine:
         if public_key in self.state.get("global", {}).get("blocked_pubkeys", []):
             return False, "That profile is blocked"
         peer = self.state.get("global", {}).get("peers", {}).get(public_key) or {}
-        if not allow_offline and (not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS):
+        if not allow_offline and action in GLOBAL_FOCUS_ACTIONS and (not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS):
             return False, "That builder is no longer online"
         if not self.state["profile"].get("privacy", {}).get("share_global", True):
             return False, "Turn on global visibility before sending a wave"
@@ -1945,11 +1948,13 @@ class FriendsEngine:
             return False, "Could not reach the world right now"
         sent.append({"public_key": public_key, "timestamp": now_seconds()})
         self.state["global"]["sent_pings"] = sent[-GLOBAL_MAX_SENT_PINGS:]
-        message = f"You sent {label} to {peer.get('handle', 'a builder')}."
+        target_handle = peer.get("handle") or generate_global_handle(public_key)
+        target_avatar = peer.get("avatar") or generate_global_avatar(public_key)
+        message = f"You sent {label} to {target_handle}."
         if prompt:
             message += f" {trim_text(prompt, 120)}"
-        self._append_event(action, icon, peer.get("handle"), peer.get("avatar"), message, event["id"])
-        self._append_pulse(peer, action, message, remote=False)
+        self._append_event(action, icon, target_handle, target_avatar, message, event["id"])
+        self._append_pulse(peer or {"handle": target_handle, "avatar": target_avatar, "public_key": public_key}, action, message, remote=False)
         self.save_state()
         return True, f"Sent {label} to {peer.get('handle', 'a builder')}"
 
