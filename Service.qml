@@ -268,6 +268,14 @@ Item {
         })
     }
 
+    function requestFriend(publicKey) {
+        runAction([root.binPath, "request-friend", publicKey], function(output) { root.reportResult(output, "Friend request sent"); root.refresh() })
+    }
+
+    function acceptFriendRequest(pingId) {
+        runAction([root.binPath, "accept-friend", pingId], function(output) { root.reportResult(output, "You are now friends"); root.refresh() })
+    }
+
     function blockGlobal(publicKey) {
         runAction([root.binPath, "block-global", publicKey], function(output) {
             root.reportResult(output, "Builder hidden")

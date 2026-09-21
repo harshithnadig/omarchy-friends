@@ -86,6 +86,10 @@ PopupCard {
         if (root.service && peer && peer.public_key) root.service.pingGlobal(peer.public_key, "hello")
     }
 
+    function askToBeFriends(peer) {
+        if (root.service && peer && peer.public_key) root.service.requestFriend(peer.public_key)
+    }
+
     function openProfile() {
         root.tab = "profile"
         root.handleDraft = root.profile.handle || ""
@@ -702,7 +706,7 @@ PopupCard {
                             Text {
                                 id: hiText
                                 anchors.centerIn: parent
-                                text: "Say hi"
+                                text: "Add friend"
                                 color: fg
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.caption
@@ -712,7 +716,7 @@ PopupCard {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.sayHi(modelData)
+                                onClicked: root.askToBeFriends(modelData)
                             }
                         }
                     }

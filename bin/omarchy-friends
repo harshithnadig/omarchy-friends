@@ -163,6 +163,8 @@ INTERACTION_META = {
 
 GLOBAL_ACTION_META = {
     "hello": ("👋", "a wave"),
+    "friend_request": ("🤝", "a friend request"),
+    "friend_accept": ("✅", "a friend acceptance"),
     "coffee": ("☕", "a coffee invite"),
     "kudos": ("⚡", "kudos"),
     "spark": ("✨", "a connection spark"),
@@ -475,6 +477,7 @@ class FriendsEngine:
                 "pings": [],
                 "blocked_pubkeys": [],
                 "incoming_receipts": [],
+                "friendships": {},
                 "sent_pings": [],
                 "processed_event_ids": [],
                 "last_sync": 0,
@@ -1155,6 +1158,33 @@ class FriendsEngine:
             return True, f"Spark sent to {peer.get('handle', 'a builder')} · {prompt}"
         return False, message
 
+    def request_friend(self, public_key):
+        public_key = trim_text(public_key, 64).lower()
+        friendships = self.state.setdefault("global", {}).setdefault("friendships", {})
+        if friendships.get(public_key, {}).get("status") in ("pending", "friends"):
+            return False, "Friend request already sent"
+        request_id = uuid.uuid4().hex
+        ok, message = self.global_ping(public_key, "friend_request", session_id=request_id)
+        if not ok:
+            return False, message
+        peer = self.state["global"]["peers"].get(public_key, {})
+        friendships[public_key] = {"status": "pending", "request_id": request_id, "handle": peer.get("handle", "A builder"), "avatar": peer.get("avatar", "👾")}
+        self.save_state()
+        return True, "Friend request sent"
+
+    def accept_friend_request(self, ping_id):
+        ping = next((item for item in self.state.get("global", {}).get("pings", []) if item.get("id") == trim_text(ping_id, 64).lower()), None)
+        if not ping or ping.get("action") != "friend_request":
+            return False, "That friend request is no longer available"
+        ok, message = self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"))
+        if not ok:
+            return False, message
+        self.state["global"].setdefault("friendships", {})[ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
+        self.state["global"]["pings"] = [item for item in self.state["global"]["pings"] if item.get("id") != ping_id]
+        self.state["stats"]["friends_made"] += 1
+        self.save_state()
+        return True, "You are now friends"
+
     def _current_global_focus(self):
         focus = self.state.setdefault("global_focus", self._empty_global_focus())
         status = focus.get("status") if focus.get("status") in ("pending", "active") else "idle"
@@ -1462,6 +1492,15 @@ class FriendsEngine:
                 continue
             if ping.get("action") in ("focus_accept", "focus_cancel"):
                 self._handle_global_focus_reply(ping)
+                processed_ids.append(ping["id"])
+                global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+                continue
+            if ping.get("action") == "friend_accept":
+                friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
+                if friendship.get("status") == "pending" and friendship.get("request_id") == ping.get("session_id"):
+                    global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
+                    self.state["stats"]["friends_made"] += 1
+                    self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now friends.", ping["id"])
                 processed_ids.append(ping["id"])
                 global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
                 continue
@@ -2349,6 +2388,7 @@ class FriendsEngine:
             "lan_peers": peers,
             "global_peers": global_peers,
             "global_pings": global_pings,
+            "global_friendships": global_state.get("friendships", {}),
             "global_status": {
                 "visible": bool(privacy.get("share_global", True)),
                 "online_count": len(global_peers),
@@ -2533,6 +2573,12 @@ def main():
     elif command == "global-ping" and len(sys.argv) >= 3:
         action = sys.argv[3] if len(sys.argv) >= 4 else "hello"
         ok, message = engine.global_ping(sys.argv[2], action)
+        print_result(ok, message)
+    elif command == "request-friend" and len(sys.argv) >= 3:
+        ok, message = engine.request_friend(sys.argv[2])
+        print_result(ok, message)
+    elif command == "accept-friend" and len(sys.argv) >= 3:
+        ok, message = engine.accept_friend_request(sys.argv[2])
         print_result(ok, message)
     elif command == "block-global" and len(sys.argv) >= 3:
         ok, message = engine.block_global(sys.argv[2])
