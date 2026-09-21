@@ -512,7 +512,33 @@ PopupCard {
                 height: Style.space(40)
                 radius: Style.space(8)
                 color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
-                Text { anchors.fill: parent; anchors.margins: Style.space(10); text: "Public chat: anyone on the Omarchy Friends relay can read these messages. Never share private information."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
+                Text { anchors.fill: parent; anchors.margins: Style.space(10); text: "Everyone using the updated plugin is in this shared room. Messages are public on the relay."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: soft
+                TextInput {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(10)
+                    text: root.communityDraft
+                    color: fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    onTextChanged: root.communityDraft = text
+                    onAccepted: root.sendCommunity()
+                }
+                Text { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Chat with everyone…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+            }
+            Rectangle {
+                width: parent.width
+                height: Style.space(32)
+                radius: height / 2
+                color: accent
+                Text { anchors.centerIn: parent; text: "Send message"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendCommunity() }
             }
 
             Column {
@@ -559,31 +585,6 @@ PopupCard {
                 }
             }
 
-            Rectangle {
-                width: parent.width
-                height: Style.space(38)
-                radius: Style.space(8)
-                color: soft
-                TextInput {
-                    anchors.fill: parent
-                    anchors.margins: Style.space(10)
-                    text: root.communityDraft
-                    color: fg
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    onTextChanged: root.communityDraft = text
-                    onAccepted: root.sendCommunity()
-                }
-                Text { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Message everyone…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
-            }
-            Rectangle {
-                width: parent.width
-                height: Style.space(32)
-                radius: height / 2
-                color: accent
-                Text { anchors.centerIn: parent; text: "Send to community"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendCommunity() }
-            }
         }
 
         Column {
