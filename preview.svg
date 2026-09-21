@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111018"/><stop offset="1" stop-color="#21182d"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#292237"/><stop offset="1" stop-color="#1d1928"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#000" flood-opacity=".42"/></filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1430" cy="100" r="260" fill="#8b5cf6" opacity=".12"/><circle cx="120" cy="820" r="250" fill="#f59e0b" opacity=".08"/>
+  <text x="110" y="126" fill="#f8f7ff" font-family="sans-serif" font-size="58" font-weight="700">Omarchy Friends</text>
+  <text x="114" y="176" fill="#bcb5cf" font-family="sans-serif" font-size="24">A calm, pseudonymous global lobby for Omarchy · illustrative preview</text>
+  <g filter="url(#shadow)">
+    <rect x="110" y="238" width="1380" height="520" rx="28" fill="url(#panel)" stroke="#51436d" stroke-width="2"/><rect x="110" y="238" width="1380" height="64" rx="28" fill="#17131f"/>
+    <circle cx="150" cy="270" r="9" fill="#f87171"/><circle cx="180" cy="270" r="9" fill="#fbbf24"/><circle cx="210" cy="270" r="9" fill="#34d399"/><text x="260" y="279" fill="#c9bfdc" font-family="sans-serif" font-size="21">Friends Deck</text>
+    <rect x="156" y="342" width="360" height="350" rx="20" fill="#332947"/><text x="190" y="392" fill="#f5edff" font-family="sans-serif" font-size="26" font-weight="700">🌍 Omarchy World</text><text x="190" y="430" fill="#bcb5cf" font-family="sans-serif" font-size="18">3 builders online</text>
+    <circle cx="200" cy="490" r="22" fill="#8b5cf6"/><text x="240" y="496" fill="#f8f7ff" font-family="sans-serif" font-size="20">quiet_coder</text><text x="240" y="522" fill="#a99cbd" font-family="sans-serif" font-size="16">coding · Hack Circle</text>
+    <circle cx="200" cy="584" r="22" fill="#f59e0b"/><text x="240" y="590" fill="#f8f7ff" font-family="sans-serif" font-size="20">night_builder</text><text x="240" y="616" fill="#a99cbd" font-family="sans-serif" font-size="16">coffee · Open Source</text><rect x="190" y="650" width="230" height="2" fill="#584970"/><text x="190" y="678" fill="#d9b8ff" font-family="sans-serif" font-size="16">✦ World Spark available</text>
+    <rect x="558" y="342" width="864" height="160" rx="20" fill="#201a2d" stroke="#493b60"/><text x="598" y="392" fill="#f5edff" font-family="sans-serif" font-size="25" font-weight="700">✦ Start a real conversation</text><text x="598" y="434" fill="#c6bdd3" font-family="sans-serif" font-size="19">“What are you building on Omarchy today?”</text><rect x="598" y="458" width="170" height="28" rx="14" fill="#8b5cf6"/><text x="628" y="478" fill="#fff" font-family="sans-serif" font-size="15" font-weight="700">Send a spark</text>
+    <rect x="558" y="532" width="410" height="160" rx="20" fill="#201a2d" stroke="#493b60"/><text x="598" y="582" fill="#f5edff" font-family="sans-serif" font-size="24" font-weight="700">🛠 Hack Circles</text><text x="598" y="624" fill="#c6bdd3" font-family="sans-serif" font-size="18">Ship It   ·   Rice Club</text><text x="598" y="656" fill="#a99cbd" font-family="sans-serif" font-size="16">Temporary rooms, no chat server needed</text>
+    <rect x="1000" y="532" width="422" height="160" rx="20" fill="#201a2d" stroke="#493b60"/><text x="1040" y="582" fill="#f5edff" font-family="sans-serif" font-size="24" font-weight="700">🍅 Focus ritual</text><text x="1040" y="624" fill="#c6bdd3" font-family="sans-serif" font-size="18">Pair for 25 focused minutes</text><text x="1040" y="656" fill="#a99cbd" font-family="sans-serif" font-size="16">Explicit invite · expires automatically</text>
+  </g>
+  <text x="114" y="834" fill="#8b5cf6" font-family="sans-serif" font-size="20" font-weight="700">community.omarchy-friends</text><text x="1490" y="834" text-anchor="end" fill="#8f879d" font-family="sans-serif" font-size="18">open source · privacy controls · MIT</text>
+</svg>
