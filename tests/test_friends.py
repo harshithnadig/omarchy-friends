@@ -522,6 +522,25 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(engine.state["world_pulse"], [])
         self.assertRegex(engine.state["profile"]["code"], r"^OMAR-[A-Z0-9]{4}-[A-Z0-9]{3}$")
 
+    def test_private_dm_round_trip_requires_mutual_friendship(self):
+        receiver_dir = tempfile.mkdtemp()
+        receiver = friends_module.FriendsEngine(state_dir=receiver_dir)
+        try:
+            receiver_key = receiver.state["global_identity"]["public_key"]
+            sender_key = self.engine.state["global_identity"]["public_key"]
+            self.engine.state["global"]["friendships"][receiver_key] = {"status": "friends", "handle": "Receiver"}
+            receiver.state["global"]["friendships"][sender_key] = {"status": "friends", "handle": "Sender"}
+            events = []
+            with patch.object(self.engine, "_publish_global_event", side_effect=lambda event: events.append(event) or (True, {})):
+                ok, message = self.engine.send_dm(receiver_key, "hello privately")
+            self.assertTrue(ok, message)
+            received = receiver._global_dm_from_event(events[0])
+            self.assertEqual(received["text"], "hello privately")
+            receiver.state["global"]["friendships"].pop(sender_key)
+            self.assertFalse(receiver._global_dm_from_event(events[0]))
+        finally:
+            shutil.rmtree(receiver_dir, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,12 @@ available when people are nearby.
 * **👋 One-click connection:** Wave, offer coffee, or send kudos from any
   world profile. Incoming waves appear in the deck and as a desktop
   notification. No Friend Code is required.
+* **🤝 Mutual Friends:** Send a friend request from World, accept it explicitly,
+  and keep accepted people in the Friends tab.
+* **🔒 Private DMs:** Accepted friends can send short encrypted one-to-one
+  messages from the Friends tab. Messages are stored locally after delivery;
+  relays carry only signed ciphertext. Requests, blocks, and visibility remain
+  under the recipient's control.
 * **✨ World Spark:** Get a daily bounded opener and send it to the best live
   match, so meeting someone starts with an actual question instead of a
   blank chat box.

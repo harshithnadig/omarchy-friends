@@ -40,6 +40,7 @@ Item {
     property var globalPeers: []
     property var globalPings: []
     property var globalFriendships: ({})
+    property var globalMessages: []
     property var globalStatus: ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     property string worldPrompt: "What tiny thing are you making better today?"
     property var globalFocus: ({ status: "idle", active: false, pending: false, buddy_name: "", buddy_avatar: "", remaining_seconds: 0, total_seconds: 0 })
@@ -284,6 +285,10 @@ Item {
         runAction([root.binPath, "accept-friend", pingId], function(output) { root.reportResult(output, "You are now friends"); root.refresh() })
     }
 
+    function sendDm(publicKey, text) {
+        runAction([root.binPath, "send-dm", publicKey, text || ""], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
+    }
+
     function blockGlobal(publicKey) {
         runAction([root.binPath, "block-global", publicKey], function(output) {
             root.reportResult(output, "Builder hidden")
@@ -374,6 +379,7 @@ Item {
                     if (data.global_peers) root.globalPeers = data.global_peers
                     if (data.global_pings) root.globalPings = data.global_pings
                     if (data.global_friendships) root.globalFriendships = data.global_friendships
+                    if (data.global_messages) root.globalMessages = data.global_messages
                     if (data.global_status) root.globalStatus = data.global_status
                     if (data.world_prompt) root.worldPrompt = data.world_prompt
                     if (data.global_focus) root.globalFocus = data.global_focus

@@ -26,6 +26,7 @@ PopupCard {
     readonly property var pulse: service && service.worldPulse ? service.worldPulse : []
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
+    readonly property var messages: service && service.globalMessages ? service.globalMessages : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, last_error: "" })
 
     property string tab: "world"
@@ -39,6 +40,7 @@ PopupCard {
     property string projectUrlDraft: ""
     property var interestsDraft: []
     property string notice: ""
+    property string messageDraft: ""
 
     readonly property string issueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
 
@@ -82,7 +84,11 @@ PopupCard {
         var result = []
         for (var key in root.friendships) {
             var friend = root.friendships[key]
-            if (friend && friend.status === "friends") result.push(friend)
+            if (friend && friend.status === "friends") {
+                var item = Object.assign({}, friend)
+                item.public_key = key
+                result.push(item)
+            }
         }
         return result
     }
@@ -769,6 +775,29 @@ PopupCard {
             Item { width: 1; height: Style.space(18) }
             Text { text: "Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
             Text { text: "People who accepted your friend request."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Rectangle {
+                visible: root.friendsList().length > 0
+                width: parent.width; height: Style.space(36); radius: Style.space(7); color: soft
+                TextInput {
+                    anchors.fill: parent; anchors.margins: Style.space(9)
+                    text: root.messageDraft; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption
+                    onTextChanged: root.messageDraft = text
+                    onAccepted: {
+                        var friend = root.friendsList()[0]
+                        if (root.service && friend && root.messageDraft.trim() !== "") {
+                            root.service.sendDm(friend.public_key, root.messageDraft)
+                            root.messageDraft = ""
+                        }
+                    }
+                }
+            }
+            Text { visible: root.friendsList().length > 0; text: "Type a private message and press Enter."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+            Text {
+                visible: root.messages.length > 0
+                width: parent.width
+                text: root.messages.length > 0 ? ((root.messages[root.messages.length - 1].incoming ? "← " : "→ ") + root.messages[root.messages.length - 1].handle + ": " + root.messages[root.messages.length - 1].text) : ""
+                color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap
+            }
             Repeater {
                 model: root.friendsList()
                 Rectangle {

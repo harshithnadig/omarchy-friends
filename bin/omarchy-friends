@@ -10,6 +10,7 @@ address, a real name, or an account credential.
 """
 
 import hashlib
+import base64
 import json
 import os
 import re
@@ -28,6 +29,8 @@ from omarchy_friends_global import (  # noqa: E402
     build_event,
     generate_keypair,
     verify_event,
+    encrypt_private_text,
+    decrypt_private_text,
 )
 
 
@@ -44,8 +47,10 @@ MAX_INCOMING_SIGNALS_PER_MINUTE = 12
 MAX_SIGNAL_RECEIPTS = 96
 GLOBAL_PRESENCE_KIND = 30078
 GLOBAL_PING_KIND = 1
+GLOBAL_DM_KIND = 4
 GLOBAL_PRESENCE_TAG = "omarchy-friends-presence"
 GLOBAL_PING_TAG = "omarchy-friends-ping"
+GLOBAL_DM_TAG = "omarchy-friends-dm"
 GLOBAL_PEER_TTL_SECONDS = 150
 GLOBAL_SYNC_INTERVAL_SECONDS = 45
 GLOBAL_MAX_PEERS = 120
@@ -478,6 +483,7 @@ class FriendsEngine:
                 "blocked_pubkeys": [],
                 "incoming_receipts": [],
                 "friendships": {},
+                "messages": [],
                 "sent_pings": [],
                 "processed_event_ids": [],
                 "last_sync": 0,
@@ -1084,6 +1090,22 @@ class FriendsEngine:
             }
         )
 
+    def _global_dm_from_event(self, event):
+        if not verify_event(event) or int(event.get("kind", -1)) != GLOBAL_DM_KIND:
+            return None
+        if GLOBAL_DM_TAG not in self._event_tag_values(event, "t") or self._global_identity()["public_key"] not in self._event_tag_values(event, "p"):
+            return None
+        sender = trim_text(event.get("pubkey"), 64).lower()
+        friendship = self.state.get("global", {}).get("friendships", {}).get(sender, {})
+        if friendship.get("status") != "friends":
+            return None
+        try:
+            payload = json.loads(event.get("content", "{}"))
+            text = decrypt_private_text(self._global_identity()["secret_key"], sender, payload)
+        except (KeyError, TypeError, ValueError, UnicodeError, base64.binascii.Error):
+            return None
+        return {"id": event.get("id"), "public_key": sender, "handle": friendship.get("handle", "A friend"), "text": trim_text(text, 2000), "timestamp": safe_int(event.get("created_at")), "incoming": True}
+
     def _allow_global_signal(self, public_key):
         cutoff = now_seconds() - 60
         global_state = self.state.setdefault("global", {})
@@ -1184,6 +1206,29 @@ class FriendsEngine:
         self.state["stats"]["friends_made"] += 1
         self.save_state()
         return True, "You are now friends"
+
+    def send_dm(self, public_key, text):
+        public_key = trim_text(public_key, 64).lower()
+        text = trim_text(text, 2000)
+        if not text:
+            return False, "Write a message first"
+        if self.state.setdefault("global", {}).setdefault("friendships", {}).get(public_key, {}).get("status") != "friends":
+            return False, "DMs are available after you become friends"
+        try:
+            payload = encrypt_private_text(self._global_identity()["secret_key"], public_key, text)
+        except (TypeError, ValueError):
+            return False, "That friend key is invalid"
+        event = build_event(self._global_identity()["secret_key"], GLOBAL_DM_KIND, [["p", public_key], ["t", GLOBAL_DM_TAG], ["alt", "Omarchy Friends private message"]], json.dumps(payload, separators=(",", ":")))
+        ok, relay_status = self._publish_global_event(event)
+        self.state["global"]["relays"].update(relay_status)
+        if not ok:
+            self.save_state()
+            return False, "Could not send the private message"
+        friend = self.state["global"]["friendships"][public_key]
+        self.state["global"].setdefault("messages", []).append({"id": event["id"], "public_key": public_key, "handle": friend.get("handle", "Friend"), "text": text, "timestamp": now_seconds(), "incoming": False})
+        self.state["global"]["messages"] = self.state["global"]["messages"][-80:]
+        self.save_state()
+        return True, "Private message sent"
 
     def _current_global_focus(self):
         focus = self.state.setdefault("global_focus", self._empty_global_focus())
@@ -1348,7 +1393,7 @@ class FriendsEngine:
         """Publish presence and collect current presence plus addressed pings."""
         presence_sub = "ofp" + uuid.uuid4().hex[:12]
         ping_sub = "ofg" + uuid.uuid4().hex[:12]
-        result = {"published": False, "presence": [], "pings": []}
+        result = {"published": False, "presence": [], "pings": [], "messages": []}
         ok_seen = False
         with WebSocketClient(relay_url, timeout=3.5) as relay:
             relay.send_json(["EVENT", presence_event])
@@ -1369,8 +1414,8 @@ class FriendsEngine:
                     "REQ",
                     ping_sub,
                     {
-                        "kinds": [GLOBAL_PING_KIND],
-                        "#t": [GLOBAL_PING_TAG],
+                        "kinds": [GLOBAL_PING_KIND, GLOBAL_DM_KIND],
+                        "#t": [GLOBAL_PING_TAG, GLOBAL_DM_TAG],
                         "#p": [self._global_identity()["public_key"]],
                         "since": max(0, since - 10),
                         "limit": GLOBAL_MAX_PINGS,
@@ -1390,7 +1435,11 @@ class FriendsEngine:
                     if message[1] == presence_sub:
                         result["presence"].append(message[2])
                     elif message[1] == ping_sub:
-                        result["pings"].append(message[2])
+                        event = message[2]
+                        if GLOBAL_DM_TAG in self._event_tag_values(event, "t"):
+                            result["messages"].append(event)
+                        else:
+                            result["pings"].append(event)
                 elif message[0] == "EOSE" and len(message) >= 2:
                     eose.add(message[1])
                 elif message[0] == "CLOSED" and len(message) >= 2:
@@ -1451,6 +1500,7 @@ class FriendsEngine:
         peers = {}
         relay_counts = {}
         pings = []
+        messages = []
         relay_status = {}
         successes = 0
         published = False
@@ -1473,6 +1523,7 @@ class FriendsEngine:
                     ping = self._global_ping_from_event(event)
                     if ping:
                         pings.append(ping)
+                messages.extend(result.get("messages", []))
             except (OSError, ValueError, ssl.SSLError, EOFError) as error:
                 message = trim_text(error, 120)
                 errors.append(f"{relay_url}: {message}")
@@ -1483,6 +1534,13 @@ class FriendsEngine:
         if successes:
             global_state["peers"].update(peers)
         processed_ids = global_state.setdefault("processed_event_ids", [])
+        for event in messages:
+            message = self._global_dm_from_event(event)
+            if message and message["id"] not in processed_ids:
+                global_state.setdefault("messages", []).append(message)
+                processed_ids.append(message["id"])
+                self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
+        global_state["messages"] = global_state.get("messages", [])[-80:]
         for ping in pings:
             if ping["id"] in processed_ids or any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
                 continue
@@ -2400,6 +2458,7 @@ class FriendsEngine:
             "global_peers": global_peers,
             "global_pings": global_pings,
             "global_friendships": global_state.get("friendships", {}),
+            "global_messages": global_state.get("messages", []),
             "global_status": {
                 "visible": bool(privacy.get("share_global", True)),
                 "online_count": len(global_peers),
@@ -2598,6 +2657,9 @@ def main():
         print_result(ok, message)
     elif command == "accept-friend" and len(sys.argv) >= 3:
         ok, message = engine.accept_friend_request(sys.argv[2])
+        print_result(ok, message)
+    elif command == "send-dm" and len(sys.argv) >= 4:
+        ok, message = engine.send_dm(sys.argv[2], " ".join(sys.argv[3:]))
         print_result(ok, message)
     elif command == "block-global" and len(sys.argv) >= 3:
         ok, message = engine.block_global(sys.argv[2])

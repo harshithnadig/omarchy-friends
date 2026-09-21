@@ -8,6 +8,7 @@ without asking users to install Python packages or run a server.
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -91,6 +92,38 @@ def generate_keypair(secret_key=None):
         "secret_key": f"{secret_key:064x}",
         "public_key": f"{point[0]:064x}",
     }
+
+
+def derive_shared_secret(secret_key, public_key):
+    """Derive an ECDH key from the plugin's x-only secp256k1 identity."""
+    point = _lift_x(int(str(public_key), 16))
+    if point is None:
+        raise ValueError("invalid public key")
+    shared = _point_mul(int(secret_key, 16), point)
+    if shared is None:
+        raise ValueError("invalid shared point")
+    return hashlib.sha256(shared[0].to_bytes(32, "big")).digest()
+
+
+def encrypt_private_text(secret_key, public_key, plaintext):
+    nonce = os.urandom(24)
+    key = derive_shared_secret(secret_key, public_key)
+    raw = str(plaintext).encode("utf-8")
+    stream = b"".join(hashlib.sha256(key + nonce + i.to_bytes(4, "big")).digest() for i in range((len(raw) + 31) // 32))
+    ciphertext = bytes(a ^ b for a, b in zip(raw, stream))
+    mac = hmac.new(key, nonce + ciphertext, hashlib.sha256).digest()
+    return {"nonce": base64.b64encode(nonce).decode(), "ciphertext": base64.b64encode(ciphertext).decode(), "mac": mac.hex()}
+
+
+def decrypt_private_text(secret_key, public_key, payload):
+    key = derive_shared_secret(secret_key, public_key)
+    nonce = base64.b64decode(payload["nonce"], validate=True)
+    ciphertext = base64.b64decode(payload["ciphertext"], validate=True)
+    mac = bytes.fromhex(payload["mac"])
+    if not hmac.compare_digest(mac, hmac.new(key, nonce + ciphertext, hashlib.sha256).digest()):
+        raise ValueError("message authentication failed")
+    stream = b"".join(hashlib.sha256(key + nonce + i.to_bytes(4, "big")).digest() for i in range((len(ciphertext) + 31) // 32))
+    return bytes(a ^ b for a, b in zip(ciphertext, stream)).decode("utf-8")
 
 
 def schnorr_sign(message_hash, secret_key):
