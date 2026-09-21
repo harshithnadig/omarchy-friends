@@ -38,6 +38,7 @@ PopupCard {
     property string feedbackText: ""
     property bool bugOpen: false
     property string bugText: ""
+    property bool menuOpen: false
     property string handleDraft: ""
     property string projectNameDraft: ""
     property string projectDescDraft: ""
@@ -486,7 +487,65 @@ PopupCard {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.openProfile()
+                    onClicked: root.menuOpen = !root.menuOpen
+                }
+            }
+        }
+
+        Rectangle {
+            visible: root.menuOpen
+            width: parent.width
+            height: quickMenuColumn.implicitHeight + Style.space(18)
+            radius: Style.space(10)
+            color: soft
+            border.width: 1
+            border.color: line
+
+            Column {
+                id: quickMenuColumn
+                anchors.fill: parent
+                anchors.margins: Style.space(9)
+                spacing: Style.space(6)
+
+                Text { text: "Quick actions"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+
+                Rectangle {
+                    width: parent.width
+                    height: Style.space(32)
+                    radius: height / 2
+                    color: accent
+                    Text { anchors.centerIn: parent; text: "Update Friends"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.menuOpen = false
+                            if (root.service) root.service.updatePlugin()
+                        }
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: Style.space(6)
+
+                    Rectangle {
+                        width: (parent.width - Style.space(6)) / 2
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
+                        Text { anchors.centerIn: parent; text: "My profile"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.menuOpen = false; root.openProfile() } }
+                    }
+
+                    Rectangle {
+                        width: (parent.width - Style.space(6)) / 2
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                        Text { anchors.centerIn: parent; text: "Refresh World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.menuOpen = false; if (root.service) root.service.refreshGlobal() } }
+                    }
                 }
             }
         }
