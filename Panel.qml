@@ -111,9 +111,7 @@ PopupCard {
 
     function saveProfile() {
         if (!root.service) return
-        if (root.handleDraft.trim() !== "") root.service.setHandle(root.handleDraft)
-        root.service.setProject(root.projectNameDraft, root.projectDescDraft, root.projectUrlDraft)
-        showNotice("Profile saved")
+        root.service.setProfile(root.handleDraft, root.projectNameDraft, root.projectDescDraft, root.projectUrlDraft)
     }
 
     function toggleInterest(id) {

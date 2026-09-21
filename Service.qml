@@ -144,6 +144,13 @@ Item {
         })
     }
 
+    function setProfile(handle, projectName, projectDesc, projectUrl) {
+        runAction([root.binPath, "set-profile", handle || "", projectName || "", projectDesc || "", projectUrl || ""], function(output) {
+            root.reportResult(output, "Profile saved")
+            root.refresh()
+        })
+    }
+
     function setInterests(interests) {
         var args = [root.binPath, "set-interests"]
         var selected = interests || []
