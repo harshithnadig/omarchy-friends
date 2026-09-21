@@ -1834,6 +1834,38 @@ PopupCard {
 
             Rectangle {
                 width: parent.width
+                height: Style.space(46)
+                radius: Style.space(8)
+                color: soft
+
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(8)
+
+                    Column {
+                        width: parent.width - updateButton.width - Style.space(8)
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Style.space(2)
+                        Text { text: "Keep Friends up to date"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        Text { text: "Needed for chat compatibility."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    }
+
+                    Rectangle {
+                        id: updateButton
+                        width: updateButtonText.implicitWidth + Style.space(16)
+                        height: Style.space(28)
+                        radius: height / 2
+                        color: Qt.rgba(accent.r, accent.g, accent.b, 0.18)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text { id: updateButtonText; anchors.centerIn: parent; text: "Update"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: parent.width
                 height: root.ideaOpen ? ideaColumn.implicitHeight + Style.space(18) : Style.space(32)
                 radius: Style.space(8)
                 color: Qt.rgba(accent.r, accent.g, accent.b, 0.08)

@@ -290,6 +290,20 @@ Item {
         runAction([root.binPath, "send-dm", publicKey, payload], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
     }
 
+    function updatePlugin() {
+        runAction(["omarchy", "plugin", "update", "community.omarchy-friends", "--yes"], function(output, exitCode) {
+            if (exitCode !== 0) {
+                root.lastNotice = "Friends update failed"
+                root.actionResult(false, "Friends update failed")
+                return
+            }
+            root.lastNotice = "Friends update checked"
+            root.actionResult(true, "Friends update checked")
+            Util.execArgv(["omarchy-shell", "shell", "rescanPlugins"])
+            root.refresh()
+        })
+    }
+
     function blockGlobal(publicKey) {
         runAction([root.binPath, "block-global", publicKey], function(output) {
             root.reportResult(output, "Builder hidden")
@@ -344,7 +358,7 @@ Item {
                         message: errorText.trim() || "Friends action failed (exit " + exitCode + ")"
                     })
                 }
-                if (callback) callback(output)
+                if (callback) callback(output, exitCode)
                 destroy()
             }
         }
