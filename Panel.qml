@@ -478,7 +478,7 @@ PopupCard {
 
         Column {
             id: communityPanel
-            visible: root.tab === "community"
+            visible: false
             width: parent.width
             height: visible ? implicitHeight : 0
             y: deck.y + Style.space(154)
@@ -1357,6 +1357,73 @@ PopupCard {
                     }
                 }
             }
+        }
+
+        Column {
+            id: communityDeckPanel
+            visible: root.tab === "community"
+            width: parent.width
+            height: visible ? implicitHeight : 0
+            spacing: Style.space(12)
+
+            Item { width: 1; height: Style.space(18) }
+            Text { text: "Community"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+            Text { text: "Everyone on the updated Omarchy Friends plugin shares this room."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: soft
+                TextInput {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(10)
+                    text: root.communityDraft
+                    color: fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    onTextChanged: root.communityDraft = text
+                    onAccepted: root.sendCommunity()
+                }
+                Text { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Chat with everyone…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(32)
+                radius: height / 2
+                color: accent
+                Text { anchors.centerIn: parent; text: "Send message"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendCommunity() }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: Style.space(38)
+                radius: Style.space(8)
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
+                Text { anchors.fill: parent; anchors.margins: Style.space(10); text: "Public room: do not share passwords, private links, or personal information."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
+            }
+
+            Repeater {
+                model: root.communityMessages()
+                Rectangle {
+                    width: parent.width
+                    height: communityDeckMessageColumn.implicitHeight + Style.space(16)
+                    radius: Style.space(9)
+                    color: modelData.incoming ? soft : Qt.rgba(accent.r, accent.g, accent.b, 0.12)
+                    Column {
+                        id: communityDeckMessageColumn
+                        anchors.fill: parent
+                        anchors.margins: Style.space(9)
+                        spacing: Style.space(3)
+                        Text { width: parent.width; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder") + (modelData.incoming ? "" : " · you"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        Text { width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+                    }
+                }
+            }
+
+            Text { visible: root.community.length === 0; width: parent.width; text: "No messages yet. Start the room."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
         }
 
         Column {
