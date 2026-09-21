@@ -346,6 +346,15 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertNotIn("project_name", private_payload)
         self.assertNotIn("interests", private_payload)
 
+    def test_setup_showcase_interests_are_publicly_matchable(self):
+        self.engine.set_interests(["plugins", "rice"])
+        payload = self.engine.get_public_payload()
+        self.assertEqual(payload["interests"], ["plugins", "rice"])
+
+        self.prime_peer(code="OMAR-3333-CCC", interests=["plugins"])
+        peer = self.engine.state["lan_peers"]["OMAR-3333-CCC"]
+        self.assertIn("🧱 Plugins", self.engine._common_ground(peer))
+
     def test_interaction_round_trip_creates_real_event(self):
         receiver_dir = tempfile.mkdtemp()
         receiver = friends_module.FriendsEngine(state_dir=receiver_dir)

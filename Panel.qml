@@ -747,7 +747,7 @@ PopupCard {
             }
 
             Text {
-                text: "Small projects, shared in public."
+                text: "Projects, plugins, and custom rice shared in public."
                 color: muted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -1243,6 +1243,8 @@ PopupCard {
                     model: root.service && root.service.availableInterests && root.service.availableInterests.length ? root.service.availableInterests : [
                         { id: "linux", name: "Linux", emoji: "🐧" },
                         { id: "open-source", name: "Open source", emoji: "🧩" },
+                        { id: "plugins", name: "Plugins", emoji: "🧱" },
+                        { id: "rice", name: "Ricing / dotfiles", emoji: "🛠️" },
                         { id: "coding", name: "Coding", emoji: "💻" },
                         { id: "design", name: "Design", emoji: "🎨" },
                         { id: "hardware", name: "Hardware", emoji: "🔧" },
@@ -1419,7 +1421,7 @@ PopupCard {
 
                         Text {
                             width: parent.width - ideaToggle.width
-                            text: "Have an idea?"
+                            text: "Suggest a feature"
                             color: fg
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
@@ -1469,7 +1471,7 @@ PopupCard {
 
                         Text {
                             anchors.centerIn: parent
-                            text: "Copy and open GitHub"
+                            text: "Copy suggestion and open GitHub"
                             color: bg
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption

@@ -130,6 +130,8 @@ AVAILABLE_AVATARS = [
 AVAILABLE_INTERESTS = [
     {"id": "linux", "name": "Linux", "emoji": "🐧"},
     {"id": "open-source", "name": "Open source", "emoji": "🧩"},
+    {"id": "plugins", "name": "Plugins", "emoji": "🧱"},
+    {"id": "rice", "name": "Ricing / dotfiles", "emoji": "🛠️"},
     {"id": "coding", "name": "Coding", "emoji": "💻"},
     {"id": "design", "name": "Design", "emoji": "🎨"},
     {"id": "hardware", "name": "Hardware", "emoji": "🔧"},

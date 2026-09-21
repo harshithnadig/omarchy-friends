@@ -13,9 +13,10 @@ available when people are nearby.
 * **🌍 Omarchy World:** See recently active, real plugin installations across
   the internet. Presence expires after 150 seconds, so the list is a live
   lobby, not a fake social feed.
-* **✦ Showcase:** Browse the projects and setup beacons that builders choose
-  to share, then say hello when something catches your eye. Add your own from
-  Profile so your setup can become someone else’s starting point.
+* **✦ Showcase:** Browse the projects, plugins, and custom-rice setup beacons
+  that builders choose to share, then say hello when something catches your
+  eye. Add your own from Profile so your setup can become someone else’s
+  starting point.
 * **👋 One-click connection:** Wave, offer coffee, or send kudos from any
   world profile. Incoming waves appear in the deck and as a desktop
   notification. No Friend Code is required.
@@ -38,9 +39,9 @@ available when people are nearby.
 * **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
   signals, or keep using only the local radar. Friend Codes remain an
   optional private shortcut for people who already know each other.
-* **💡 Idea box:** Write a short feature suggestion in the deck, copy it with
-  context, and optionally open the repository's feature-request form. Nothing
-  is submitted automatically.
+* **💡 Suggest a feature:** Write a short feature suggestion in the deck, copy
+  it with context, and optionally open the repository's feature-request form.
+  Nothing is submitted automatically.
 
 ## How global discovery works
 
