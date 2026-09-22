@@ -24,6 +24,8 @@ PopupCard {
     readonly property color faint: "#68738d"
     readonly property color glassLine: Qt.rgba(0.84, 0.87, 1.0, 0.10)
     readonly property var friendsService: hostWidget && hostWidget.service ? hostWidget.service : null
+    readonly property string suggestFeatureUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Omarchy%20Friends%20feature%20suggestion"
+    readonly property string reportBugUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20bug%20report"
 
     property string tab: "discover"
     property string createKind: "idea"
@@ -987,6 +989,27 @@ PopupCard {
                             GlassPill { text: "Cancel"; onClicked: { root.solutionHelpId = ""; root.solutionDraft = "" } }
                         }
                         Text { text: "Only publish what you are comfortable making public."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    }
+                }
+
+                GlassSurface {
+                    width: parent.width
+                    height: feedbackColumn.implicitHeight + Style.space(22)
+                    radius: Style.space(16)
+                    fillOpacity: 0.48
+                    Column {
+                        id: feedbackColumn
+                        anchors.fill: parent
+                        anchors.margins: Style.space(11)
+                        spacing: Style.space(7)
+                        Text { text: "Help improve Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        Text { width: parent.width; text: "Something missing or broken? Open a pre-filled GitHub report."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                        Flow {
+                            width: parent.width
+                            spacing: Style.space(7)
+                            GlassPill { text: "Suggest a feature"; strong: true; onClicked: root.openUrl(root.suggestFeatureUrl) }
+                            GlassPill { text: "Report a bug"; onClicked: root.openUrl(root.reportBugUrl) }
+                        }
                     }
                 }
 

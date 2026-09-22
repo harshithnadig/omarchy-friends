@@ -552,7 +552,7 @@ PopupCard {
 
                     GlassButton {
                         id: buildButton
-                        text: "Build"
+                        text: "Build Network"
                         icon: "✦"
                         compact: true
                         primary: true
@@ -1105,12 +1105,13 @@ PopupCard {
                                     GlassSurface {
                                         property bool safetyOpen: false
                                         width: (worldFlow.width - Style.space(8)) / 2
-                                        height: Style.space(safetyOpen ? 180 : 144)
+                                        height: Math.max(Style.space(144), worldCardColumn.implicitHeight + Style.space(24))
                                         radius: Style.space(17)
                                         fillOpacity: 0.58
                                         elevated: root.peerActionLabel(modelData) === "Message"
 
                                         Column {
+                                            id: worldCardColumn
                                             anchors.fill: parent
                                             anchors.margins: Style.space(12)
                                             spacing: Style.space(8)
@@ -1147,7 +1148,7 @@ PopupCard {
                                                     model: modelData.common_ground && modelData.common_ground.slice ? modelData.common_ground.slice(0, 3) : []
                                                     GlassPill { text: String(modelData); accentColor: root.cyan }
                                                 }
-                                                GlassPill { visible: modelData.common_ground && modelData.common_ground.length > 0; text: "common ground"; active: true; accentColor: root.violet }
+                                                GlassPill { visible: modelData.common_ground && modelData.common_ground.length > 0; text: "Common ground"; active: true; accentColor: root.violet }
                                             }
 
                                             Row {
@@ -1194,9 +1195,9 @@ PopupCard {
                                     width: parent.width - Style.space(176)
                                     anchors.verticalCenter: parent.verticalCenter
                                     Text { text: "Omarchy Circle"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                                    Text { width: parent.width; text: "Public community chat · useful questions, discoveries and small wins"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                    Text { width: parent.width; text: "Public community chat"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                 }
-                                GlassPill { anchors.verticalCenter: parent.verticalCenter; text: String(root.world.length) + " online"; active: true; accentColor: root.success }
+                            GlassPill { anchors.verticalCenter: parent.verticalCenter; text: String(root.world.length) + " online"; active: true; accentColor: root.success }
                             }
                         }
 
@@ -1210,7 +1211,7 @@ PopupCard {
                                 anchors.margins: Style.space(7)
                                 spacing: Style.space(7)
                                 Text { text: "ⓘ"; color: root.cyan; font.pixelSize: Style.font.caption }
-                                Text { width: parent.width - Style.space(22); text: "Public room. Keep passwords, private links and personal information out of it."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                Text { width: parent.width - Style.space(22); text: "Public room · never share private links or personal information."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                             }
                         }
 
@@ -1471,7 +1472,7 @@ PopupCard {
                     GlassSurface {
                         visible: root.newChatOpen && root.page === "chats"
                         width: Math.min(contentArea.width - Style.space(30), Style.space(430))
-                        height: Math.min(contentArea.height - Style.space(30), Style.space(470))
+                        height: Math.min(contentArea.height - Style.space(30), Math.max(Style.space(220), newChatList.implicitHeight + Style.space(105)))
                         anchors.centerIn: parent
                         radius: Style.space(20)
                         fillOpacity: 0.98
@@ -1489,7 +1490,7 @@ PopupCard {
                                 Column {
                                     width: parent.width - closeNewChat.width
                                     Text { text: "New chat"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                                    Text { text: "Choose a friend. They only enter Chats after you open the conversation."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                    Text { width: parent.width; text: "Choose a friend or create a private group."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                 }
                                 GlassButton { id: closeNewChat; text: "Close"; compact: true; onClicked: root.newChatOpen = false }
                             }
