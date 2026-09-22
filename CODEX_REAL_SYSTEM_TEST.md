@@ -2,7 +2,7 @@
 
 Branch: `feature/build-network`
 
-This is **not** a feature-building task. Repository-side v4.15 work is complete and feature scope is frozen. Your job is to validate and fix only issues that require the actual Omarchy machine / real relays.
+This is **not** a feature-building task. Repository-side v4.15 work is complete and feature scope is frozen. Your job is to validate and fix only issues that require the actual Omarchy machine / public relay behavior / rendered QML.
 
 Do not merge into `main` unless Harshu explicitly asks.
 
@@ -106,26 +106,49 @@ python3 bin/build_network_app_v4.py inspect-environment | python3 -m json.tool
 python3 bin/build_network_app_v4.py register-uri | python3 -m json.tool
 ```
 
-## 6. Two-current-client private messaging test — REQUIRED
+## 6. Two-current-client private messaging / inbox-relay test — REQUIRED
 
-Use two isolated v4.15 Friends installations/state homes, A and B. They must both appear in World with the v4.15 capability set before the DM test.
+Use two isolated v4.15 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
 
-Verify direct messages:
+### 6.1 Prove NIP-17 inbox metadata on real relays
 
-1. A and B become friends.
+Before testing DMs:
+
+1. Let A and B perform normal World sync.
+2. Capture/query the selected public relays and confirm each identity publishes a valid signed **kind `10050`** event with `relay` tags.
+3. Confirm Friends accepts only inbox relay URLs that overlap its locally configured `OMARCHY_FRIENDS_RELAYS` / default `GLOBAL_RELAYS`; an arbitrary relay URL from remote metadata must not become a new outbound destination.
+4. Confirm the effective inbox list is bounded to the implementation maximum.
+5. Note which concrete relay(s) accept kind `10050` and later kind `1059`.
+
+If the selected public relays reject these event kinds or demand authentication such as NIP-42, capture the exact relay response. Fix only that demonstrated compatibility issue; do **not** add speculative authentication/protocol code.
+
+### 6.2 Direct messages
+
+1. A and B become friends and both advertise the complete v4.15 capability set.
 2. A sends a text DM to B; B receives exactly one message and popup.
 3. B replies; A receives exactly one message and popup.
 4. Repeat with one supported media URL.
-5. Confirm the relay-facing event used for the modern DM is Nostr kind `1059`.
-6. Inspect only the **outer** gift-wrap event. It must not contain the plaintext or A's true public key. The only intended routing identity in the outer event is the recipient `p` tag plus the one-time wrapper public key.
-7. Tamper with a captured ciphertext/wrapper copy in an isolated test; it must fail closed instead of producing a message.
+5. Confirm the relay-facing modern message is Nostr kind `1059`.
+6. Confirm A sends B's gift wrap **only to B's verified configured inbox relay list**, not blindly to every World relay.
+7. Inspect only the outer gift-wrap event. It must not contain the plaintext or A's true public key. The intended routing identity is B's `p` tag plus the one-time wrapper public key.
+8. Tamper with a captured ciphertext/wrapper copy in an isolated test; it must fail closed instead of producing a message.
+9. Construct/capture an outer gift wrap decryptable by B whose inner kind-14 rumor addresses only another key; B must reject it.
 
-Verify private groups:
+### 6.3 Restart / anti-downgrade
 
-1. A creates a group with B plus a third isolated current client C when available.
+1. After A has observed B as a modern peer and cached B's verified inbox list, stop both clients.
+2. Restart from the same state homes.
+3. Confirm the friendship still remembers the modern private protocol and cached inbox metadata.
+4. Let B's World presence become stale/absent, then send from A. The client must not silently choose historical kind-4 merely because the live presence cache expired.
+5. If the cached inbox list is unusable/expired and cannot be refreshed, the modern send should fail visibly rather than silently changing cryptographic transport.
+
+### 6.4 Private groups
+
+1. A creates a group with B plus current client C when available.
 2. B/C receive the group invite and can exchange messages.
-3. Inspect the outer kind-1059 wrapper: group id/name, plaintext, true sender public key, and other group-member public keys must not be visible in that outer event.
-4. A sent message must not duplicate locally when the optional sender copy returns through the relay.
+3. Confirm each recipient gets an individually wrapped kind-1059 event on that recipient's inbox relays.
+4. Inspect the outer wrapper: group id/name, plaintext, true sender public key and other group-member public keys must not be visible there.
+5. A sent message must not duplicate locally when the sender copy returns through the relay.
 
 Do **not** replace the implementation or invent another crypto scheme. Fix only a concrete interoperability/runtime bug.
 
@@ -133,12 +156,12 @@ Do **not** replace the implementation or invent another crypto scheme. Fix only 
 
 The v4.15 code deliberately keeps the old transport only for transition compatibility.
 
-Using a pre-v4.15 checkout/fixture or by constructing a peer presence without `nip44-v2` / `nip17-dm-v1` capabilities:
+Using a pre-v4.15 checkout/fixture or a peer that has **never** advertised the complete modern capability set:
 
-- v4.15 -> old peer chooses the historical Friends kind-4 transport;
+- v4.15 -> never-upgraded peer chooses the historical Friends kind-4 transport;
 - the old peer can decrypt that message;
 - v4.15 can decrypt a captured/fixture historical `{nonce,ciphertext,mac}` Friends payload;
-- a current-to-current peer pair must prefer NIP-17/NIP-59 and must not downgrade just because the old code path still exists.
+- a current-to-current friendship that has already upgraded remains modern across stale presence/restart and must not downgrade merely because legacy code still exists.
 
 Do not delete compatibility support during this RC validation. A future release can remove it only after an explicit transition decision.
 
@@ -179,7 +202,11 @@ Do not approve v4.15 if Build Network or the messaging migration breaks the exis
 Confirm:
 
 - NIP-44 official vector tests pass;
+- the 65,535-byte private plaintext ceiling behaves as an application resource cap, not a claimed NIP-44 protocol maximum;
 - wrong-key/wrong-recipient/tampered private ciphertext fails closed;
+- wrong-inner-recipient kind-14 rumor fails closed;
+- kind-10050 events require a valid signature and expected author;
+- unconfigured remote relay URLs are not followed as arbitrary network destinations;
 - modern outer gift wraps do not expose message text or real sender public key;
 - modern group outer gift wraps do not expose group id/name or other members;
 - invalid signatures are rejected;
@@ -224,6 +251,8 @@ Do not:
 - auto-install setup cards/components;
 - upload configs/logs/files automatically;
 - replace the v4.15 NIP-44/NIP-17/NIP-59 design with another private-message construction;
+- weaken inbox-relay verification or allow arbitrary remote relay URLs merely to make interoperability tests pass;
+- add NIP-42 or another relay-auth path unless a real selected relay demonstrates that it is required;
 - remove legacy read/fallback compatibility merely to make tests easier;
 - rebuild old V1/V2 panels.
 
@@ -235,12 +264,14 @@ Return:
 - files changed to fix them;
 - exact release-gate, private-messaging test, unit, plugin-validation and qmllint results;
 - screenshots of all six Build Network tabs;
-- current-to-current NIP-17/NIP-59 DM/group result and metadata inspection;
+- kind-10050 publish/fetch results and concrete relays tested;
+- current-to-current NIP-17/NIP-59 DM/group result, inbox routing and outer-event metadata inspection;
+- restart/anti-downgrade result;
 - v4.15-to-legacy compatibility result;
 - Build Network two-instance relay/offline-retry/helper-expiry/block result;
 - existing Friends regression result;
 - URI registration/open result;
 - security/privacy findings;
-- final answer: whether all eight gates in `FINAL_RELEASE_STATUS.md` passed.
+- final answer: whether all ten gates in `FINAL_RELEASE_STATUS.md` passed.
 
 Commit/push fixes only to `feature/build-network`. Do not merge `main`.
