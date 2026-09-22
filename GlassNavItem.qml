@@ -9,7 +9,8 @@ Item {
     property string badge: ""
     property bool selected: false
     property bool enabled: true
-    property color accentColor: "#7c6cff"
+    property color accentColor: "#8b7cff"
+    property color coolTint: "#55d9ff"
     signal clicked()
 
     implicitHeight: Style.space(42)
@@ -18,21 +19,47 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: Style.space(12)
-        color: root.selected
-            ? Qt.rgba(0.44, 0.39, 1.0, 0.21)
-            : (hover.hovered ? Qt.rgba(1, 1, 1, 0.055) : "transparent")
+        gradient: Gradient {
+            GradientStop {
+                position: 0
+                color: root.selected
+                    ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.28)
+                    : (hover.hovered ? Qt.rgba(1, 1, 1, 0.070) : "transparent")
+            }
+            GradientStop {
+                position: 1
+                color: root.selected
+                    ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.105)
+                    : (hover.hovered ? Qt.rgba(0.24, 0.34, 0.62, 0.055) : "transparent")
+            }
+        }
         border.width: root.selected ? 1 : 0
-        border.color: Qt.rgba(0.54, 0.49, 1.0, 0.40)
+        border.color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.52)
 
         Rectangle {
             visible: root.selected
             width: Style.space(3)
-            height: parent.height - Style.space(14)
+            height: parent.height - Style.space(12)
             radius: width / 2
             anchors.left: parent.left
             anchors.leftMargin: Style.space(4)
             anchors.verticalCenter: parent.verticalCenter
-            color: "#8d7dff"
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#c084fc" }
+                GradientStop { position: 0.52; color: "#8b7cff" }
+                GradientStop { position: 1; color: "#55d9ff" }
+            }
+        }
+
+        Rectangle {
+            visible: root.selected
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: Style.space(10)
+            anchors.rightMargin: Style.space(10)
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.12)
         }
     }
 
@@ -48,7 +75,7 @@ Item {
             width: Style.space(20)
             horizontalAlignment: Text.AlignHCenter
             text: root.icon
-            color: root.selected ? "#dcd8ff" : "#aab1c7"
+            color: root.selected ? "#e9e5ff" : (hover.hovered ? "#d6e9ff" : "#aab1c7")
             font.family: Style.font.family
             font.pixelSize: Style.font.bodySmall
         }
@@ -56,7 +83,7 @@ Item {
         Text {
             width: parent.width - Style.space(20) - badgeBox.width - Style.space(18)
             text: root.text
-            color: root.selected ? "#f3f4ff" : "#bac0d2"
+            color: root.selected ? "#f7f7ff" : (hover.hovered ? "#e7ebf7" : "#bac0d2")
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
             font.bold: root.selected
@@ -69,7 +96,12 @@ Item {
             width: visible ? Math.max(Style.space(22), badgeText.implicitWidth + Style.space(10)) : 0
             height: Style.space(22)
             radius: height / 2
-            color: root.selected ? "#7969ff" : Qt.rgba(1, 1, 1, 0.075)
+            gradient: Gradient {
+                GradientStop { position: 0; color: root.selected ? "#a56cff" : Qt.rgba(1, 1, 1, 0.10) }
+                GradientStop { position: 1; color: root.selected ? "#5b8cff" : Qt.rgba(1, 1, 1, 0.055) }
+            }
+            border.width: 1
+            border.color: root.selected ? Qt.rgba(0.82, 0.84, 1.0, 0.50) : Qt.rgba(1, 1, 1, 0.08)
             Text {
                 id: badgeText
                 anchors.centerIn: parent
