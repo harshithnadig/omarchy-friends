@@ -49,6 +49,8 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 
 If the selected public relays reject kind-10050/kind-1059 or require relay authentication, record the exact relay response and fix only the demonstrated interoperability issue; do not add speculative protocol code.
 
+These ten items require the real Omarchy environment, actual public-relay behavior or rendered UI. Codex should **validate them and make only minimal fixes for concrete failures**; it should not invent additional repository-side features.
+
 ## Stop condition
 
 When those ten real-system gates pass, cut v4.15 stable. Do not reopen feature brainstorming for this release.
