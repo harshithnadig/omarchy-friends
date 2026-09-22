@@ -47,6 +47,7 @@ Item {
     property var detectedEnvironment: ({ tags: [], omarchy_version: "", architecture: "", gpu_vendor: "", kernel: "" })
     property var setupComparison: ({})
     property bool busy: false
+    property var actionQueue: []
     property string lastNotice: ""
 
     signal actionResult(bool ok, string message)
@@ -99,13 +100,28 @@ Item {
     }
 
     function run(command, payload, fallback) {
-        var args = ["python3", root.runtimePath, command]
-        if (payload !== undefined && payload !== null) args.push(JSON.stringify(payload))
+        var queue = root.actionQueue.slice()
+        queue.push({ command: command, payload: payload, fallback: fallback || "" })
+        root.actionQueue = queue
+        root.processActionQueue()
+    }
+
+    function processActionQueue() {
+        if (root.busy || statusProc.running || refreshProc.running || root.actionQueue.length === 0) return
+
+        var queue = root.actionQueue.slice()
+        var next = queue.shift()
+        root.actionQueue = queue
+
+        var args = ["python3", root.runtimePath, next.command]
+        if (next.payload !== undefined && next.payload !== null) args.push(JSON.stringify(next.payload))
+
         root.busy = true
         var proc = actionComponent.createObject(root, { command: args })
         if (!proc) {
             root.busy = false
             root.actionResult(false, "Build Network could not start")
+            Qt.callLater(root.processActionQueue)
             return
         }
         proc.completed.connect(function(output, exitCode) {
@@ -116,15 +132,25 @@ Item {
             if (data.environment) root.detectedEnvironment = data.environment
             if (data.comparison) root.setupComparison = data.comparison
             var ok = data.ok === true && exitCode === 0
-            var message = data.message || fallback || (ok ? "Done" : "Build Network action failed")
+            var message = data.message || next.fallback || (ok ? "Done" : "Build Network action failed")
             root.lastNotice = message
             root.actionResult(ok, message)
+            Qt.callLater(root.processActionQueue)
         })
         proc.running = true
     }
 
-    function refreshLocal() { if (!statusProc.running) statusProc.running = true }
-    function refreshNetwork() { if (!refreshProc.running) { root.busy = true; refreshProc.running = true } }
+    function refreshLocal() {
+        if (!root.busy && root.actionQueue.length === 0 && !refreshProc.running && !statusProc.running)
+            statusProc.running = true
+    }
+
+    function refreshNetwork() {
+        if (!root.busy && root.actionQueue.length === 0 && !statusProc.running && !refreshProc.running) {
+            root.busy = true
+            refreshProc.running = true
+        }
+    }
 
     function inspectSetup() { run("inspect-setup", null, "Setup inspected") }
     function inspectEnvironment() { run("inspect-environment", null, "Environment inspected") }
@@ -181,6 +207,7 @@ Item {
                 root.applyStatus(root.parseOutput(this.text))
             }
         }
+        onExited: Qt.callLater(root.processActionQueue)
     }
 
     Process {
@@ -195,6 +222,7 @@ Item {
             var ok = data.ok === true && exitCode === 0
             root.lastNotice = data.message || (ok ? "Build Network refreshed" : "Build Network refresh failed")
             root.actionResult(ok, root.lastNotice)
+            Qt.callLater(root.processActionQueue)
         }
     }
 
