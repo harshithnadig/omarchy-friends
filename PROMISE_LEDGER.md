@@ -19,20 +19,25 @@ This is the source of truth for v4.15. **Feature scope is frozen.** If something
 - [x] NIP-44 v2 implementation in `bin/omarchy_friends_private.py`.
 - [x] Official NIP-44 v2 reference vector covered by CI.
 - [x] ChaCha20/HMAC authentication tamper rejection.
+- [x] Friends applies a 65,535-byte plaintext application resource cap; it is not described as the NIP-44 protocol maximum.
 - [x] NIP-17 kind-14 rumor structure for current-to-current Friends private messages.
 - [x] NIP-59 kind-13 seal + kind-1059 gift wrap for relay-facing metadata protection.
 - [x] Modern direct-message outer gift wrap hides plaintext and true sender identity.
 - [x] Modern private-group outer gift wrap hides group id/name and other member identities.
-- [x] Current Friends World presence advertises `nip44-v2`, `nip17-dm-v1`, and `nip59-gift-wrap-v1` capabilities.
-- [x] Capability negotiation prefers the standards-based transport for current peers.
+- [x] Receiver rejects a gift wrap whose decrypted kind-14 rumor does not address the receiver.
+- [x] Current Friends presence advertises NIP-44/NIP-17/NIP-59 plus inbox-relay capability.
+- [x] Signed NIP-17 kind-10050 DM inbox relay lists are published and fetched.
+- [x] Modern gift wraps route only to the recipient's verified configured inbox relays.
+- [x] Remote relay lists are bounded and cannot create arbitrary outbound WebSocket destinations; Friends follows only overlap with locally configured relays.
+- [x] Modern protocol/inbox state persists across restart so stale presence does not silently downgrade an established upgraded friendship.
 - [x] Legacy Friends ciphertext remains readable during the upgrade window.
-- [x] Current client sends the historical kind-4 format to a friend whose current presence does not advertise modern private-message capabilities.
-- [x] Engine-level tests cover modern delivery, legacy fallback and group metadata hiding.
+- [x] A never-upgraded friend can still receive the historical kind-4 Friends format during the compatibility window.
+- [x] Engine-level tests cover modern inbox routing, wrong-inner-recipient rejection, restart persistence, legacy fallback and group metadata hiding.
 - [x] Full two-user journey test routes NIP-59 gift wraps correctly.
 - [ ] Independent security audit of the Friends implementation is NOT claimed or completed.
 - [ ] NIP-44 does not provide forward secrecy; Friends must not be marketed as a high-assurance secret messenger.
 
-The protocol migration is implemented. What remains is real two-install relay validation, not cryptographic invention.
+The repo-side protocol migration is implemented. What remains is real two-install/public-relay validation, not more cryptographic invention.
 
 ## Discover / creation loop
 
@@ -129,6 +134,7 @@ Private chat is never silently summarized/published into community memory.
 - [x] QML action queue prevents timer status/refresh processes racing user writes.
 - [x] Release health reports schema, queued publishes, filtered blocks and relay status.
 - [x] CI compiles current Friends/Build modules, runs private-message standard + engine tests, the complete unit suite, remote-exec boundary and static release gate.
+- [x] One-shot write-capable migration workflows/scripts removed after use; normal CI remains read-only.
 
 ## UI
 
@@ -156,15 +162,19 @@ Private chat is never silently summarized/published into community memory.
 
 ## Final release gates — real Omarchy only
 
-Repository-side v4.15 work is complete and CI is green. These are the remaining gates before stable:
+Repository-side v4.15 work is complete. These are the remaining gates before stable:
 
 1. [ ] `bash scripts/release-gate.sh` passes on the actual Omarchy installation with no `FAIL`.
 2. [ ] Real `omarchy plugin validate .` and `qmllint` pass against installed shell imports.
-3. [ ] Two current v4.15 instances exchange NIP-17/NIP-59 direct/group messages on real configured relays, with outer-event metadata inspection passing.
-4. [ ] v4.15-to-legacy upgrade-compatibility test passes in both directions required by `FINAL_RELEASE_STATUS.md`.
-5. [ ] Build Network two-instance relay test passes: publish/receive/update/dedupe, offline retry, helper expiry and block filtering.
-6. [ ] Existing Friends regression passes: friend requests, DMs, groups, World, Circles, focus, block/report, profile/privacy and update flow.
-7. [ ] A real `omarchy-friends://invite/...` click opens through the installed desktop handler and invalid shapes are rejected.
-8. [ ] All six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
+3. [ ] Two current v4.15 instances publish/fetch signed kind-10050 inbox lists and exchange NIP-17/NIP-59 direct/group messages only on the recipient's advertised configured inbox relays.
+4. [ ] Relay-facing kind-1059 metadata inspection passes and wrong-inner-recipient rejection is confirmed on a real instance.
+5. [ ] Restart persistence passes: modern protocol/inbox state survives and stale World presence does not downgrade the friendship.
+6. [ ] v4.15-to-legacy upgrade-compatibility test passes as specified in `FINAL_RELEASE_STATUS.md`.
+7. [ ] Build Network two-instance relay test passes: publish/receive/update/dedupe, offline retry, helper expiry and block filtering.
+8. [ ] Existing Friends regression passes: friend requests, DMs, groups, World, Circles, focus, block/report, profile/privacy and update flow.
+9. [ ] A real `omarchy-friends://invite/...` click opens through the installed desktop handler and invalid shapes are rejected.
+10. [ ] All six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
 
-When all eight pass, cut v4.15 stable. Do not reopen feature brainstorming for this release.
+If real public relays reject kind-10050/kind-1059 or demand authentication, record the concrete relay response before changing protocol code.
+
+When all ten pass, cut v4.15 stable. Do not reopen feature brainstorming for this release.
