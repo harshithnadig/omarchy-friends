@@ -10,14 +10,17 @@ There are no hosted Friends accounts and no fake users. Public discovery is pseu
 
 ### Friends Deck — left click
 
-The existing Friends experience remains focused on people and conversation:
+Friends V3 is focused on people and conversation without dumping every social state into one screen:
 
-- **Chats** — explicit friend requests, private DMs and small private groups.
-- **World** — recently active real Omarchy installations, waves, Sparks and focus invitations.
-- **Circles** — public community chat.
-- **Me** — pseudonymous profile, interests, status, project beacon, privacy controls and invites.
-- **Focus** — bounded 25-minute co-working/focus rituals.
+- **Chats** — only conversations you have actually opened or used. Each friend/group has its own private conversation; the full friends list stays behind **New chat** instead of cluttering the rail.
+- **Requests** — separate **Received** and **Sent/pending** connection requests. Incoming requests do not appear inside Chats.
+- **World** — recently active real Omarchy installations with search and All/New/Building/Friends filters. Each person gets one clear relationship action instead of a row of repeated micro-buttons.
+- **Circles** — one public community room with a normal message stream and composer.
+- **Me** — pseudonymous profile plus About, Presence and explicit Privacy controls.
+- **Focus** — bounded 25-minute co-working/focus rituals from an active private conversation.
 - **Local Radar** — optional LAN discovery for nearby opted-in Omarchy users.
+
+The preferred shell is `FriendsPanelV3.qml`. `FriendsPanelV2.qml` remains as a compatibility fallback and `Panel.qml` is the final legacy safety fallback if both modern shells fail to load.
 
 ### Build Network — middle click or visible Build button
 
@@ -56,7 +59,8 @@ Friends deliberately applies several hard boundaries:
 - hostname, username, IP address, serial numbers and file contents are not part of Build Network environment sharing;
 - existing Friends blocks are honored by the release-hardened Build Network status layer;
 - failed Build Network publishes are kept locally and retried on a later sync;
-- `Can Help / Pair` availability expires instead of creating stale forever-online helpers.
+- `Can Help / Pair` availability expires instead of creating stale forever-online helpers;
+- Me exposes explicit controls for World visibility, active app, music, project, interests and room sharing.
 
 ### Private messaging security — v4.15
 
@@ -73,7 +77,9 @@ During the upgrade window, a current client can still **read the historical Frie
 
 Friends deliberately caps a NIP-44 plaintext at **65,535 bytes** as an application resource/DoS bound. That is a Friends limit, not the NIP-44 protocol maximum; normal chat envelopes are far smaller.
 
-CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
+The dependency-free WebSocket transport also bounds individual frame size, cumulative fragmented-message size, fragment count and one overall receive deadline so a relay cannot keep a client busy indefinitely with tiny continuation frames. Those limits have dedicated regression tests.
+
+CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey, WebSocket fragmentation limits, Friends V3 information-architecture contracts and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
 
 The compatibility/design record is in `docs/private-messaging-security-migration.md`.
 
@@ -93,7 +99,7 @@ wss://relay.damus.io
 
 Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
 
-The generated pseudonym is visible globally by default because discovery is the point of the plugin. You can disable global visibility immediately from **Me**.
+The generated pseudonym is visible globally by default because discovery is the point of the plugin. You can disable global visibility immediately from **Me → Privacy**.
 
 ## Direct invites
 
@@ -105,7 +111,7 @@ omarchy-friends://invite/<public-key>
 
 The current release includes a strict URI parser and best-effort user-local desktop registration. The real installed path must still be validated on the target Omarchy machine before release.
 
-Pasting a link or Friend Code into the Friends Deck remains a fallback.
+Direct invite links can start the connection flow even when World has not cached the peer yet.
 
 ## Install
 
@@ -162,16 +168,17 @@ On a real Omarchy machine also run:
 ```bash
 omarchy plugin validate .
 qmllint -I "$OMARCHY_PATH/shell" \
-  BarWidget.qml Panel.qml Service.qml \
+  BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml Service.qml \
   BuildNetworkPanelV3.qml BuildNetworkService.qml \
-  GlassSurface.qml GlassPill.qml
+  GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
+  GlassNavItem.qml GlassAvatar.qml
 ```
 
-`CODEX_REAL_SYSTEM_TEST.md` is the final real-machine validation checklist. It is intentionally limited to work that needs a real Omarchy install, actual relay behavior or rendered UI; it is not another feature-build brief. `PROMISE_LEDGER.md` records the complete product-scope promise audit so future agents do not invent duplicate systems.
+`CODEX_REAL_SYSTEM_TEST.md` is the final real-machine validation checklist. It explicitly checks Chats, Requests, World, Circles, Me, the fallback chain, all six Build Network tabs, actual relay behavior and rendered UI. `PROMISE_LEDGER.md` records the complete product-scope promise audit so future agents do not invent duplicate systems.
 
 ## Release rule
 
-Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, restart/anti-downgrade validation, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
+Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, Friends V3 visual/interaction pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, restart/anti-downgrade validation, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
 
 Repository-side scope is frozen. From this point, code changes should be limited to small fixes for failures demonstrated by the real-system checklist. Do not merge `main` until Harshu explicitly asks.
 
