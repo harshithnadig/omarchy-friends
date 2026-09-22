@@ -21,6 +21,7 @@ required=(
   FriendsPanelV2.qml
   Panel.qml
   Service.qml
+  ServiceModern.qml
   BuildNetworkPanelV3.qml
   BuildNetworkService.qml
   GlassSurface.qml
@@ -40,7 +41,8 @@ pass "required release files exist"
 
 [[ ! -f BuildNetworkPanel.qml ]] || fail "obsolete BuildNetworkPanel.qml still exists"
 [[ ! -f BuildNetworkPanelV2.qml ]] || fail "obsolete BuildNetworkPanelV2.qml still exists"
-pass "only the V3 Build Network panel remains"
+[[ ! -f bin/omarchy-friends-auto-update ]] || fail "silent auto-update helper still exists"
+pass "obsolete panels and silent updater are absent"
 
 grep -q 'FriendsPanelV3.qml' BarWidget.qml || fail "bar widget is not loading Friends V3"
 grep -q 'FriendsPanelV2.qml' BarWidget.qml || fail "Friends V2 compatibility fallback is missing"
@@ -50,7 +52,8 @@ grep -q 'build_network_app_v4.py' BuildNetworkService.qml || fail "Build Network
 grep -q 'function openBuildTab' BarWidget.qml || fail "first-class Build navigation hook is missing"
 grep -q 'text: "Requests"' FriendsPanelV3.qml || fail "Friends V3 is missing the dedicated Requests view"
 grep -q 'function conversationFriends()' FriendsPanelV3.qml || fail "Friends V3 is missing conversation-only chat filtering"
-pass "active UI/runtime paths are final"
+! grep -q 'autoUpdate' ServiceModern.qml || fail "manifest service entry point still contains background update behavior"
+pass "active UI/runtime paths are final and updates are explicit"
 
 python3 -m py_compile \
   bin/build_network.py \
@@ -61,17 +64,20 @@ python3 -m py_compile \
   bin/build_network_app_v2.py \
   bin/build_network_app_v3.py \
   bin/build_network_app_v4.py \
+  bin/omarchy_friends_global.py \
   bin/omarchy_friends_private.py \
+  bin/omarchy-friends \
   bin/omarchy-friends-open
 pass "Python modules compile"
 
 python3 -m unittest discover -s tests -v
 pass "unit suite passes"
 
-if grep -R -nE 'eval\(|exec\(|os\.system\(|shell=True' bin/build_network*.py bin/omarchy-friends-open; then
+if grep -R -nE 'eval\(|exec\(|os\.system\(|shell=True' \
+  bin/build_network*.py bin/omarchy_friends_*.py bin/omarchy-friends bin/omarchy-friends-open; then
   fail "remote-execution safety boundary violated"
 fi
-pass "no forbidden remote-exec primitives in Build Network"
+pass "no forbidden remote-exec primitives in active Friends/Build Python"
 
 manifest_version="$(python3 - <<'PY'
 import json
@@ -116,7 +122,8 @@ fi
 
 if [[ "$CI_MODE" -eq 0 ]] && command -v qmllint >/dev/null 2>&1 && [[ -n "${OMARCHY_PATH:-}" ]]; then
   qmllint -I "$OMARCHY_PATH/shell" \
-    BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml Service.qml \
+    BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml \
+    ServiceModern.qml Service.qml \
     BuildNetworkPanelV3.qml BuildNetworkService.qml \
     GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
     GlassNavItem.qml GlassAvatar.qml
