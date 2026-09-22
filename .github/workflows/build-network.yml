@@ -7,7 +7,9 @@ on:
   pull_request:
     paths:
       - 'bin/build_network*.py'
+      - 'bin/omarchy-friends-open'
       - 'BuildNetwork*.qml'
+      - 'Glass*.qml'
       - 'BarWidget.qml'
       - 'tests/test_build_network.py'
       - 'manifest.json'
@@ -28,7 +30,14 @@ jobs:
           python -m py_compile \
             bin/build_network.py \
             bin/build_network_social.py \
+            bin/build_network_v2.py \
             bin/build_network_runtime.py \
-            bin/build_network_app.py
+            bin/build_network_app.py \
+            bin/build_network_app_v2.py \
+            bin/omarchy-friends-open
       - name: Run complete unit suite
         run: python -m unittest discover -s tests -v
+      - name: Enforce remote-execution safety boundary
+        run: |
+          ! grep -R -nE 'eval\(|exec\(|os\.system\(|shell=True' \
+            bin/build_network*.py bin/omarchy-friends-open
