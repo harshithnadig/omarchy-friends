@@ -1,6 +1,6 @@
-# Omarchy Friends v4.14 — promise ledger
+# Omarchy Friends v4.15 — promise ledger
 
-This is the source of truth for v4.14. **Feature scope is frozen.** If something below is checked, do not rebuild it in another architecture.
+This is the source of truth for v4.15. **Feature scope is frozen.** If something below is checked, do not rebuild it in another architecture.
 
 ## Human layer / messaging
 
@@ -13,6 +13,26 @@ This is the source of truth for v4.14. **Feature scope is frozen.** If something
 - [x] Direct invite links.
 - [x] Safe `omarchy-friends://invite/<64-hex-public-key>` parser.
 - [x] Idempotent desktop URI registration using the actual installed handler path.
+
+## Standard private messaging migration
+
+- [x] NIP-44 v2 implementation in `bin/omarchy_friends_private.py`.
+- [x] Official NIP-44 v2 reference vector covered by CI.
+- [x] ChaCha20/HMAC authentication tamper rejection.
+- [x] NIP-17 kind-14 rumor structure for current-to-current Friends private messages.
+- [x] NIP-59 kind-13 seal + kind-1059 gift wrap for relay-facing metadata protection.
+- [x] Modern direct-message outer gift wrap hides plaintext and true sender identity.
+- [x] Modern private-group outer gift wrap hides group id/name and other member identities.
+- [x] Current Friends World presence advertises `nip44-v2`, `nip17-dm-v1`, and `nip59-gift-wrap-v1` capabilities.
+- [x] Capability negotiation prefers the standards-based transport for current peers.
+- [x] Legacy Friends ciphertext remains readable during the upgrade window.
+- [x] Current client sends the historical kind-4 format to a friend whose current presence does not advertise modern private-message capabilities.
+- [x] Engine-level tests cover modern delivery, legacy fallback and group metadata hiding.
+- [x] Full two-user journey test routes NIP-59 gift wraps correctly.
+- [ ] Independent security audit of the Friends implementation is NOT claimed or completed.
+- [ ] NIP-44 does not provide forward secrecy; Friends must not be marketed as a high-assurance secret messenger.
+
+The protocol migration is implemented. What remains is real two-install relay validation, not cryptographic invention.
 
 ## Discover / creation loop
 
@@ -108,14 +128,14 @@ Private chat is never silently summarized/published into community memory.
 - [x] Strict relay-event guards for oversized content, unreasonable future timestamps, and `d`/`type` tag disagreement with normalized payload.
 - [x] QML action queue prevents timer status/refresh processes racing user writes.
 - [x] Release health reports schema, queued publishes, filtered blocks and relay status.
-- [x] CI compile + complete unit suite + remote-exec boundary + static release gate.
+- [x] CI compiles current Friends/Build modules, runs private-message standard + engine tests, the complete unit suite, remote-exec boundary and static release gate.
 
 ## UI
 
 - [x] Liquid-glass V3 Build Network panel.
 - [x] Reusable `GlassSurface.qml` and `GlassPill.qml` primitives.
 - [x] Discover / Build / Share / Help / Community / Create surfaces.
-- [x] Existing Friends UI/messaging engine retained to minimize regressions.
+- [x] Existing Friends UI retained to minimize regressions.
 - [x] One active Build Network UI path; obsolete V1/V2 panels removed.
 - [x] Can Help/Pair/Building controls wired.
 - [x] Helper matches wired into Help requests.
@@ -125,13 +145,6 @@ Private chat is never silently summarized/published into community memory.
 - [x] External Share wired.
 - [x] Invite repair and release Health controls wired.
 - [x] Visible `🛠 Build` entry in normal Friends while middle-click remains the direct shortcut.
-
-## Deliberately separate private-message security migration
-
-- [x] v4.14 does **not** casually replace working private-message crypto inside this already-large RC.
-- [ ] Migrate DMs/groups to a standardized Nostr private-message scheme (NIP-44 v2; evaluate NIP-17/NIP-59 metadata protection) only in a separate compatibility-tested release.
-
-Until that migration/audit is complete, current private messaging must be described accurately as application-specific and not formally audited.
 
 ## Distribution / adoption
 
@@ -143,13 +156,15 @@ Until that migration/audit is complete, current private messaging must be descri
 
 ## Final release gates — real Omarchy only
 
-Repository-side v4.14 work is complete and current CI is green. These are the only remaining gates before stable:
+Repository-side v4.15 work is complete and CI is green. These are the remaining gates before stable:
 
 1. [ ] `bash scripts/release-gate.sh` passes on the actual Omarchy installation with no `FAIL`.
 2. [ ] Real `omarchy plugin validate .` and `qmllint` pass against installed shell imports.
-3. [ ] Two-instance relay test passes: publish/receive/update/dedupe, offline retry, helper expiry and block filtering.
-4. [ ] Existing Friends regression passes: DMs, groups, World, Circles, focus, block/report, profile/privacy and update flow.
-5. [ ] A real `omarchy-friends://invite/...` click opens through the installed desktop handler and invalid shapes are rejected.
-6. [ ] All six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
+3. [ ] Two current v4.15 instances exchange NIP-17/NIP-59 direct/group messages on real configured relays, with outer-event metadata inspection passing.
+4. [ ] v4.15-to-legacy upgrade-compatibility test passes in both directions required by `FINAL_RELEASE_STATUS.md`.
+5. [ ] Build Network two-instance relay test passes: publish/receive/update/dedupe, offline retry, helper expiry and block filtering.
+6. [ ] Existing Friends regression passes: friend requests, DMs, groups, World, Circles, focus, block/report, profile/privacy and update flow.
+7. [ ] A real `omarchy-friends://invite/...` click opens through the installed desktop handler and invalid shapes are rejected.
+8. [ ] All six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
 
-When all six pass, cut v4.14 stable. Do not reopen feature brainstorming for this release.
+When all eight pass, cut v4.15 stable. Do not reopen feature brainstorming for this release.
