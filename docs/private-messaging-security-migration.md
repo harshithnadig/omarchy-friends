@@ -15,7 +15,7 @@ When both Friends peers advertise the v4.15 private-message capabilities, privat
 
 Implementation: `bin/omarchy_friends_private.py` plus the transport/state integration in `bin/omarchy-friends`.
 
-For direct messages, the relay-facing gift wrap is signed by a one-time wrapper key and carries only the recipient `p` tag. The true sender and plaintext exist only inside the encrypted seal/rumor. The receiver additionally rejects a valid outer gift wrap when the decrypted kind-14 rumor does not actually address that receiver.
+For direct messages, the relay-facing gift wrap is signed by a one-time wrapper key and carries the recipient `p` tag. The true sender and plaintext exist only inside the encrypted seal/rumor. The receiver additionally rejects a valid outer gift wrap when the decrypted kind-14 rumor does not actually address that receiver.
 
 For small Friends groups, one shared NIP-17 rumor is individually gift-wrapped for each current recipient. Group id, group name and the other group members stay inside the encrypted rumor rather than in the public outer event.
 
@@ -79,6 +79,8 @@ Before calling v4.15 stable:
 - run the normal Friends regression suite on the actual Omarchy shell.
 
 See `CODEX_REAL_SYSTEM_TEST.md` for the exact procedure.
+
+These are deliberately real-environment validation gates. A failing gate may justify a small targeted fix; a passing gate is not an invitation to add another crypto layer, transport architecture or social feature.
 
 ## Security limitations / wording
 
