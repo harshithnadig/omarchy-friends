@@ -70,6 +70,34 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertNotIn("groupHasHistory(group.id)", body)
         self.assertNotIn("if (!active) continue", body)
 
+    def test_build_network_is_lazy_loaded(self):
+        bar = read("BarWidget.qml")
+        start = bar.index("id: buildPanelLoader")
+        body = bar[start:]
+        self.assertIn("active: root.buildCardOpen", body)
+        self.assertIn('source: Qt.resolvedUrl("BuildNetworkPanelV3.qml")', body)
+        self.assertNotIn("active: true", body)
+
+    def test_primary_glass_actions_are_keyboard_reachable(self):
+        for path in ("GlassButton.qml", "GlassNavItem.qml", "GlassPill.qml"):
+            text = read(path)
+            self.assertIn("activeFocusOnTab: root.enabled", text, path)
+            self.assertIn("Keys.onPressed", text, path)
+            self.assertIn("Qt.Key_Return", text, path)
+            self.assertIn("Qt.Key_Enter", text, path)
+            self.assertIn("Qt.Key_Space", text, path)
+            self.assertIn("root.forceActiveFocus()", text, path)
+
+    def test_keyboard_focus_has_visible_feedback(self):
+        button = read("GlassButton.qml")
+        nav = read("GlassNavItem.qml")
+        pill = read("GlassPill.qml")
+        self.assertIn("root.activeFocus", button)
+        self.assertIn("root.activeFocus", nav)
+        self.assertIn("root.activeFocus", pill)
+        self.assertIn("border.width: root.activeFocus ? 2 : 1", button)
+        self.assertIn("border.width: root.activeFocus ? 2 : 1", pill)
+
     def test_no_one_shot_write_patchers_remain(self):
         forbidden = (
             ".github/workflows/request-management-patcher.yml",
