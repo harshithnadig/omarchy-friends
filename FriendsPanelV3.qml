@@ -336,6 +336,22 @@ PopupCard {
         if (!f || f.status !== "pending") root.service.requestFriend(peer.public_key)
     }
 
+    function declineFriendRequest(pingId) {
+        if (!root.service || !pingId) return
+        root.service.runAction([root.service.binPath, "decline-friend", pingId], function(output) {
+            root.service.reportResult(output, "Friend request declined")
+            root.service.refresh()
+        })
+    }
+
+    function cancelFriendRequest(publicKey) {
+        if (!root.service || !publicKey) return
+        root.service.runAction([root.service.binPath, "cancel-friend", publicKey], function(output) {
+            root.service.reportResult(output, "Friend request cancelled")
+            root.service.refresh()
+        })
+    }
+
     function toggleGroupMember(publicKey) {
         var next = (root.groupMemberKeys || []).slice()
         var idx = next.indexOf(publicKey)
@@ -871,10 +887,17 @@ PopupCard {
                                                 spacing: Style.space(10)
                                                 GlassAvatar { size: Style.space(42); emoji: modelData.avatar || "👋"; online: true }
                                                 Column {
-                                                    width: parent.width - acceptRequestButton.width - Style.space(62)
+                                                    width: parent.width - acceptRequestButton.width - declineRequestButton.width - Style.space(70)
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     Text { width: parent.width; text: modelData.handle || "Omarchy builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                                     Text { width: parent.width; text: "Wants to connect and start a private chat"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                                }
+                                                GlassButton {
+                                                    id: declineRequestButton
+                                                    text: "Decline"
+                                                    compact: true
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    onClicked: root.declineFriendRequest(modelData.id)
                                                 }
                                                 GlassButton {
                                                     id: acceptRequestButton
@@ -912,7 +935,12 @@ PopupCard {
                                                     Text { width: parent.width; text: modelData.handle || "Omarchy builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                                     Text { width: parent.width; text: modelData.online ? "Request sent · online now" : "Request sent · waiting for a reply"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                 }
-                                                GlassPill { anchors.verticalCenter: parent.verticalCenter; text: "Pending"; active: true; accentColor: root.warning }
+                                                Row {
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    spacing: Style.space(6)
+                                                    GlassPill { text: "Pending"; active: true; accentColor: root.warning }
+                                                    GlassButton { text: "Cancel"; compact: true; onClicked: root.cancelFriendRequest(modelData.public_key) }
+                                                }
                                             }
                                         }
                                     }

@@ -212,6 +212,8 @@ GLOBAL_ACTION_META = {
     "hello": ("👋", "a wave"),
     "friend_request": ("🤝", "a friend request"),
     "friend_accept": ("✅", "a friend acceptance"),
+    "friend_decline": ("✕", "a declined friend request"),
+    "friend_cancel": ("↩", "a cancelled friend request"),
     "coffee": ("☕", "a coffee invite"),
     "kudos": ("⚡", "kudos"),
     "spark": ("✨", "a connection spark"),
@@ -1879,6 +1881,44 @@ class FriendsEngine:
         self.save_state()
         return True, "You are now friends"
 
+    def decline_friend_request(self, ping_id):
+        """Decline one incoming request and notify the original sender."""
+        ping_id = trim_text(ping_id, 64).lower()
+        pings = self.state.setdefault("global", {}).setdefault("pings", [])
+        ping = next((item for item in pings if item.get("id") == ping_id), None)
+        if not ping or ping.get("action") != "friend_request":
+            return False, "That friend request is no longer available"
+        ok, message = self.global_ping(
+            ping["public_key"],
+            "friend_decline",
+            session_id=ping.get("session_id"),
+            allow_offline=True,
+        )
+        if not ok:
+            return False, message
+        self.state["global"]["pings"] = [item for item in pings if item.get("id") != ping_id]
+        self.save_state()
+        return True, "Friend request declined"
+
+    def cancel_friend_request(self, public_key):
+        """Cancel one outgoing pending request and notify the recipient."""
+        public_key = trim_text(public_key, 64).lower()
+        friendships = self.state.setdefault("global", {}).setdefault("friendships", {})
+        friendship = friendships.get(public_key, {})
+        if friendship.get("status") != "pending":
+            return False, "That sent request is no longer pending"
+        ok, message = self.global_ping(
+            public_key,
+            "friend_cancel",
+            session_id=friendship.get("request_id"),
+            allow_offline=True,
+        )
+        if not ok:
+            return False, message
+        friendships.pop(public_key, None)
+        self.save_state()
+        return True, "Friend request cancelled"
+
     def _supports_nip17(self, public_key):
         public_key = trim_text(public_key, 64).lower()
         global_state = self.state.setdefault("global", {})
@@ -2698,6 +2738,40 @@ class FriendsEngine:
         if ping.get("action") in ("focus_accept", "focus_cancel"):
             self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
             self._handle_global_focus_reply(ping)
+            processed_ids.append(ping["id"])
+            global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+            return True
+        if ping.get("action") == "friend_decline":
+            friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
+            if friendship.get("status") == "pending" and (
+                not ping.get("session_id")
+                or not friendship.get("request_id")
+                or friendship.get("request_id") == ping.get("session_id")
+            ):
+                global_state["friendships"].pop(ping["public_key"], None)
+                self._remember_memory_signal(ping["public_key"], "friend_decline", "received", ping.get("handle", ""), ping.get("avatar", ""))
+                self._append_event(
+                    "friend_decline", "✕", ping.get("handle"), ping.get("avatar"),
+                    f"{ping.get('handle', 'A builder')} declined your friend request.", ping["id"]
+                )
+            processed_ids.append(ping["id"])
+            global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+            return True
+        if ping.get("action") == "friend_cancel":
+            session_id = ping.get("session_id")
+            global_state["pings"] = [
+                item for item in global_state.get("pings", [])
+                if not (
+                    item.get("action") == "friend_request"
+                    and item.get("public_key") == ping["public_key"]
+                    and (
+                        not session_id
+                        or not item.get("session_id")
+                        or item.get("session_id") == session_id
+                    )
+                )
+            ]
+            self._remember_memory_signal(ping["public_key"], "friend_cancel", "received", ping.get("handle", ""), ping.get("avatar", ""))
             processed_ids.append(ping["id"])
             global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
             return True
@@ -4196,6 +4270,12 @@ def main():
         print_result(ok, message)
     elif command == "request-friend-direct" and len(sys.argv) >= 3:
         ok, message = engine.request_friend_direct(sys.argv[2])
+        print_result(ok, message)
+    elif command == "decline-friend" and len(sys.argv) >= 3:
+        ok, message = engine.decline_friend_request(sys.argv[2])
+        print_result(ok, message)
+    elif command == "cancel-friend" and len(sys.argv) >= 3:
+        ok, message = engine.cancel_friend_request(sys.argv[2])
         print_result(ok, message)
     elif command == "accept-friend" and len(sys.argv) >= 3:
         ok, message = engine.accept_friend_request(sys.argv[2])
