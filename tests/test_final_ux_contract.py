@@ -122,6 +122,8 @@ class FinalUxContractTests(unittest.TestCase):
             "scripts/_group_visibility_fix.py",
             ".github/workflows/final-build-tabs-patch.yml",
             "scripts/_final_build_tabs_patch.py",
+            ".github/workflows/fix-multirelay-listener.yml",
+            "scripts/_fix_multirelay_listener.py",
         )
         for path in forbidden:
             self.assertFalse((ROOT / path).exists(), path)
