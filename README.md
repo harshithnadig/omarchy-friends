@@ -60,15 +60,20 @@ Friends deliberately applies several hard boundaries:
 
 ### Private messaging security — v4.15
 
-For two current Friends peers, private DMs and small-group messages use the standardized Nostr private-message stack implemented in `bin/omarchy_friends_private.py`:
+For two current Friends peers, private DMs and small-group messages use the standardized Nostr private-message stack implemented in `bin/omarchy_friends_private.py` and integrated by `bin/omarchy-friends`:
 
 - **NIP-44 v2** for authenticated private-message encryption;
 - **NIP-17 kind-14 rumors** for private-message structure;
-- **NIP-59 seals and gift wraps** so the relay-facing event does not expose the real sender, plaintext, group id/name or the other group members.
+- **NIP-59 kind-13 seals and kind-1059 gift wraps** so the relay-facing event does not expose the real sender, plaintext, group id/name or the other group members;
+- **NIP-17 kind-10050 DM inbox relay lists** so current clients route gift wraps to the recipient's advertised inbox relays.
 
-Friends advertises these capabilities in World presence and selects the standards-based transport when the peer supports it. During the upgrade window, a current client can still **read the historical Friends ciphertext format** and can send the historical kind-4 format to a friend whose current presence does not advertise the new capabilities. This avoids breaking existing friendships just because one side updated first.
+Friends publishes a signed inbox-relay list and listens on those inbox relays. A remote kind-10050 event is followed only for relay URLs that are also present in the local configured Friends relay set; the cached selection is bounded. This prevents an untrusted remote profile from causing arbitrary WebSocket egress, but it means current interoperability requires an overlap in configured relay sets.
 
-The implementation is tested against the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient gift wraps, full FriendsEngine DM delivery, old-peer fallback, and group metadata hiding. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
+During the upgrade window, a current client can still **read the historical Friends ciphertext format** and can send the historical kind-4 format to a friend that has never advertised the complete modern capability set. Once a friendship has advertised the modern protocol, that upgrade is remembered across stale presence and restarts rather than silently downgrading later.
+
+Friends deliberately caps a NIP-44 plaintext at **65,535 bytes** as an application resource/DoS bound. That is a Friends limit, not the NIP-44 protocol maximum; normal chat envelopes are far smaller.
+
+CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
 
 The compatibility/design record is in `docs/private-messaging-security-migration.md`.
 
@@ -166,7 +171,7 @@ qmllint -I "$OMARCHY_PATH/shell" \
 
 ## Release rule
 
-Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including NIP-17/NIP-59 messaging, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
+Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
 
 ## License
 
