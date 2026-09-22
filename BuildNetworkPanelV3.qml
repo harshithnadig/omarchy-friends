@@ -4,7 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-PopupCard {
+KeyboardPanel {
     id: root
 
     property var hostWidget: null
@@ -12,7 +12,7 @@ PopupCard {
     bar: hostWidget ? hostWidget.bar : null
     owner: hostWidget || root
     open: hostWidget ? hostWidget.buildCardOpen === true : false
-    triggerMode: "click"
+    focusTarget: syncButton
 
     // Friends owns a stable cool product palette instead of inheriting every
     // Omarchy theme hue. This keeps Build Network visually consistent with

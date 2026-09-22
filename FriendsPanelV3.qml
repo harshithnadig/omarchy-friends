@@ -4,7 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-PopupCard {
+KeyboardPanel {
     id: root
 
     property var hostWidget: null
@@ -12,7 +12,7 @@ PopupCard {
     bar: hostWidget ? hostWidget.bar : null
     owner: hostWidget || root
     open: hostWidget ? hostWidget.cardOpen === true : false
-    triggerMode: "click"
+    focusTarget: chatsNav
 
     readonly property color canvas: "#070b14"
     readonly property color panel: "#0b1120"
@@ -654,6 +654,7 @@ PopupCard {
                         Item { width: 1; height: Style.space(3) }
 
                         GlassNavItem {
+                            id: chatsNav
                             width: parent.width
                             text: "Chats"
                             icon: "◉"
