@@ -53,6 +53,13 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('["xdg-open", url]', friends)
         self.assertIn("onClicked: root.openSafeUrl", friends)
 
+    def test_sent_request_actions_reserve_their_own_width(self):
+        friends = read("FriendsPanelV3.qml")
+        self.assertIn("id: sentRequestActions", friends)
+        self.assertIn("parent.width - sentRequestActions.width - Style.space(60)", friends)
+        self.assertIn('text: "Pending"', friends)
+        self.assertIn('text: "Cancel"', friends)
+
     def test_no_one_shot_write_patchers_remain(self):
         forbidden = (
             ".github/workflows/request-management-patcher.yml",
@@ -61,6 +68,8 @@ class FinalUxContractTests(unittest.TestCase):
             "scripts/_v3_safety_patch.py",
             ".github/workflows/final-ux-patcher.yml",
             "scripts/_final_ux_patch.py",
+            ".github/workflows/request-layout-fixer.yml",
+            "scripts/_request_layout_fix.py",
         )
         for path in forbidden:
             self.assertFalse((ROOT / path).exists(), path)
