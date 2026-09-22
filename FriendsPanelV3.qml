@@ -37,6 +37,7 @@ PopupCard {
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.15.0", latest: "4.15.0" })
+    readonly property string reportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20report"
 
     property string page: "chats"
     property string requestTab: "received"
@@ -337,19 +338,26 @@ PopupCard {
     }
 
     function declineFriendRequest(pingId) {
-        if (!root.service || !pingId) return
-        root.service.runAction([root.service.binPath, "decline-friend", pingId], function(output) {
-            root.service.reportResult(output, "Friend request declined")
-            root.service.refresh()
-        })
+        if (root.service && pingId) root.service.declineFriendRequest(pingId)
     }
 
     function cancelFriendRequest(publicKey) {
-        if (!root.service || !publicKey) return
-        root.service.runAction([root.service.binPath, "cancel-friend", publicKey], function(output) {
-            root.service.reportResult(output, "Friend request cancelled")
-            root.service.refresh()
-        })
+        if (root.service && publicKey) root.service.cancelFriendRequest(publicKey)
+    }
+
+    function hidePeer(peer) {
+        if (!root.service || !peer || !peer.public_key) return
+        root.service.blockGlobal(peer.public_key)
+        if (root.selectedFriendKey === peer.public_key) root.selectedFriendKey = ""
+        root.showNotice((peer.handle || "Builder") + " hidden from Friends")
+    }
+
+    function reportPeer(peer) {
+        if (!peer || !peer.public_key) return
+        var payload = "Omarchy Friends report\n\nHandle: " + (peer.handle || "Unknown") + "\nPublic key: " + peer.public_key + "\n\nWhat happened?\n"
+        Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(payload) + " | wl-copy"])
+        Quickshell.execDetached(["xdg-open", root.reportUrl])
+        root.showNotice("Copied a report template and opened GitHub")
     }
 
     function toggleGroupMember(publicKey) {
@@ -741,13 +749,15 @@ PopupCard {
                                     readonly property var group: root.selectedGroup()
                                     GlassAvatar { size: Style.space(40); emoji: parent.group ? "🫂" : (parent.friend ? (parent.friend.avatar || "👾") : "✦"); online: parent.group ? true : (parent.friend && parent.friend.online === true); selected: true }
                                     Column {
-                                        width: parent.width - focusButton.width - buildTogetherButton.width - Style.space(70)
+                                        width: parent.width - focusButton.width - buildTogetherButton.width - hideChatButton.width - reportChatButton.width - Style.space(88)
                                         anchors.verticalCenter: parent.verticalCenter
                                         Text { width: parent.width; text: parent.parent.group ? (parent.parent.group.name || "Private group") : (parent.parent.friend ? (parent.parent.friend.handle || "Builder") : "Choose a chat"); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                         Text { width: parent.width; text: parent.parent.group ? "Private group · encrypted" : (parent.parent.friend ? (parent.parent.friend.online ? "Online now" : "Private chat") : "Pick a conversation or start a new one"); color: parent.parent.friend && parent.parent.friend.online ? root.success : root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     GlassButton { id: focusButton; text: "Focus"; icon: "◷"; compact: true; enabled: root.selectedFriend() !== null; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
                                     GlassButton { id: buildTogetherButton; text: "Build"; icon: "⌁"; compact: true; enabled: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked: root.openBuild("create") }
+                                    GlassButton { id: hideChatButton; text: "Hide"; compact: true; visible: root.selectedFriend() !== null; enabled: visible; onClicked: root.hidePeer(root.selectedFriend()) }
+                                    GlassButton { id: reportChatButton; text: "Report"; compact: true; visible: root.selectedFriend() !== null; enabled: visible; onClicked: root.reportPeer(root.selectedFriend()) }
                                 }
 
                                 Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
@@ -1029,8 +1039,9 @@ PopupCard {
                                 Repeater {
                                     model: root.filteredWorld()
                                     GlassSurface {
+                                        property bool safetyOpen: false
                                         width: (worldFlow.width - Style.space(8)) / 2
-                                        height: Style.space(144)
+                                        height: Style.space(safetyOpen ? 180 : 144)
                                         radius: Style.space(17)
                                         fillOpacity: 0.58
                                         elevated: root.peerActionLabel(modelData) === "Message"
@@ -1045,12 +1056,13 @@ PopupCard {
                                                 spacing: Style.space(9)
                                                 GlassAvatar { size: Style.space(42); emoji: modelData.avatar || "👾"; online: true }
                                                 Column {
-                                                    width: parent.width - personAction.width - Style.space(58)
+                                                    width: parent.width - personAction.width - safetyToggle.width - Style.space(66)
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     Text { width: parent.width; text: modelData.handle || "Omarchy builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                                     Text { width: parent.width; text: modelData.project_name ? ("Building · " + modelData.project_name) : ((modelData.status_emoji || "●") + " " + (modelData.status_name || modelData.activity || "Online")); color: modelData.project_name ? root.cyan : root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                 }
                                                 GlassButton { id: personAction; text: root.peerActionLabel(modelData); compact: true; primary: root.peerActionLabel(modelData) === "Accept" || root.peerActionLabel(modelData) === "Message"; enabled: root.peerActionLabel(modelData) !== "Requested" && root.peerActionLabel(modelData) !== "Needs update"; onClicked: root.activatePeer(modelData) }
+                                                GlassButton { id: safetyToggle; text: "⋯"; compact: true; selected: parent.parent.parent.safetyOpen; onClicked: parent.parent.parent.safetyOpen = !parent.parent.parent.safetyOpen }
                                             }
 
                                             Text {
@@ -1072,6 +1084,14 @@ PopupCard {
                                                     GlassPill { text: String(modelData); accentColor: root.cyan }
                                                 }
                                                 GlassPill { visible: modelData.common_ground && modelData.common_ground.length > 0; text: "common ground"; active: true; accentColor: root.violet }
+                                            }
+
+                                            Row {
+                                                visible: parent.parent.safetyOpen
+                                                width: parent.width
+                                                spacing: Style.space(6)
+                                                GlassButton { text: "Hide builder"; compact: true; onClicked: root.hidePeer(modelData) }
+                                                GlassButton { text: "Report"; compact: true; onClicked: root.reportPeer(modelData) }
                                             }
                                         }
                                     }
