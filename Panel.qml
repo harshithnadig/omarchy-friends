@@ -1566,7 +1566,12 @@ PopupCard {
                         anchors.margins: Style.space(10)
                         spacing: Style.space(9)
                         Text { text: "🫂"; font.pixelSize: Style.space(21); anchors.verticalCenter: parent.verticalCenter }
-                        Column { anchors.verticalCenter: parent.verticalCenter; spacing: Style.space(2); Text { text: modelData.name || "Private group"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }; Text { text: Object.keys(modelData.members || {}).length + " members"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            Text { text: modelData.name || "Private group"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                            Text { text: Object.keys(modelData.members || {}).length + " members"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        }
                     }
                 }
             }
