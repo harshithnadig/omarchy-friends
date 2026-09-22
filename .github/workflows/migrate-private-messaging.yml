@@ -1,0 +1,52 @@
+name: Migrate private messaging
+
+on:
+  push:
+    branches:
+      - feature/build-network
+    paths:
+      - 'scripts/migrate-private-messaging.py'
+      - '.github/workflows/migrate-private-messaging.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/build-network
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply compatibility-safe NIP-44 and NIP-17 migration
+        run: |
+          python scripts/migrate-private-messaging.py
+          git diff --check
+      - name: Compile messaging and release modules
+        run: |
+          python -m py_compile \
+            bin/omarchy_friends_global.py \
+            bin/omarchy_friends_private.py \
+            bin/omarchy-friends \
+            bin/build_network_app_v4.py
+      - name: Run private messaging standard tests
+        run: python -m unittest tests.test_private_messaging -v
+      - name: Run complete repository unit suite
+        run: python -m unittest discover -s tests -v
+      - name: Run static release gate
+        run: bash scripts/release-gate.sh --ci
+      - name: Commit migrated source
+        run: |
+          if git diff --quiet; then
+            echo 'Migration already applied.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bin/omarchy-friends manifest.json scripts/release-gate.sh
+          git commit -m 'feat: migrate private messaging to NIP-44 and NIP-17'
+          git push origin HEAD:feature/build-network
