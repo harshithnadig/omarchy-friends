@@ -1,16 +1,16 @@
-# Build Network event model — v1 prototype
+# Build Network event model — v4.15
 
-Build Network uses the existing Omarchy Friends pseudonymous secp256k1 identity and Nostr transport primitives, but keeps its public collaboration data separate from DMs/community chat.
+Build Network uses the existing Omarchy Friends pseudonymous secp256k1 identity and Nostr transport primitives. Its collaboration data is public relay-readable metadata and remains separate from private Friends DMs/groups.
 
 ## Nostr envelope
 
 - event kind: `30079` (parameterized replaceable)
-- `d` tag: object id
+- `d` tag: logical object id
 - `t` tag: `omarchy-friends-build`
-- `type` tag: logical object type
+- `type` tag: normalized logical object type
 - content: bounded JSON envelope
 
-Example shape:
+Conceptual shape:
 
 ```json
 {
@@ -29,57 +29,94 @@ Example shape:
 }
 ```
 
-The Nostr event signature/public key is the actual authorship boundary. Display handles in payloads are presentation metadata, not authentication.
+The signed Nostr event public key is the authorship boundary. Display handles are presentation metadata, not authentication.
 
-## Core collaboration object types
+## Supported logical objects
 
-- `idea`: title, summary, tags, status
-- `idea_interest`: `idea_id`, optional note
-- `build_room`: title, goal, repo URL, roles needed, tasks, source idea, status
-- `build_join`: `room_id`, role, note
-- `setup_card`: title, theme, plugin names, components, shell, terminal, editor, wallpaper/repo URLs, notes
-- `test_request`: title, artifact URL, version, requested environment tags, notes, optional Build Room
-- `test_result`: request id, `pass`/`issue`, environment tags, note
+### Build flow
 
-## Community loop object types
+- `idea` — title, summary, tags, status.
+- `idea_interest` — reference to an idea plus optional note.
+- `build_room` — goal, HTTPS repository URL, roles, tasks, source idea and lifecycle state.
+- `build_join` — room reference, role and note.
+- `project_activity` — explicit public GitHub-derived activity metadata tied to a room/repository.
 
-- `help_request`: problem, what was already tried, environment tags
-- `solution_card`: problem + reusable solution + environment tags + optional source
-- `ship_post`: shipped artifact summary/link/tags
-- `update_report`: Omarchy version + `working` / `minor_issue` / `rolled_back`
-- `community_event`: title, human-entered time/location, optional event URL
-- `challenge`: title, prompt, deadline text, optional rules URL/tags
+### Setup and testing
+
+- `setup_card` — shallow setup metadata and safe links.
+- `setup_component` — one explicit component/reference from a setup card.
+- `test_request` — artifact/version, requested environment labels and optional Build Room reference.
+- `test_result` — request reference, pass/issue result, safe environment labels and note.
+
+### Help and community memory
+
+- `help_request` — problem, bounded already-tried context and safe environment labels.
+- `help_offer` — help-request reference and note.
+- `helper_availability` — short-lived Can Help / Pair / Building availability, skills and expiry metadata.
+- `solution_card` — reusable solution plus optional source/help reference and environment labels.
+- `solution_verification` — Worked / Partly / Did-not-work verification with optional environment context.
+
+### Shipping and community
+
+- `ship_post` — shipped artifact summary/link/tags.
+- `update_report` — explicit Omarchy version + working/minor-issue/rolled-back report.
+- `community_event` — title, human-entered time/location and optional safe URL.
+- `event_rsvp` — event reference + Going/Interested state.
+- `challenge` — prompt/deadline text/rules URL/tags.
+- `challenge_join` — challenge reference plus optional team/build metadata.
+
+The exact normalized object vocabulary is enforced by the Python model layers; unknown object types fail closed.
 
 ## Replaceability and de-duplication
 
-The pair `(event.pubkey, d-tag/object-id)` is the logical object key. The client caches the newest valid event for that author/object. Duplicate relay copies collapse through event id + logical key checks.
+The pair `(event.pubkey, d-tag/object-id)` is the logical object key. The local cache keeps the newest valid replacement for an author/object. Duplicate copies arriving from multiple relays collapse through event-id and logical-key checks.
 
-Interests, joins and test results are separate objects with their own ids; they do not mutate another person's signed object.
+Participation objects such as interests, joins, results, offers, verifications and RSVPs are separately signed objects. One user never mutates another user's signed object.
 
-## Validation rules
+## Validation and resource rules
 
-Before a remote event enters the cache:
+Before a remote event enters the usable cache, Friends:
 
-1. verify Nostr event id/signature;
-2. require kind `30079` and `t=omarchy-friends-build`;
-3. parse the v1 envelope;
-4. dispatch only a known object type;
-5. normalize/bound all strings/lists;
-6. strip non-HTTP(S) URLs;
-7. ignore unknown fields;
-8. reject unknown types.
+1. verifies the Nostr event id/signature;
+2. requires kind `30079` and the Build Network tag;
+3. bounds event content before parsing;
+4. parses the supported envelope version;
+5. requires the `d`/`type` tags to agree with the normalized payload;
+6. dispatches only an allowlisted object type;
+7. normalizes and bounds strings/lists/IDs;
+8. strips/rejects unsupported URLs and keeps only HTTP(S) links where links are allowed;
+9. rejects unreasonable future timestamps;
+10. ignores unknown fields and rejects unknown object types;
+11. applies per-author cache fairness and total cache bounds;
+12. filters existing Friends-blocked public keys, including relevant derived/nested activity.
 
-No Build Network object contains executable commands or file contents.
+No Build Network event contains executable shell commands or arbitrary file contents.
+
+## Publish reliability
+
+A locally created public object is saved even when relay publication fails. Failed publishes are queued as bounded metadata-only payloads and retried in bounded batches on later sync. A successful retry must not create multiple logical copies.
+
+## Expiring availability
+
+Can Help / Pair / Building availability is intentionally temporary. The latest signed replacement event determines the current state, and stale availability expires so a user does not appear permanently available after leaving.
 
 ## Privacy boundaries
 
-Build Network cards are public relay-readable metadata. They are not DMs.
+Build Network objects are public. They are not DMs.
 
-- Setup inspection is intentionally shallow and user-triggered; it does not read dotfile contents.
-- Update Pulse is based only on explicit reports; there is no automatic telemetry.
-- Human Help cards should contain only problem/environment context the user chooses to share.
-- Private follow-up uses the existing Friends relationship/DM system.
+- setup inspection is intentionally shallow and user-triggered;
+- Update Pulse is explicit reporting, not telemetry;
+- Human Help contains only context the user deliberately publishes;
+- safe environment metadata excludes hostname, username, IP address, serial numbers and file contents;
+- private follow-up uses the existing Friends conversation system;
+- private chat is never silently summarized into a Solution Card or other public object.
 
-## Future protocol work
+## Private-message relationship
 
-Before declaring the protocol stable, Codex/maintainers should test relay compatibility, event replacement semantics, spam/rate limits, moderation/block propagation and migration/version behavior. If private Build Room metadata is added later, it should reuse audited/standardized Nostr private-message encryption rather than inventing another encryption construction.
+Current Friends-to-Friends private messaging uses NIP-44 v2 + NIP-17 kind-14 + NIP-59 seals/gift wraps with signed kind-10050 inbox relay lists. That stack is intentionally separate from public Build Network kind-30079 objects.
+
+The Friends implementation has not received an independent security audit, and NIP-44 does not provide forward secrecy.
+
+## Release status
+
+The repository-side event model is implemented and covered by normalization, signature, metadata/tag-agreement, URL, timestamp, retry, fairness, expiry and block-filtering tests. Real public-relay replacement/dedupe/offline-retry behavior still has to pass the two-instance checks in `CODEX_REAL_SYSTEM_TEST.md` before v4.15 stable.
