@@ -167,11 +167,11 @@ qmllint -I "$OMARCHY_PATH/shell" \
   GlassSurface.qml GlassPill.qml
 ```
 
-`CODEX_REAL_SYSTEM_TEST.md` is the final real-machine validation checklist. `PROMISE_LEDGER.md` records the complete product-scope promise audit so future agents do not invent duplicate systems.
+`CODEX_REAL_SYSTEM_TEST.md` is the final real-machine validation checklist. It is intentionally limited to work that needs a real Omarchy install, actual relay behavior or rendered UI; it is not another feature-build brief. `PROMISE_LEDGER.md` records the complete product-scope promise audit so future agents do not invent duplicate systems.
 
 ## Release rule
 
-Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
+Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, restart/anti-downgrade validation, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
 
 ## License
 
