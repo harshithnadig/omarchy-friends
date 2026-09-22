@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 import uuid
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -46,6 +47,11 @@ from omarchy_friends_private import (  # noqa: E402
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
 PLUGIN_VERSION = "4.15.0"
+OFFICIAL_MANIFEST_URL = "https://raw.githubusercontent.com/harshithnadig/omarchy-friends/main/manifest.json"
+OFFICIAL_RELEASE_CHECK_SECONDS = 6 * 60 * 60
+OFFICIAL_RELEASE_RETRY_SECONDS = 30 * 60
+OFFICIAL_MANIFEST_MAX_BYTES = 16 * 1024
+OFFICIAL_RELEASE_TIMEOUT_SECONDS = 4.0
 GLOBAL_CAPABILITIES = (
     "friend-requests-v1",
     "encrypted-dm-v1",
@@ -722,6 +728,9 @@ class FriendsEngine:
             global_state["update_available"] = bool(old_global.get("update_available", False))
             global_state["latest_version"] = trim_text(old_global.get("latest_version"), 16)
             global_state["last_notified_update"] = trim_text(old_global.get("last_notified_update"), 16)
+            global_state["official_latest_version"] = trim_text(old_global.get("official_latest_version"), 16)
+            global_state["last_release_check"] = safe_int(old_global.get("last_release_check"))
+            global_state["last_release_check_success"] = safe_int(old_global.get("last_release_check_success"))
             global_state["relays"] = {
                 trim_text(relay_url, 180): {
                     "online": bool(info.get("online")),
@@ -2745,27 +2754,83 @@ class FriendsEngine:
             return True
         return False
 
-    def _refresh_update_status(self):
-        """Compare our plugin version against live World peers.
+    def _official_latest_version(self, global_state):
+        """Return the latest version advertised by the canonical public manifest.
 
-        When a newer version is seen, flag it and raise one popup per version
-        so the deck banner and a desktop notification point at one-click Update.
-        Silent auto-update is deliberately avoided: updating code always stays
-        the user's explicit choice.
+        This performs a bounded metadata-only HTTPS read. It never downloads or
+        executes plugin code. Users can disable the check with
+        OMARCHY_FRIENDS_RELEASE_CHECK=0; peer-version gossip remains available.
+        Successful checks are cached for six hours and failed attempts back off
+        for thirty minutes so the normal four-second status refresh cannot hammer
+        GitHub or stall the UI.
+        """
+        cached_text = trim_text(global_state.get("official_latest_version"), 16)
+        cached = parse_plugin_version(cached_text)
+        flag = str(os.environ.get("OMARCHY_FRIENDS_RELEASE_CHECK", "1")).strip().lower()
+        if flag in {"0", "false", "off", "no"}:
+            return cached
+
+        now = now_seconds()
+        last_attempt = safe_int(global_state.get("last_release_check"))
+        last_success = safe_int(global_state.get("last_release_check_success"))
+        if cached and last_success and now - last_success < OFFICIAL_RELEASE_CHECK_SECONDS:
+            return cached
+        if last_attempt and now - last_attempt < OFFICIAL_RELEASE_RETRY_SECONDS:
+            return cached
+
+        global_state["last_release_check"] = now
+        try:
+            request = urllib.request.Request(
+                OFFICIAL_MANIFEST_URL,
+                headers={"User-Agent": f"omarchy-friends/{PLUGIN_VERSION}"},
+                method="GET",
+            )
+            with urllib.request.urlopen(request, timeout=OFFICIAL_RELEASE_TIMEOUT_SECONDS) as response:
+                payload = response.read(OFFICIAL_MANIFEST_MAX_BYTES + 1)
+            if len(payload) > OFFICIAL_MANIFEST_MAX_BYTES:
+                raise ValueError("manifest response is too large")
+            document = json.loads(payload.decode("utf-8"))
+            version_text = trim_text(document.get("version") if isinstance(document, dict) else "", 16)
+            parsed = parse_plugin_version(version_text)
+            if not parsed:
+                raise ValueError("manifest version is invalid")
+            global_state["official_latest_version"] = version_text
+            global_state["last_release_check_success"] = now
+            self.save_state()
+            return parsed
+        except (OSError, TimeoutError, UnicodeError, ValueError):
+            # Update discovery must never make Friends unavailable. Persist only
+            # the attempt time for bounded retry and keep any last-known-good
+            # version. Peer gossip remains a second independent signal.
+            self.save_state()
+            return cached
+
+    def _refresh_update_status(self):
+        """Compare our version against both official metadata and live peers.
+
+        A newer observed version raises one local event per version so the
+        persistent deck banner points at the explicit one-click updater. Code is
+        never downloaded or executed by this check.
         """
         global_state = self.state.setdefault("global", {})
         own = parse_plugin_version(PLUGIN_VERSION) or (0, 0, 0)
         latest = own
+
+        official = self._official_latest_version(global_state)
+        if official and official > latest:
+            latest = official
+
         for peer in global_state.get("peers", {}).values():
             if not isinstance(peer, dict):
                 continue
             parsed = parse_plugin_version(peer.get("plugin_version"))
             if parsed and parsed > latest:
                 latest = parsed
+
         latest_text = f"{latest[0]}.{latest[1]}.{latest[2]}"
         available = latest > own
         global_state["update_available"] = available
-        global_state["latest_version"] = f"{latest[0]}.{latest[1]}.{latest[2]}" if available else PLUGIN_VERSION
+        global_state["latest_version"] = latest_text if available else PLUGIN_VERSION
         if available and global_state.get("last_notified_update") != latest_text:
             global_state["last_notified_update"] = latest_text
             self._append_event(
