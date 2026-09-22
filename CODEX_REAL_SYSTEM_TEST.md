@@ -1,10 +1,12 @@
-# Codex real-system test checklist — Build Network v4.13 prototype
+# Codex real-system validation — Omarchy Friends v4.14
 
-Test branch: `feature/build-network`
+Branch: `feature/build-network`
 
-Do **not** merge into `main` until the checks below pass. The point of this branch is to give Codex an integrated first implementation to test and repair, not to redesign the feature set from scratch.
+This is **not** a build-from-scratch task. The Build Network backend, federation, advanced participation flows and liquid-glass V3 UI are already implemented. Your job is only to validate/fix real Omarchy integration issues that cannot be proven from GitHub CI.
 
-## 1. Checkout and protect main
+Do not merge into `main` unless Harshu explicitly asks.
+
+## 1. Checkout
 
 ```bash
 git fetch origin
@@ -14,169 +16,142 @@ git status --short
 git rev-parse --abbrev-ref HEAD
 ```
 
-Confirm the current branch is exactly `feature/build-network`. Do not commit to or merge into `main` during this test pass.
+Confirm the branch is exactly `feature/build-network`.
 
-## 2. Python syntax + complete unit suite
+## 2. Fast automated pass
 
 ```bash
 python3 -m py_compile \
   bin/build_network.py \
   bin/build_network_social.py \
+  bin/build_network_v2.py \
   bin/build_network_runtime.py \
-  bin/build_network_app.py
+  bin/build_network_app_v2.py \
+  bin/omarchy-friends-open
 
 python3 -m unittest discover -s tests -v
-```
 
-If anything fails, fix the branch and rerun the whole suite. Compare with `main` if an unrelated existing test fails.
-
-## 3. Local non-network model smoke tests
-
-These should only print bounded JSON and must not change Omarchy configuration:
-
-```bash
-python3 bin/build_network_cli.py idea "OLED system monitor" \
-  --summary "A clean GPU/CPU Omarchy widget" \
-  --tag QML --tag NVIDIA
-
-python3 bin/build_network_cli.py room "OLED system monitor" \
-  --goal "Ship a marketplace-ready widget" \
-  --repo "https://github.com/harshithnadig/omarchy-friends" \
-  --role Designer --role "AMD tester" \
-  --task "Basic widget" --task "GPU support"
-
-python3 bin/build_network_cli.py setup "Harshu setup" \
-  --theme Catppuccin \
-  --plugin Friends --plugin Spotify \
-  --terminal Ghostty
-```
-
-## 4. Unified runtime status + safe setup inspection
-
-```bash
-python3 bin/build_network_app.py status | python3 -m json.tool
-python3 bin/build_network_app.py inspect-setup | python3 -m json.tool
-```
-
-Inspect `inspect-setup` output carefully. It may include only shallow metadata such as current theme, plugin directory names, architecture/OS, shell/terminal/editor. It must **not** read or output config contents, tokens, SSH material, environment secrets, browser data or arbitrary files.
-
-## 5. Omarchy QML validation
-
-```bash
 omarchy plugin validate .
+
 qmllint -I "$OMARCHY_PATH/shell" \
   BarWidget.qml \
   Panel.qml \
   Service.qml \
-  BuildNetworkPanel.qml \
-  BuildNetworkService.qml
+  BuildNetworkPanelV3.qml \
+  BuildNetworkService.qml \
+  GlassSurface.qml \
+  GlassPill.qml
 ```
 
-Fix all new branch-specific QML errors. Do not silence errors by removing functionality unless the Omarchy API truly cannot support it.
+If QML/plugin validation exposes branch-specific errors, fix them directly on this branch and rerun the full commands. Do not redesign the product unless a real API incompatibility forces a small change.
 
-## 6. Real UI smoke test
+## 3. Load the real plugin
 
-Reload the plugin/shell using the normal Omarchy workflow. Verify:
+Reload Omarchy shell/plugin using the normal local workflow.
 
-1. **Left-click** still opens the original Friends deck.
-2. **Right-click** still cycles Friends status.
-3. **Middle-click** opens the new **Omarchy Build Network** deck.
-4. Opening one deck closes the other.
-5. Existing Chats, World, Circles, groups, DMs, focus, profile and update behavior still work.
-6. Build Network tabs render: Discover, Build, Share/Test, Help, Community, Create.
-7. Empty states do not crash when no Build Network object exists.
-8. Closing/reopening the Build deck keeps the shell responsive.
+Verify existing Friends first:
 
-Capture screenshots of each Build Network tab and any QML/runtime error.
+- left-click opens normal Friends;
+- right-click cycles status;
+- DMs, groups, World, Circles, focus and profile still function;
+- no new warnings/crashes from the Build Network service.
 
-## 7. Local Build Network object creation
+Then middle-click Friends and verify the V3 Build Network opens.
 
-Before testing public relay publication, create objects only if you are comfortable that they become public relay-readable cards. Use clearly disposable titles such as `TEST — Harshu Build Network`.
+## 4. Visual V3 check
 
-Exercise at least:
+The expected direction is a modern dark liquid-glass surface, not the old flat debug-panel look.
 
-- Idea
-- Build Room
-- Join Build Room
-- Setup Card using detected metadata
-- Test Request + pass/issue result
-- Human Help Request
-- Solution Card
-- Ship Post
-- Update Pulse report
-- Event
-- Challenge
+Check:
 
-After each action, verify the UI refreshes and `python3 bin/build_network_app.py status` contains the object.
+- hero glass surface and subtle accent glow;
+- segmented floating tabs;
+- larger spacing/hierarchy;
+- rounded glass content surfaces;
+- capsule actions;
+- no clipped text or action wrapping at normal laptop scale;
+- scroll behavior remains smooth;
+- inputs are readable with the current Omarchy theme;
+- selected/hover states remain visible in dark/light-compatible color tokens.
 
-## 8. Two-instance / real relay test
+If the real shell exposes a stable native blur effect, you may use it **only if** it is already part of supported Omarchy/Quickshell APIs. Do not add an experimental dependency just to chase literal blur. The current design deliberately uses translucent layered glass that is safe without compositor blur.
 
-This is the important integration test. Use two Omarchy Friends installations or two isolated state homes if practical.
+Capture screenshots of Discover, Build, Share, Help, Community and Create after fixes.
 
-Verify:
+## 5. Core Build Network smoke test
 
-1. Instance A creates an Idea; B receives it after Sync.
-2. B marks interested; A sees the interest count increase.
-3. A promotes the Idea into a Build Room; B joins it; both see the join count.
-4. A shares a Setup Card; B can **copy the recipe** but nothing auto-installs.
-5. A creates a Test Request; B submits a pass/issue result; counts update.
-6. A posts a Help Request; B presses chat and receives/creates the normal Friends chat invitation through the existing messaging system.
-7. A posts a Solution; B can copy it.
-8. A posts a Ship entry, Event, Challenge and Update Report; B sees them after Sync.
-9. Duplicate copies from multiple Nostr relays collapse to one logical object.
-10. A newer replaceable event for the same author/object wins over an older copy.
+Use disposable titles prefixed `TEST —` because public objects are relay-readable.
 
-## 9. Security/adversarial checks
+Exercise:
 
-Create malformed local test payloads and/or unit tests. Confirm:
+1. Idea -> interested -> Start build.
+2. Build Room -> join -> task doing/done -> owner testing/shipped state.
+3. Setup Card -> Compare with mine -> verify no machine changes occur -> Copy recipe.
+4. Test Request -> Works / Found issue using safe environment labels.
+5. Help Request -> Offer help -> Friends private-chat handoff -> author Mark solved.
+6. Solution -> Worked / Partly verification count.
+7. Ship entry.
+8. Update Pulse report -> confirm similar-environment aggregate appears when labels overlap.
+9. Event -> Going/Interested RSVP.
+10. Challenge -> Join -> Start a team/Build Room.
+11. Save/hide local object behavior.
 
-- unsigned/invalid Nostr events are rejected;
-- unsupported object types are rejected;
-- `file://`, `javascript:`, shell snippets and control-character URLs are stripped/rejected;
-- remote cards never become process arguments except fixed safe local UI actions;
-- remote text is rendered as text, not QML/HTML/code;
-- Setup Cards never execute install commands;
-- clicking a shared URL only sends an HTTP(S) URL to `xdg-open`;
-- public cards never contain the Friends private key;
-- Build state is user-only where practical;
-- huge tags/text/object floods are bounded;
-- hidden objects stay hidden locally;
-- malformed events do not crash the persistent Friends daemon or shell.
+## 6. Two-instance relay test
 
-## 10. Privacy/product checks
+With two Omarchy installations or isolated state homes:
 
-Confirm the UI clearly communicates:
+- A creates Idea; B receives it after Sync.
+- B marks interested; A count increases.
+- A opens Build Room; B joins; A sees join.
+- B task update appears to A.
+- A Setup Card appears on B and Compare performs only local metadata comparison.
+- Test result, help offer, solution verification, RSVP and challenge join all propagate.
+- multi-relay duplicate copies collapse to one logical object.
+- newer event for the same author/object wins.
 
-- Build Network cards are public relay-readable metadata;
-- Update Pulse is **explicit opt-in reporting**, not hidden telemetry;
-- safe setup inspection does not upload dotfile contents;
-- contribution reputation counts useful acts (builds/tests/solutions/ships), not followers;
-- Human Help is escalation to real people, while private conversation continues through normal Friends chat.
+## 7. Security regression
 
-## 11. Existing Friends regression pass
+Confirm:
 
-Run the existing tests again after all fixes:
+- unsigned/invalid events are rejected;
+- unknown object types fail closed;
+- `file://`, `javascript:` and control-character URLs do not become openable links;
+- public relay objects never contain the Friends private key;
+- shared setup metadata cannot execute shell/install commands;
+- remote text is displayed as text, never evaluated;
+- safe environment collection contains no hostname, username, IP, serial or file contents;
+- `omarchy-friends://invite/<pubkey>` handler rejects every other URL shape;
+- Build state remains user-only where practical;
+- existing block/report/friend controls are not bypassed.
 
-```bash
-python3 -m unittest discover -s tests -v
-omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" BarWidget.qml Panel.qml Service.qml BuildNetworkPanel.qml BuildNetworkService.qml
-```
+## 8. Invite desktop registration
 
-Then test existing encrypted DM/group/community behavior manually. Build Network must not weaken or bypass existing block/report/friend-request controls.
+`bin/omarchy-friends-open` implements safe URI parsing, but global desktop registration is intentionally not guessed remotely because the final installed plugin path must be known.
 
-## 12. Report back
+Determine the canonical installed path on the real machine. If Omarchy exposes a plugin lifecycle/install hook, use that supported hook to register `x-scheme-handler/omarchy-friends`. Otherwise document the smallest reliable user-local `.desktop` registration. Do not hard-code a developer checkout path.
 
-Return:
+## 9. What NOT to build in this pass
 
-- exact commands and results;
-- every file changed while fixing;
-- regressions vs `main`;
-- screenshots of all Build Network tabs;
-- relay interoperability findings;
-- any duplicate-event or stale-cache issue;
-- privacy/security findings;
-- what remains prototype-quality;
-- whether the Build deck is stable enough to merge visually into the main Friends panel later.
+Do not spend quota inventing features. Specifically do not:
 
-Do not merge the draft PR until Harshu explicitly decides to do so.
+- rewrite Build Network architecture;
+- auto-install setup cards;
+- add remote shell execution;
+- upload configs/logs/files automatically;
+- replace the existing private-message crypto during this validation pass;
+- rebuild V1/V2 panels (they were intentionally removed).
+
+## 10. Final report
+
+Return only:
+
+- failures found;
+- files changed to fix them;
+- exact test results;
+- screenshots of the six V3 tabs;
+- two-instance relay result;
+- URI registration result;
+- security/privacy findings;
+- whether this branch is stable enough for a second real Omarchy user.
+
+Commit and push fixes only to `feature/build-network`. Do not merge `main`.
