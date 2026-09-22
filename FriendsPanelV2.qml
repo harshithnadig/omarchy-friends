@@ -289,7 +289,12 @@ PopupCard {
         return root.updateInfo.current || "4.15.0"
     }
 
-    Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
+    Item {
+        width: 0
+        height: 0
+        visible: false
+        Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
+    }
 
     Connections {
         target: root.service

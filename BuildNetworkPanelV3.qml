@@ -62,7 +62,12 @@ PopupCard {
         }
     }
 
-    Timer { id: noticeTimer; interval: 3300; onTriggered: root.notice = "" }
+    Item {
+        width: 0
+        height: 0
+        visible: false
+        Timer { id: noticeTimer; interval: 3300; onTriggered: root.notice = "" }
+    }
 
     function csv(value) {
         var parts = String(value || "").split(",")
