@@ -73,4 +73,4 @@ bash scripts/release-gate.sh
 
 Then complete `CODEX_REAL_SYSTEM_TEST.md`, including real `omarchy plugin validate .`, `qmllint`, kind-10050 inbox publication/fetch, current-to-current NIP-17/NIP-59 messaging, restart/anti-downgrade behavior, legacy compatibility, Build Network relay tests, existing Friends regressions and desktop invite URI opening.
 
-If those gates pass, cut v4.15 stable. Do not add another feature to this release.
+Those are validation tasks, not prompts for another architecture or crypto rewrite. If the documented real-system gates pass, cut v4.15 stable. Do not add another feature to this release.
