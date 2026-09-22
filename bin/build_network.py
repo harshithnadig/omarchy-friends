@@ -1,19 +1,17 @@
-"""Prototype collaboration primitives for Omarchy Friends.
+"""Bounded collaboration primitives for Omarchy Friends Build Network.
 
-This module is intentionally dependency-free and side-effect free. It provides
-bounded, serializable objects for Ideas, Build Rooms, Setup Cards and Test
-Requests so the existing Friends transport/UI can adopt them incrementally.
-
-The module does not execute commands, install configs or read private files.
+These models are intentionally dependency-free and side-effect free. They
+validate the public objects exchanged by Ideas, Build Rooms, Setup Cards and
+the Test Network. Nothing here executes commands, installs configs, or reads
+private files.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Iterable
 import time
 import uuid
-
 
 MAX_TITLE = 80
 MAX_SUMMARY = 360
@@ -24,6 +22,8 @@ MAX_TAG = 32
 MAX_TASKS = 24
 MAX_MEMBERS = 16
 MAX_PLUGINS = 32
+MAX_ROLE = 48
+MAX_COMPONENTS = 24
 
 
 def _clean_text(value: object, limit: int) -> str:
@@ -35,7 +35,7 @@ def _clean_url(value: object) -> str:
     url = _clean_text(value, MAX_URL)
     if not url:
         return ""
-    if url.startswith(("https://", "http://")):
+    if url.startswith(("https://", "http://")) and not any(ord(ch) < 32 for ch in url):
         return url
     return ""
 
@@ -43,6 +43,8 @@ def _clean_url(value: object) -> str:
 def _clean_list(values: Iterable[object] | None, *, max_items: int, item_limit: int) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
+    if isinstance(values, str):
+        values = values.split(",")
     for raw in values or []:
         item = _clean_text(raw, item_limit)
         if not item:
@@ -87,6 +89,27 @@ class Idea:
 
 
 @dataclass(slots=True)
+class IdeaInterest:
+    idea_id: str
+    note: str = ""
+    author: str = ""
+    id: str = field(default_factory=lambda: new_id("interest"))
+    created_at: int = field(default_factory=lambda: int(time.time()))
+
+    def normalize(self) -> "IdeaInterest":
+        self.idea_id = _clean_text(self.idea_id, 64)
+        self.note = _clean_text(self.note, 160)
+        self.author = _clean_text(self.author, 64)
+        return self
+
+    def to_payload(self) -> dict:
+        self.normalize()
+        if not self.idea_id:
+            raise ValueError("idea_id is required")
+        return {"type": "idea_interest", **asdict(self)}
+
+
+@dataclass(slots=True)
 class BuildRoom:
     title: str
     goal: str = ""
@@ -104,7 +127,7 @@ class BuildRoom:
         self.title = _clean_text(self.title, MAX_TITLE)
         self.goal = _clean_text(self.goal, MAX_SUMMARY)
         self.repo_url = _clean_url(self.repo_url)
-        self.roles_needed = _clean_list(self.roles_needed, max_items=MAX_TAGS, item_limit=MAX_TAG)
+        self.roles_needed = _clean_list(self.roles_needed, max_items=MAX_TAGS, item_limit=MAX_ROLE)
         self.tasks = _clean_list(self.tasks, max_items=MAX_TASKS, item_limit=120)
         self.members = _clean_list(self.members, max_items=MAX_MEMBERS, item_limit=64)
         self.source_idea_id = _clean_text(self.source_idea_id, 64)
@@ -120,14 +143,39 @@ class BuildRoom:
 
 
 @dataclass(slots=True)
+class BuildJoin:
+    room_id: str
+    role: str = "Builder"
+    note: str = ""
+    author: str = ""
+    id: str = field(default_factory=lambda: new_id("join"))
+    created_at: int = field(default_factory=lambda: int(time.time()))
+
+    def normalize(self) -> "BuildJoin":
+        self.room_id = _clean_text(self.room_id, 64)
+        self.role = _clean_text(self.role, MAX_ROLE) or "Builder"
+        self.note = _clean_text(self.note, 180)
+        self.author = _clean_text(self.author, 64)
+        return self
+
+    def to_payload(self) -> dict:
+        self.normalize()
+        if not self.room_id:
+            raise ValueError("room_id is required")
+        return {"type": "build_join", **asdict(self)}
+
+
+@dataclass(slots=True)
 class SetupCard:
     title: str
     theme: str = ""
     plugins: list[str] = field(default_factory=list)
+    components: list[str] = field(default_factory=list)
     shell: str = ""
     terminal: str = ""
     editor: str = ""
     wallpaper_url: str = ""
+    repo_url: str = ""
     notes: str = ""
     author: str = ""
     id: str = field(default_factory=lambda: new_id("setup"))
@@ -137,10 +185,12 @@ class SetupCard:
         self.title = _clean_text(self.title, MAX_TITLE)
         self.theme = _clean_text(self.theme, 80)
         self.plugins = _clean_list(self.plugins, max_items=MAX_PLUGINS, item_limit=80)
+        self.components = _clean_list(self.components, max_items=MAX_COMPONENTS, item_limit=80)
         self.shell = _clean_text(self.shell, 80)
         self.terminal = _clean_text(self.terminal, 80)
         self.editor = _clean_text(self.editor, 80)
         self.wallpaper_url = _clean_url(self.wallpaper_url)
+        self.repo_url = _clean_url(self.repo_url)
         self.notes = _clean_text(self.notes, MAX_NOTE)
         self.author = _clean_text(self.author, 64)
         return self
@@ -160,6 +210,7 @@ class TestRequest:
     environment_tags: list[str] = field(default_factory=list)
     requested_tags: list[str] = field(default_factory=list)
     notes: str = ""
+    build_room_id: str = ""
     author: str = ""
     id: str = field(default_factory=lambda: new_id("test"))
     created_at: int = field(default_factory=lambda: int(time.time()))
@@ -172,6 +223,7 @@ class TestRequest:
         self.environment_tags = _clean_list(self.environment_tags, max_items=MAX_TAGS, item_limit=MAX_TAG)
         self.requested_tags = _clean_list(self.requested_tags, max_items=MAX_TAGS, item_limit=MAX_TAG)
         self.notes = _clean_text(self.notes, MAX_NOTE)
+        self.build_room_id = _clean_text(self.build_room_id, 64)
         self.author = _clean_text(self.author, 64)
         self.status = self.status if self.status in {"open", "testing", "done", "closed"} else "open"
         return self
@@ -210,7 +262,9 @@ class TestResult:
 
 ALLOWED_TYPES = {
     "idea": Idea,
+    "idea_interest": IdeaInterest,
     "build_room": BuildRoom,
+    "build_join": BuildJoin,
     "setup_card": SetupCard,
     "test_request": TestRequest,
     "test_result": TestResult,
@@ -220,8 +274,8 @@ ALLOWED_TYPES = {
 def parse_payload(payload: object):
     """Validate a remote collaboration payload and return a normalized model.
 
-    Unknown keys are ignored deliberately so the format can evolve without
-    making older clients crash.
+    Unknown keys are ignored so the wire format can evolve without making an
+    older client crash. Unknown object types fail closed.
     """
     if not isinstance(payload, dict):
         raise ValueError("payload must be an object")
