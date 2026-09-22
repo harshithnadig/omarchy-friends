@@ -1,0 +1,37 @@
+name: UI Finalize v4.15
+
+on:
+  push:
+    branches: [feature/build-network]
+    paths:
+      - .github/workflows/ui-finalize-v415.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/build-network
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply guarded UI finalizer
+        run: python3 scripts/ui-finalize-v415.py
+      - name: Run release gate
+        run: bash scripts/release-gate.sh --ci
+      - name: Commit finalized UI
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "harshithnadig"
+          git config user.email "67705498+harshithnadig@users.noreply.github.com"
+          git add FriendsPanelV2.qml BuildNetworkPanelV3.qml CODEX_REAL_SYSTEM_TEST.md FINAL_RELEASE_STATUS.md
+          git commit -m "ui: finalize unified liquid-glass shell"
+          git push origin HEAD:feature/build-network
