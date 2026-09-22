@@ -1,12 +1,14 @@
 # Omarchy Friends v4.15 UI contract
 
-This document freezes the visual direction for the v4.15 release candidate.
+This document freezes the visual and information-architecture direction for the v4.15 release candidate.
 
 ## Product feeling
 
 Friends should feel like a native futuristic desktop product rather than a theme-colored utility panel: quiet midnight glass, crisp cool-white typography, violet/blue energy, generous negative space, and strong information hierarchy.
 
 Reference mood: modern macOS / visionOS restraint + Arc-like product chrome, adapted to Omarchy rather than copied literally.
+
+The product should behave like a real messaging/community app, not expose transport concepts or dump every possible action into every card.
 
 ## Palette
 
@@ -53,11 +55,12 @@ All interactive controls need hover/pressed/selected/disabled treatment. Primary
 
 ## Friends shell
 
-`FriendsPanelV2.qml` is the preferred shell. `Panel.qml` remains only as a fallback if the modern shell cannot load.
+`FriendsPanelV3.qml` is the preferred shell. `FriendsPanelV2.qml` is the compatibility fallback. `Panel.qml` remains the final safety fallback if both modern shells cannot load.
 
 Top-level navigation:
 
 - Chats
+- Requests
 - World
 - Circles
 - Build
@@ -69,29 +72,67 @@ Build must be visible; middle-click remains a shortcut, not the only discovery r
 
 Desktop-style split layout:
 
-- conversation rail;
+- conversation rail containing only opened/history conversations;
 - active private/group conversation;
 - modern message bubbles;
-- clear composer;
-- visible Focus / Build-together actions.
+- one primary message composer;
+- optional HTTPS link field revealed on demand;
+- visible Focus / Build-together actions in the selected conversation header.
+
+**Do not put incoming requests or every friend into the conversation rail.** A person with no opened conversation belongs in the New chat picker until the user chooses them.
+
+The full friends list lives behind **New chat**. Private-group creation belongs there too.
+
+### Requests
+
+Connection management is separate from messaging:
+
+- Received requests;
+- Sent/pending requests;
+- incoming request badge;
+- Accept on received requests;
+- no request cards mixed into Chats.
 
 ### World
 
-Show live people rather than a generic feed:
+World is for discovering real Omarchy people and useful context, not a grid of repeated micro-actions.
+
+Show:
 
 - builder identity/status;
 - project/activity;
-- friend/add state;
-- Wave / Focus / Build actions;
-- relay health and useful aggregate context.
+- common ground where available;
+- search;
+- `All / New / Building / Friends` filters;
+- one clear relationship action per person: Connect / Accept / Requested / Needs update / Message;
+- relay health and truthful online counts.
+
+Do **not** repeat Wave / Focus / Build buttons on every person card. Focus and Build-together are contextual actions after a conversation exists.
 
 ### Circles
 
-Simple public room with readable message grouping and a clear public-information warning. Avoid unnecessary social-media engagement chrome.
+Circles is one coherent public room:
+
+- compact room identity/header;
+- concise public-information warning;
+- readable avatar/name/message stream;
+- normal chat bubbles/grouping rather than giant dashboard cards;
+- sticky bottom composer;
+- truthful quiet/empty state.
+
+Avoid generic social-media engagement chrome.
 
 ### Me
 
-Profile beacon, interests/status, invite sharing, current/update state and direct access to Build Network.
+Me is a clean profile/settings workspace, separated into:
+
+- profile hero + Copy Invite;
+- **About you**: handle/project fields;
+- **Presence**: avatar, status and interests;
+- **Privacy**: explicit public-beacon sharing controls;
+- compact update/version status.
+
+The user must be able to control World visibility, active-app sharing, music, project, interests and room sharing without hunting through another screen.
 
 ## Build Network
 
@@ -106,7 +147,7 @@ Six tabs remain:
 - Community
 - Create
 
-Do not reopen V1/V2 panel designs.
+Do not reopen V1/V2 Build Network panel designs.
 
 ## Update UX
 
@@ -124,4 +165,4 @@ Use short 90–220 ms scale/color transitions. Motion should confirm hover, pres
 
 ## Release rule
 
-A future agent may make a small compatibility fix after real Omarchy testing, but should not replace this design language with active-theme colors, giant monochrome forms, dense stacked rectangles or hidden Build navigation without an explicit new design decision.
+A future agent may make a small compatibility fix after real Omarchy testing, but should not collapse Requests back into Chats, repopulate Chats with every friend, restore repeated World action buttons, replace the room-style Circles layout, remove explicit privacy controls, replace the design language with active-theme colors, or hide Build navigation without an explicit new design decision.
