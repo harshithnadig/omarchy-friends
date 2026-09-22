@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.4.0"
+PLUGIN_VERSION = "4.5.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -51,6 +51,7 @@ MAX_MESSAGES = 80
 MAX_COMMUNITY_MESSAGES = 120
 MAX_MEDIA_ITEMS = 4
 MAX_MEDIA_URL_LENGTH = 500
+MAX_MEMORY_PEERS = 60
 GLOBAL_PRESENCE_KIND = 30078
 GLOBAL_PING_KIND = 1
 GLOBAL_DM_KIND = 4
@@ -545,6 +546,7 @@ class FriendsEngine:
                 "community": [],
                 "sent_pings": [],
                 "processed_event_ids": [],
+                "memory": {},
                 "last_sync": 0,
                 "last_publish": 0,
                 "last_error": "",
@@ -725,6 +727,15 @@ class FriendsEngine:
                 for event_id in old_global.get("processed_event_ids", [])
                 if trim_text(event_id, 64)
             ))[-MAX_SEEN_EVENT_IDS:]
+            memory = {}
+            for public_key, entry in (old_global.get("memory") or {}).items():
+                public_key = trim_text(public_key, 64).lower()
+                if not is_valid_public_key(public_key) or not isinstance(entry, dict):
+                    continue
+                memory[public_key] = self._normalize_memory_entry(public_key, entry)
+            if memory:
+                ordered = sorted(memory.items(), key=lambda kv: safe_int(kv[1].get("last_seen")))
+                global_state["memory"] = dict(ordered[-MAX_MEMORY_PEERS:])
 
         old_global_focus = data.get("global_focus")
         if isinstance(old_global_focus, dict):
@@ -1300,6 +1311,159 @@ class FriendsEngine:
         global_state["incoming_receipts"] = receipts[-MAX_SIGNAL_RECEIPTS:]
         return True
 
+    def _normalize_memory_entry(self, public_key, entry):
+        public_key = trim_text(public_key, 64).lower()
+        if not is_valid_public_key(public_key) or not isinstance(entry, dict):
+            return None
+        avatar = entry.get("avatar")
+        if avatar not in AVAILABLE_AVATARS:
+            avatar = generate_global_avatar(public_key)
+        now = now_seconds()
+        first_seen = safe_int(entry.get("first_seen")) or safe_int(entry.get("last_seen")) or now
+        last_seen = safe_int(entry.get("last_seen")) or first_seen
+        return {
+            "handle": trim_text(entry.get("handle"), 24) or generate_global_handle(public_key),
+            "avatar": avatar,
+            "first_seen": first_seen,
+            "last_seen": last_seen,
+            "encounters": safe_int(entry.get("encounters"), maximum=100000),
+            "waves_sent": safe_int(entry.get("waves_sent"), maximum=100000),
+            "waves_received": safe_int(entry.get("waves_received"), maximum=100000),
+            "sparks_sent": safe_int(entry.get("sparks_sent"), maximum=100000),
+            "sparks_received": safe_int(entry.get("sparks_received"), maximum=100000),
+            "chats_requested": safe_int(entry.get("chats_requested"), maximum=100000),
+            "chats_received": safe_int(entry.get("chats_received"), maximum=100000),
+            "friends_since": safe_int(entry.get("friends_since")),
+            "dms_sent": safe_int(entry.get("dms_sent"), maximum=100000),
+            "dms_received": safe_int(entry.get("dms_received"), maximum=100000),
+            "focus_shared": safe_int(entry.get("focus_shared"), maximum=100000),
+            "last_action": trim_text(entry.get("last_action"), 16),
+            "last_direction": trim_text(entry.get("last_direction"), 8) if trim_text(entry.get("last_direction"), 8) in ("sent", "received") else "",
+            "last_at": safe_int(entry.get("last_at")),
+        }
+
+    def _touch_memory(self, public_key, handle="", avatar="", encounter=False):
+        """Record a local-only sighting of a world peer. Never published."""
+        public_key = trim_text(public_key, 64).lower()
+        if not is_valid_public_key(public_key):
+            return None
+        try:
+            if public_key == self._global_identity()["public_key"]:
+                return None
+        except (TypeError, ValueError):
+            return None
+        global_state = self.state.setdefault("global", {})
+        if public_key in global_state.get("blocked_pubkeys", []):
+            return None
+        memory = global_state.setdefault("memory", {})
+        entry = memory.get(public_key)
+        now = now_seconds()
+        if entry is None:
+            entry = self._normalize_memory_entry(public_key, {
+                "handle": handle,
+                "avatar": avatar,
+                "first_seen": now,
+                "last_seen": now,
+            })
+            memory[public_key] = entry
+        if handle:
+            entry["handle"] = trim_text(handle, 24) or entry["handle"]
+        if avatar and avatar in AVAILABLE_AVATARS:
+            entry["avatar"] = avatar
+        entry["last_seen"] = now
+        if encounter:
+            entry["encounters"] = safe_int(entry.get("encounters")) + 1
+        if len(memory) > MAX_MEMORY_PEERS:
+            ordered = sorted(memory.items(), key=lambda kv: safe_int(kv[1].get("last_seen")))
+            for old_key, _ in ordered[: len(memory) - MAX_MEMORY_PEERS]:
+                memory.pop(old_key, None)
+        return entry
+
+    def _remember_memory_signal(self, public_key, action, direction, handle="", avatar=""):
+        entry = self._touch_memory(public_key, handle, avatar)
+        if entry is None:
+            return None
+        action = trim_text(action, 16)
+        if direction not in ("sent", "received"):
+            return entry
+        now = now_seconds()
+        entry["last_action"] = action
+        entry["last_direction"] = direction
+        entry["last_at"] = now
+        entry["last_seen"] = now
+        suffix = "received" if direction == "received" else "sent"
+        if action == "spark":
+            entry["sparks_" + suffix] = safe_int(entry.get("sparks_" + suffix)) + 1
+        elif action in ("friend_request", "friend_accept"):
+            if direction == "sent" and action == "friend_request":
+                entry["chats_requested"] = safe_int(entry.get("chats_requested")) + 1
+            elif direction == "received" and action == "friend_request":
+                entry["chats_received"] = safe_int(entry.get("chats_received")) + 1
+            if action == "friend_accept" and not safe_int(entry.get("friends_since")):
+                entry["friends_since"] = now
+        elif action in ("focus", "focus_accept"):
+            if action == "focus_accept":
+                entry["focus_shared"] = safe_int(entry.get("focus_shared")) + 1
+            else:
+                entry["waves_" + suffix] = safe_int(entry.get("waves_" + suffix)) + 1
+        elif action == "focus_cancel":
+            entry["waves_" + suffix] = safe_int(entry.get("waves_" + suffix)) + 1
+        elif action == "dm":
+            entry["dms_" + suffix] = safe_int(entry.get("dms_" + suffix)) + 1
+        else:
+            entry["waves_" + suffix] = safe_int(entry.get("waves_" + suffix)) + 1
+        return entry
+
+    def _mark_friends_memory(self, public_key, handle="", avatar=""):
+        entry = self._touch_memory(public_key, handle, avatar)
+        if entry is None:
+            return None
+        if not safe_int(entry.get("friends_since")):
+            entry["friends_since"] = now_seconds()
+        return entry
+
+    @staticmethod
+    def _memory_summary(entry):
+        if not isinstance(entry, dict):
+            return {"familiar": False, "exchanges": 0, "summary": ""}
+        exchanges = (
+            safe_int(entry.get("waves_sent"))
+            + safe_int(entry.get("waves_received"))
+            + safe_int(entry.get("sparks_sent"))
+            + safe_int(entry.get("sparks_received"))
+            + safe_int(entry.get("chats_requested"))
+            + safe_int(entry.get("chats_received"))
+            + safe_int(entry.get("dms_sent"))
+            + safe_int(entry.get("dms_received"))
+            + safe_int(entry.get("focus_shared"))
+        )
+        familiar = bool(safe_int(entry.get("encounters")) > 1 or exchanges > 0 or safe_int(entry.get("friends_since")))
+        summary = ""
+        if familiar:
+            parts = []
+            if exchanges > 0:
+                parts.append(f"{exchanges} exchange{'s' if exchanges != 1 else ''}")
+            elif safe_int(entry.get("encounters")) > 1:
+                parts.append(f"seen {safe_int(entry.get('encounters'))}x")
+            if safe_int(entry.get("friends_since")):
+                parts.append("friends")
+            last_at = safe_int(entry.get("last_at") or entry.get("last_seen"))
+            if last_at:
+                parts.append(f"last {trim_text(entry.get('last_action'), 16) or 'seen'} {format_age(last_at)}")
+            summary = " · ".join(parts)
+        return {
+            "familiar": familiar,
+            "exchanges": exchanges,
+            "encounters": safe_int(entry.get("encounters")),
+            "friends_since": safe_int(entry.get("friends_since")),
+            "last_action": trim_text(entry.get("last_action"), 16),
+            "last_direction": entry.get("last_direction") if entry.get("last_direction") in ("sent", "received") else "",
+            "last_at": safe_int(entry.get("last_at") or entry.get("last_seen")),
+            "last_ago": format_age(safe_int(entry.get("last_at") or entry.get("last_seen"))) if safe_int(entry.get("last_at") or entry.get("last_seen")) else "never",
+            "first_seen": safe_int(entry.get("first_seen")),
+            "summary": summary,
+        }
+
     def _cleanup_global_peers(self):
         cutoff = now_seconds() - GLOBAL_PEER_TTL_SECONDS
         global_state = self.state.setdefault("global", {})
@@ -1324,12 +1488,15 @@ class FriendsEngine:
         self._cleanup_global_peers()
         profile = self.state["profile"]
         active_app = get_active_window() if profile.get("privacy", {}).get("share_window", True) else ""
+        memory = self.state.get("global", {}).get("memory", {})
         peers = []
         for peer in self.state.get("global", {}).get("peers", {}).values():
             item = dict(peer, online=True)
             item["same_room"] = self._same_room(item)
             item["common_ground"] = self._common_ground(item, active_app)
             item["icebreaker"] = self._icebreaker(item)
+            entry = memory.get(item.get("public_key"), {})
+            item["memory"] = self._memory_summary(entry) if entry else {"familiar": False, "exchanges": 0, "encounters": 0, "friends_since": 0, "last_action": "", "last_direction": "", "last_at": 0, "last_ago": "never", "first_seen": 0, "summary": ""}
             peers.append(item)
         own_interests = set(profile.get("interests", []))
         peers.sort(
@@ -1424,6 +1591,7 @@ class FriendsEngine:
         self.state["global"].setdefault("friendships", {})[ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
         self.state["global"]["pings"] = [item for item in self.state["global"]["pings"] if item.get("id") != ping_id]
         self.state["stats"]["friends_made"] += 1
+        self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
         self.save_state()
         return True, "You are now friends"
 
@@ -1453,6 +1621,7 @@ class FriendsEngine:
         friend = self.state["global"]["friendships"][public_key]
         self.state["global"].setdefault("messages", []).append({"id": event["id"], "public_key": public_key, "handle": friend.get("handle", "Friend"), "text": text, "media": media, "timestamp": now_seconds(), "incoming": False})
         self.state["global"]["messages"] = self.state["global"]["messages"][-MAX_MESSAGES:]
+        self._remember_memory_signal(public_key, "dm", "sent", friend.get("handle", ""), "")
         self.save_state()
         return True, "Private message sent"
 
@@ -1818,12 +1987,15 @@ class FriendsEngine:
             peer["relay_count"] = len(relay_counts.get(key, set()))
         if successes:
             global_state["peers"].update(peers)
+            for key, peer in peers.items():
+                self._touch_memory(key, peer.get("handle", ""), peer.get("avatar", ""), encounter=True)
         processed_ids = global_state.setdefault("processed_event_ids", [])
         for event in messages:
             message = self._global_dm_from_event(event)
             if message and message["id"] not in processed_ids:
                 global_state.setdefault("messages", []).append(message)
                 processed_ids.append(message["id"])
+                self._remember_memory_signal(message["public_key"], "dm", "received", message.get("handle", ""), "")
                 self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
         global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
         community = global_state.setdefault("community", [])
@@ -1841,6 +2013,7 @@ class FriendsEngine:
             if not self._allow_global_signal(ping["public_key"]):
                 continue
             if ping.get("action") in ("focus_accept", "focus_cancel"):
+                self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
                 self._handle_global_focus_reply(ping)
                 processed_ids.append(ping["id"])
                 global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
@@ -1854,6 +2027,8 @@ class FriendsEngine:
                 ):
                     global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
                     self.state["stats"]["friends_made"] += 1
+                    self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
+                    self._remember_memory_signal(ping["public_key"], "friend_accept", "received", ping.get("handle", ""), ping.get("avatar", ""))
                     self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now friends.", ping["id"])
                 processed_ids.append(ping["id"])
                 global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
@@ -1863,12 +2038,15 @@ class FriendsEngine:
                 if friendship.get("status") == "pending":
                     global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
                     self.state["stats"]["friends_made"] += 1
+                    self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
+                    self._remember_memory_signal(ping["public_key"], "friend_request", "received", ping.get("handle", ""), ping.get("avatar", ""))
                     self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now mutual friends.", ping["id"])
                     self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"), allow_offline=True)
                     processed_ids.append(ping["id"])
                     global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
                     continue
             global_state.setdefault("pings", []).append(ping)
+            self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
             peer = global_state.get("peers", {}).get(ping["public_key"], ping)
             icon, label = GLOBAL_ACTION_META[ping["action"]]
             message = f"{ping['handle']} sent you {label}."
@@ -1953,6 +2131,7 @@ class FriendsEngine:
         message = f"You sent {label} to {target_handle}."
         if prompt:
             message += f" {trim_text(prompt, 120)}"
+        self._remember_memory_signal(public_key, action, "sent", target_handle, target_avatar)
         self._append_event(action, icon, target_handle, target_avatar, message, event["id"])
         self._append_pulse(peer or {"handle": target_handle, "avatar": target_avatar, "public_key": public_key}, action, message, remote=False)
         self.save_state()
@@ -1968,6 +2147,7 @@ class FriendsEngine:
             blocked.append(public_key)
         global_state.get("peers", {}).pop(public_key, None)
         global_state["pings"] = [item for item in global_state.get("pings", []) if item.get("public_key") != public_key]
+        global_state.get("memory", {}).pop(public_key, None)
         self.save_state()
         return True, "Builder hidden from your world"
 
@@ -2768,6 +2948,7 @@ class FriendsEngine:
             "global_friendships": global_state.get("friendships", {}),
             "global_messages": global_state.get("messages", []),
             "global_community": global_state.get("community", []),
+            "global_memory": global_state.get("memory", {}),
             "global_status": {
                 "visible": bool(privacy.get("share_global", True)),
                 "online_count": len(global_peers),

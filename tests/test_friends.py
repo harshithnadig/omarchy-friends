@@ -672,6 +672,69 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(migrated.state["global"]["friendships"][peer_key]["status"], "friends")
         self.assertEqual(migrated.state["global"]["messages"][0]["media"][0]["kind"], "video")
 
+    def test_conversation_memory_records_waves_and_enriches_peers(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            with patch.object(friends_module, "get_active_window", return_value="Neovim"):
+                peer = self.engine._global_peer_from_event(remote._global_presence_event())
+            self.engine.state["global"]["peers"][peer["public_key"]] = peer
+            self.engine._touch_memory(peer["public_key"], peer["handle"], peer["avatar"], encounter=True)
+            with patch.object(
+                self.engine, "_publish_global_event", return_value=(True, {})
+            ):
+                ok, _ = self.engine.global_ping(peer["public_key"], "hello")
+            self.assertTrue(ok)
+            memory = self.engine.state["global"]["memory"][peer["public_key"]]
+            self.assertEqual(memory["waves_sent"], 1)
+            self.assertEqual(memory["encounters"], 1)
+            # Incoming wave is remembered without a network round-trip.
+            incoming = dict(peer, action="hello", id="b" * 64, timestamp=int(time.time()))
+            normalized = self.engine._normalize_global_ping(incoming)
+            self.engine._remember_memory_signal(
+                peer["public_key"], normalized["action"], "received",
+                normalized["handle"], normalized["avatar"],
+            )
+            self.assertEqual(self.engine.state["global"]["memory"][peer["public_key"]]["waves_received"], 1)
+            enriched = self.engine._global_peers()[0]
+            self.assertTrue(enriched["memory"]["familiar"])
+            self.assertIn("exchange", enriched["memory"]["summary"])
+            status = self.engine.get_full_status()
+            self.assertIn(peer["public_key"], status["global_memory"])
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
+    def test_conversation_memory_migrates_and_block_clears_it(self):
+        peer_key = friends_module.generate_keypair()["public_key"]
+        state_file = Path(self.test_dir) / "friends_state.json"
+        state_file.write_text(
+            json.dumps({
+                "global_identity": self.engine.state["global_identity"],
+                "global": {
+                    "memory": {peer_key: {
+                        "handle": "Old Friend", "avatar": "🦊",
+                        "first_seen": 100, "last_seen": 200, "encounters": 3,
+                        "waves_sent": 2, "waves_received": 1,
+                    }},
+                },
+            }),
+            encoding="utf-8",
+        )
+        migrated = friends_module.FriendsEngine(state_dir=self.test_dir)
+        entry = migrated.state["global"]["memory"][peer_key]
+        self.assertEqual(entry["handle"], "Old Friend")
+        self.assertEqual(entry["encounters"], 3)
+        self.assertEqual(entry["waves_sent"], 2)
+        ok, _ = migrated.block_global(peer_key)
+        self.assertTrue(ok)
+        self.assertNotIn(peer_key, migrated.state["global"].get("memory", {}))
+
+    def test_conversation_memory_is_bounded(self):
+        for _ in range(friends_module.MAX_MEMORY_PEERS + 5):
+            key = friends_module.generate_keypair()["public_key"]
+            self.engine._touch_memory(key, "Builder", "👾", encounter=True)
+        self.assertLessEqual(len(self.engine.state["global"]["memory"]), friends_module.MAX_MEMORY_PEERS)
+
 
 if __name__ == "__main__":
     unittest.main()

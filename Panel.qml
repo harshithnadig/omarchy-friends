@@ -1178,6 +1178,16 @@ PopupCard {
                                 font.pixelSize: Style.font.caption
                                 elide: Text.ElideRight
                             }
+
+                            Text {
+                                visible: modelData.memory && modelData.memory.familiar && modelData.memory.summary !== ""
+                                width: parent.width
+                                text: "↺ " + (modelData.memory.summary || "")
+                                color: muted
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                            }
                         }
 
                         Rectangle {

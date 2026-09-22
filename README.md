@@ -49,6 +49,9 @@ available when people are nearby.
   `3` Messages, `4` Community, and `5` Profile.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
+* **↺ Conversation memory:** Returning builders feel familiar with a tiny
+  local-only note — exchanges, last signal, and friends-since — kept on
+  your machine, never published, and cleared when you block someone.
 * **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for
   people on the local radar or saved as private shortcuts.
 * **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
