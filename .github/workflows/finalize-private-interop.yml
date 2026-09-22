@@ -6,6 +6,7 @@ on:
       - feature/build-network
     paths:
       - 'scripts/finalize-private-interop.py'
+      - 'scripts/finalize-private-interop-v2.py'
       - '.github/workflows/finalize-private-interop.yml'
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
           python-version: '3.12'
       - name: Apply NIP-17 inbox interoperability hardening
         run: |
-          python scripts/finalize-private-interop.py
+          python scripts/finalize-private-interop-v2.py
           git diff --check
       - name: Compile active messaging modules
         run: |
