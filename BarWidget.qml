@@ -223,9 +223,12 @@ BarWidget {
             console.warn("Omarchy Friends legacy fallback also failed: " + source)
     }
 
+    // Build Network does network/status work of its own. Keep it completely
+    // unloaded until the user opens Build so the normal Friends experience
+    // does not pay for background Python processes and relay refreshes.
     Loader {
         id: buildPanelLoader
-        active: true
+        active: root.buildCardOpen
         source: Qt.resolvedUrl("BuildNetworkPanelV3.qml")
         visible: false
         onLoaded: if (item) {
