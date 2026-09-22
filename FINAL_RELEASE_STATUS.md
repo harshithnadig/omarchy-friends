@@ -1,40 +1,41 @@
 # Omarchy Friends v4.14 — final release status
 
-This is the short release truth. Product feature brainstorming is frozen until these gates are closed.
+Feature scope is frozen. The repository-side v4.14 work is complete; do not add another product feature before release.
 
-## Current state
+## Repo-side release candidate
 
 - Product architecture: complete for v4.14.
 - Build Network backend: complete for planned v4.14 scope.
-- Build Network liquid-glass V3 panel: implemented.
-- Release-hardening runtime: implemented in `bin/build_network_app_v4.py`.
-- Python/unit/static safety CI: green on the feature branch before this status-only commit.
-- PR remains draft and must not be merged solely from CI.
+- Liquid-glass V3 panel: implemented.
+- Release runtime: `bin/build_network_app_v4.py`.
+- `manifest.json` and the live Friends engine both advertise `4.14.0`.
+- Build Network is visibly reachable from the normal Friends panel and remains available by middle-click.
+- V3 UI exposes Can Help / Pair, helper matches, setup-component sharing, public GitHub pulse/activity publishing, Help -> Solution, external Share, invite repair and health diagnostics.
+- Current private messaging remains the existing application-specific implementation; release wording must continue to describe it accurately as not formally audited. NIP-44 migration belongs in a separate compatibility-tested release.
 
-## Release hardening already implemented
+## Release hardening implemented
 
-- offline relay-failure retry queue;
-- stale Can Help / Pair expiry;
-- reuse of existing Friends block list in Build Network;
-- Build state corruption quarantine;
-- state schema migration + private backup;
-- longer bounded community-memory lookback;
-- health diagnostics;
-- final `scripts/release-gate.sh`;
-- accurate README safety/release wording.
+- relay-failed public objects are queued locally and retried in bounded batches;
+- stale Can Help / Pair availability expires from the latest signed replacement event;
+- existing Friends blocks filter Build Network top-level and nested activity locally;
+- corrupt Build state is quarantined;
+- state schema migration creates a private backup;
+- durable community knowledge has a longer bounded lookback;
+- one Nostr identity cannot crowd the whole local cache because of per-author fairness limits;
+- malformed relay events are rejected for bad metadata/tag agreement, oversized content and unreasonable future timestamps;
+- Build Network QML work is serialized so timer refresh/status operations do not race user writes;
+- health diagnostics and `scripts/release-gate.sh` are included;
+- CI compiles the active modules, runs the complete unit suite, enforces the remote-execution safety boundary and runs the static release gate.
 
-## Remaining gates
+## Remaining gates — real Omarchy only
 
-1. Change `PLUGIN_VERSION = "4.12.0"` to `PLUGIN_VERSION = "4.14.0"` in `bin/omarchy-friends` so the live presence/update system agrees with `manifest.json`.
-2. Wire the newest already-implemented V3 actions into `BuildNetworkPanelV3.qml` using `V3_UI_WIRING_MAP.md`.
-3. Make Build Network visibly discoverable from the normal Friends experience while keeping middle-click.
-4. Run `bash scripts/release-gate.sh` on the actual Omarchy system until it passes with no FAIL.
-5. Run real `omarchy plugin validate .` and `qmllint` against installed shell imports.
-6. Two-instance relay test including offline retry, replacement/dedupe and helper expiry.
-7. Regression-test Friends DMs, private groups, World, Circles, focus, blocks/reporting and update flow.
-8. Validate actual desktop opening of `omarchy-friends://invite/<public-key>`.
-9. Decide private-message crypto release posture: ship current application-specific implementation with accurate unaudited wording, or hold for the separately tested NIP-44 migration. Do not make stronger security claims without that migration/audit.
+1. Run `bash scripts/release-gate.sh` on the actual Omarchy installation and require no `FAIL`.
+2. Pass real `omarchy plugin validate .` and `qmllint -I "$OMARCHY_PATH/shell" ...` against the installed shell imports.
+3. Run a two-instance test for relay sync, replacement/dedupe, offline publish retry, helper expiry and block filtering.
+4. Regression-test existing Friends DMs, private groups, World, Circles, focus, blocks/reporting and update flow.
+5. Open a real `omarchy-friends://invite/<public-key>` URI through the desktop handler installed from the actual plugin path.
+6. Visually inspect all six Build Network tabs at normal laptop scale for clipping, scroll/input usability and obvious action reachability.
 
 ## Stop condition
 
-When all nine gates above pass, cut the stable release. Do not add another social feature just because one can be imagined.
+When those six real-system gates pass, cut the stable release. Do not reopen feature brainstorming for v4.14.
