@@ -1,0 +1,45 @@
+name: Fix multi-relay inbox listener
+
+on:
+  push:
+    branches: [feature/build-network]
+    paths:
+      - scripts/_fix_multirelay_listener.py
+      - .github/workflows/fix-multirelay-listener.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/build-network
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply targeted listener fix
+        run: python scripts/_fix_multirelay_listener.py
+      - name: Compile active Python
+        run: |
+          python -m py_compile \
+            bin/omarchy_friends_global.py \
+            bin/omarchy_friends_private.py \
+            bin/omarchy-friends
+      - name: Run multi-relay regression
+        run: python -m unittest tests.test_multirelay_listener -v
+      - name: Run complete unit suite
+        run: python -m unittest discover -s tests -v
+      - name: Run release gate
+        run: bash scripts/release-gate.sh --ci
+      - name: Commit verified fix and remove one-shot patcher
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm scripts/_fix_multirelay_listener.py .github/workflows/fix-multirelay-listener.yml
+          git add bin/omarchy-friends tests/test_multirelay_listener.py
+          git commit -m 'Fix multi-relay private inbox listener'
+          git push origin HEAD:feature/build-network
