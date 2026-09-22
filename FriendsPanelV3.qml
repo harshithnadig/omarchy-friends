@@ -693,8 +693,8 @@ PopupCard {
                                     spacing: Style.space(6)
                                     Column {
                                         width: parent.width - newChatButton.width - Style.space(6)
-                                        Text { text: "Chats"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                                        Text { text: "Only conversations you've opened"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                        Text { width: parent.width; text: "Chats"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true; elide: Text.ElideRight }
+                                        Text { width: parent.width; text: "Only conversations you've opened"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     GlassButton { id: newChatButton; text: "New"; icon: "+"; compact: true; primary: true; anchors.verticalCenter: parent.verticalCenter; onClicked: root.newChatOpen = true }
                                 }
@@ -1607,8 +1607,19 @@ PopupCard {
                 spacing: Style.space(8)
                 Text { anchors.verticalCenter: parent.verticalCenter; text: "●"; color: root.worldStatus.last_error ? root.warning : root.success; font.pixelSize: Style.font.caption }
                 Text { anchors.verticalCenter: parent.verticalCenter; text: root.worldStatus.last_error ? "Reconnecting" : "Friends connected"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                Item { width: Math.max(0, parent.width - Style.space(390)); height: 1 }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: "Private chats · real people · build together"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.letterSpacing: 0.4 }
+                Item { width: Math.max(0, parent.width - Style.space(390) - footerTagline.width); height: 1 }
+                Text {
+                    id: footerTagline
+                    width: Math.min(Style.space(290), Math.max(Style.space(150), parent.width - Style.space(390)))
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Private chats · build together"
+                    color: root.faintInk
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 0.4
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideRight
+                }
             }
         }
 
