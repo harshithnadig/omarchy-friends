@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v4.14 finalized-tree verification trigger
+# Omarchy Friends v4.15 release-candidate verification
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,12 +17,17 @@ fail() { printf 'FAIL  %s\n' "$1" >&2; exit 1; }
 required=(
   manifest.json
   BarWidget.qml
+  FriendsPanelV2.qml
   Panel.qml
   Service.qml
   BuildNetworkPanelV3.qml
   BuildNetworkService.qml
   GlassSurface.qml
   GlassPill.qml
+  GlassButton.qml
+  GlassField.qml
+  GlassNavItem.qml
+  GlassAvatar.qml
   bin/build_network_app_v4.py
   PROMISE_LEDGER.md
   CODEX_REAL_SYSTEM_TEST.md
@@ -36,8 +41,11 @@ pass "required release files exist"
 [[ ! -f BuildNetworkPanelV2.qml ]] || fail "obsolete BuildNetworkPanelV2.qml still exists"
 pass "only the V3 Build Network panel remains"
 
-grep -q 'BuildNetworkPanelV3.qml' BarWidget.qml || fail "bar widget is not loading V3"
+grep -q 'FriendsPanelV2.qml' BarWidget.qml || fail "bar widget is not loading the modern Friends shell"
+grep -q 'Panel.qml' BarWidget.qml || fail "legacy Friends fallback is missing"
+grep -q 'BuildNetworkPanelV3.qml' BarWidget.qml || fail "bar widget is not loading Build Network V3"
 grep -q 'build_network_app_v4.py' BuildNetworkService.qml || fail "Build Network service is not using v4 hardening runtime"
+grep -q 'function openBuildTab' BarWidget.qml || fail "first-class Build navigation hook is missing"
 pass "active UI/runtime paths are final"
 
 python3 -m py_compile \
@@ -104,9 +112,10 @@ fi
 
 if [[ "$CI_MODE" -eq 0 ]] && command -v qmllint >/dev/null 2>&1 && [[ -n "${OMARCHY_PATH:-}" ]]; then
   qmllint -I "$OMARCHY_PATH/shell" \
-    BarWidget.qml Panel.qml Service.qml \
+    BarWidget.qml FriendsPanelV2.qml Panel.qml Service.qml \
     BuildNetworkPanelV3.qml BuildNetworkService.qml \
-    GlassSurface.qml GlassPill.qml
+    GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
+    GlassNavItem.qml GlassAvatar.qml
   pass "QML lint against installed Omarchy imports"
 else
   warn "QML/Omarchy runtime lint requires the real machine"
