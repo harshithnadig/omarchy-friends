@@ -1,12 +1,18 @@
-# Codex real-system validation — Omarchy Friends v4.14
+# Codex final real-system release pass — Omarchy Friends v4.14
 
 Branch: `feature/build-network`
 
-This is **not** a build-from-scratch task. The Build Network backend, federation, final collaboration primitives and liquid-glass V3 UI are already implemented. Read `PROMISE_LEDGER.md` first. Your job is only to validate/fix real Omarchy integration issues that cannot be proven from GitHub CI.
+This is **not** a build-from-scratch or feature-brainstorming task. Product architecture, signed Build Network objects, liquid-glass V3 UI, collaboration flows and release hardening are already implemented.
 
-Do not merge into `main` unless Harshu explicitly asks.
+Read first:
 
-## 1. Checkout
+1. `PROMISE_LEDGER.md`
+2. `V3_UI_WIRING_MAP.md`
+3. this file
+
+Do not merge into `main` unless Harshu explicitly asks after all gates pass.
+
+## 1. Checkout and establish a clean baseline
 
 ```bash
 git fetch origin
@@ -16,21 +22,54 @@ git status --short
 git rev-parse --abbrev-ref HEAD
 ```
 
-Confirm the branch is exactly `feature/build-network`.
+Confirm the branch is exactly `feature/build-network` and the worktree is clean before editing.
 
-## 2. Fast automated pass
+## 2. Fix the known version mismatch FIRST
+
+`manifest.json` is v4.14.0. The live Friends engine currently still has:
+
+```python
+PLUGIN_VERSION = "4.12.0"
+```
+
+in `bin/omarchy-friends`.
+
+Change that constant to:
+
+```python
+PLUGIN_VERSION = "4.14.0"
+```
+
+Do not modify protocol versions or capability names just to make numbers match.
+
+## 3. Wire the already-implemented V3 actions into the glass UI
+
+Follow `V3_UI_WIRING_MAP.md` exactly. Do not invent a competing backend.
+
+Inside `BuildNetworkPanelV3.qml`, make these existing service actions reachable and visually consistent with `GlassSurface.qml` / `GlassPill.qml`:
+
+- Help: Can Help / Pair / stop availability and helper matches.
+- Share: individual Setup Component sharing.
+- Build: explicit public GitHub snapshot and publish selected Project Activity.
+- Help: solved Help -> Solution Card.
+- Public cards: external Share text.
+- Settings/diagnostics: optional invite URI repair action.
+
+Also add or validate one obvious visible route from the normal Friends surface to Build Network so ordinary users are not expected to discover middle-click by accident. Keep middle-click working.
+
+Do not redesign the main Friends app. Add the smallest coherent entry/action consistent with its existing UI.
+
+## 4. Run the final release gate
 
 ```bash
-python3 -m py_compile \
-  bin/build_network.py \
-  bin/build_network_social.py \
-  bin/build_network_v2.py \
-  bin/build_network_v3.py \
-  bin/build_network_runtime.py \
-  bin/build_network_app_v2.py \
-  bin/build_network_app_v3.py \
-  bin/omarchy-friends-open
+bash scripts/release-gate.sh
+```
 
+It must finish without `FAIL`.
+
+Then run explicitly:
+
+```bash
 python3 -m unittest discover -s tests -v
 
 omarchy plugin validate .
@@ -45,142 +84,164 @@ qmllint -I "$OMARCHY_PATH/shell" \
   GlassPill.qml
 ```
 
-If QML/plugin validation exposes branch-specific errors, fix them directly on this branch and rerun the full commands. Do not redesign the product unless a real API incompatibility forces a small change.
+Fix branch-specific errors and rerun until clean.
 
-## 3. Load the real plugin
+## 5. Load the real plugin
 
-Reload Omarchy shell/plugin using the normal local workflow.
+Reload/rescan using the normal Omarchy workflow.
 
 Verify existing Friends first:
 
-- left-click opens normal Friends;
+- left-click opens Friends;
+- middle-click opens Build Network;
 - right-click cycles status;
-- DMs, groups, World, Circles, focus and profile still function;
-- no new warnings/crashes from the Build Network service.
+- the new visible Build Network route works;
+- DMs still send/receive;
+- friend requests still work;
+- private groups still work;
+- World still syncs;
+- Circles still posts/receives;
+- focus/co-working still works;
+- block/report behavior still works;
+- update status now reports 4.14.0 consistently.
 
-Then middle-click Friends and verify the V3 Build Network opens.
+## 6. Visual V3 check
 
-## 4. Visual V3 check
+Verify all six Build Network sections at normal laptop scale:
 
-The expected direction is a modern dark liquid-glass surface, not the old flat debug-panel look.
+- Discover
+- Build
+- Share
+- Help
+- Community
+- Create
 
-Check:
+Expected visual direction: modern dark liquid-glass, generous hierarchy, translucent surfaces, capsule actions, no clipped text and no old debug-panel stacking.
 
-- hero glass surface and subtle accent glow;
-- segmented floating tabs;
-- larger spacing/hierarchy;
-- rounded glass content surfaces;
-- capsule actions;
-- no clipped text or action wrapping at normal laptop scale;
-- scroll behavior remains smooth;
-- inputs are readable with the current Omarchy theme;
-- selected/hover states remain visible in dark/light-compatible color tokens.
+Check the newly wired actions too. Do not introduce an unsupported blur dependency. Native supported compositor blur is optional; visual stability is more important.
 
-If the real shell exposes a stable native blur effect, use it **only if** it is already part of supported Omarchy/Quickshell APIs. Do not add an experimental dependency just to chase literal blur.
+Capture screenshots after fixes.
 
-Capture screenshots of Discover, Build, Share, Help, Community and Create after fixes.
+## 7. Core product smoke test
 
-## 5. Core Build Network smoke test
-
-Use disposable titles prefixed `TEST —` because public objects are relay-readable.
+Use disposable public titles prefixed `TEST —` because Build Network objects are relay-readable.
 
 Exercise:
 
-1. Idea -> interested -> Start build.
-2. Build Room -> join -> task doing/done -> owner testing/shipped state.
-3. Setup Card -> Compare with mine -> verify no machine changes occur -> Copy recipe.
-4. Share one individual Setup Component (for example a theme/plugin/bar) -> verify it is metadata + HTTP(S) URL only.
-5. Test Request -> Works / Found issue using safe environment labels.
-6. Help Request -> Offer help -> Friends private-chat handoff -> author Mark solved.
-7. Set `Can Help` availability with skills and verify a compatible Help Request receives a helper match.
-8. Set `Pair` availability and verify it appears in the pairing data returned by status.
-9. Convert a solved Help Request into a Solution Card without retyping the original problem/environment.
-10. Solution -> Worked / Partly verification count.
-11. Ship entry.
-12. Update Pulse report -> confirm similar-environment aggregate appears when labels overlap.
-13. Event -> Going/Interested RSVP.
-14. Challenge -> Join -> Start a team/Build Room.
-15. Save/hide local object behavior.
-16. For a public GitHub repository, run the GitHub snapshot helper and verify it returns only recent public commits/open PRs/open issues; then publish one selected Project Activity card.
-17. Generate external share text for one public object.
+1. Idea -> interested -> Build Room.
+2. Build Room -> join -> role/task doing/done -> testing -> shipped.
+3. Public GitHub snapshot -> publish one selected activity card.
+4. Setup Card -> Compare with mine -> verify no system change.
+5. Share one individual Setup Component -> Save/Open source/Chat only; NO install.
+6. Test Request -> Works / Found issue.
+7. Help Request with safe environment + `what AI/I already tried`.
+8. Can Help and Pair availability -> verify helper match -> let advertised time expire or simulate expiry and confirm it disappears.
+9. Offer help -> private Friends chat handoff -> author Mark solved -> Help -> Solution.
+10. Solution Worked / Partly verification.
+11. Ship Log.
+12. Update Pulse report and similar-environment aggregate.
+13. Event Going/Interested RSVP.
+14. Challenge join/team path.
+15. External Share text copied from a public object.
+16. Save/hide behavior.
+17. Health action and URI registration diagnostics.
 
-Useful CLI probes:
+## 8. Offline/retry validation
 
-```bash
-python3 bin/build_network_app_v3.py status | python3 -m json.tool
-python3 bin/build_network_app_v3.py inspect-environment | python3 -m json.tool
-python3 bin/build_network_app_v3.py register-uri | python3 -m json.tool
-```
+The release runtime now queues relay-failed public objects.
 
-## 6. Two-instance relay test
+Test with Build Network relays unavailable:
 
-With two Omarchy installations or isolated state homes:
+1. create a disposable Idea or Help card;
+2. confirm UI says it was saved locally for retry;
+3. inspect `python3 bin/build_network_app_v4.py health` and confirm `pending_publish > 0`;
+4. restore relay access;
+5. Sync;
+6. confirm queued object publishes and `pending_publish` returns to 0;
+7. confirm no duplicate logical object is created.
 
-- A creates Idea; B receives it after Sync.
-- B marks interested; A count increases.
-- A opens Build Room; B joins; A sees join.
-- B task update appears to A.
-- A Setup Card and Setup Component appear on B; Compare performs only local metadata comparison.
-- A advertises Can Help/Pair availability; B receives it and compatible Help Requests show the match.
-- Project Activity cards propagate.
-- Test result, help offer, solution verification, RSVP and challenge join all propagate.
-- multi-relay duplicate copies collapse to one logical object.
-- newer event for the same author/object wins.
+## 9. Block-list integration
 
-## 7. Security regression
+With user B visible in Build Network:
 
-Confirm:
+1. block B using the existing Friends block control;
+2. refresh Build Network;
+3. B's public Build Network cards/helper availability must disappear locally;
+4. blocking must never be bypassed by Build Network.
 
-- unsigned/invalid events are rejected;
-- unknown object types fail closed;
-- `file://`, `javascript:` and control-character URLs do not become openable links;
-- public relay objects never contain the Friends private key;
-- shared setup/component metadata cannot execute shell/install commands;
-- remote text is displayed as text, never evaluated;
-- safe environment collection contains no hostname, username, IP, serial or file contents;
-- public GitHub snapshot accepts only HTTPS `github.com/owner/repo` URLs and does not use credentials/tokens;
-- `omarchy-friends://invite/<pubkey>` handler rejects every other URL shape;
-- Build state remains user-only where practical;
-- existing block/report/friend controls are not bypassed.
+## 10. Two-instance relay test
 
-## 8. Invite desktop registration
+Use two real Omarchy installations or isolated state homes.
 
-`build_network_app_v3.py` now creates an idempotent user-local `omarchy-friends.desktop` entry and asks `xdg-mime` to register `x-scheme-handler/omarchy-friends` when the Build service first starts.
+Verify A <-> B propagation for:
 
-Validate on the actual installed plugin path:
+- Idea + interest;
+- Build Room + join + task update;
+- Setup + component;
+- test request/result;
+- Help + offer + helper availability;
+- Solution verification;
+- RSVP/challenge join;
+- Project Activity;
+- newer replacement of the same authored object;
+- duplicate copies from multiple relays collapse correctly;
+- blocked builder filtering remains local and reliable.
+
+## 11. Invite URI
+
+Run:
 
 ```bash
 xdg-mime query default x-scheme-handler/omarchy-friends
 ```
 
-Then click/open a disposable `omarchy-friends://invite/<64-hex-pubkey>` link. Verify it reaches the safe `bin/omarchy-friends-open` parser. If the desktop environment requires a different supported registration mechanism, make the smallest local-path-safe correction. Do not hard-code a developer checkout path.
+Then click/open a real disposable:
 
-## 9. What NOT to build in this pass
+```text
+omarchy-friends://invite/<public-key>
+```
 
-Do not spend quota inventing features. Specifically do not:
+Confirm the registered handler uses the installed plugin path, rejects every unsupported URI shape, and does not hard-code a developer checkout.
 
-- rewrite Build Network architecture;
-- auto-install setup cards/components;
-- add remote shell execution;
-- upload configs/logs/files automatically;
-- replace the existing private-message crypto during this validation pass;
-- rebuild V1/V2 panels (they were intentionally removed).
+## 12. Security regression
 
-The private-message standardization work has its own gate in `docs/private-messaging-security-migration.md`.
+Confirm:
 
-## 10. Final report
+- unsigned/invalid Build events are rejected;
+- unknown object types fail closed;
+- `file://`, `javascript:` and control-character URLs are rejected;
+- public Build objects contain no Friends private key;
+- shared setup metadata cannot execute shell/install commands;
+- remote text is display data, never evaluated;
+- safe environment collection contains no hostname, username, IP, serial or file contents;
+- corrupt Build state is quarantined and a fresh schema-2 state is created;
+- state/backup files containing identity material are user-only where practical.
+
+## 13. Private-message crypto is NOT part of this coding pass
+
+Do not casually rewrite DM/group encryption while validating this release.
+
+Read `docs/private-messaging-security-migration.md` and report whether v4.14 should:
+
+A. ship with current private messaging explicitly documented as application-specific and unaudited, then migrate in a dedicated release; or
+B. be held until the separately tested NIP-44 migration is complete.
+
+Do not make stronger security claims than the implementation supports.
+
+## 14. Final report
 
 Return only:
 
-- failures found;
-- files changed to fix them;
-- exact test results;
-- screenshots of the six V3 tabs;
-- two-instance relay result;
-- helper/pair matching result;
-- GitHub snapshot/project-activity result;
-- URI registration result;
-- security/privacy findings;
-- whether this branch is stable enough for a second real Omarchy user.
+1. failures found;
+2. files changed;
+3. exact release-gate/unit/qmllint/plugin-validation results;
+4. screenshots of all six Build Network sections plus the visible entry from Friends;
+5. two-instance relay results;
+6. offline retry result;
+7. block-list integration result;
+8. URI result;
+9. regression result for existing Friends;
+10. private-message crypto release recommendation;
+11. one final verdict: `READY TO MERGE` or `NOT READY`, with concrete blockers only.
 
 Commit and push fixes only to `feature/build-network`. Do not merge `main`.
