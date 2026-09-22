@@ -8,15 +8,16 @@ Item {
     property bool active: false
     property bool enabled: true
     property bool strong: false
-    property color accentColor: "#7c6cff"
+    property color accentColor: "#8b7cff"
+    property color coolTint: "#55d9ff"
     signal clicked()
 
     implicitWidth: label.implicitWidth + Style.space(root.strong ? 26 : 20)
     implicitHeight: Style.space(root.strong ? 34 : 30)
     opacity: root.enabled ? 1 : 0.42
-    scale: tap.pressed ? 0.97 : 1
+    scale: tap.pressed ? 0.97 : (hover.hovered ? 1.015 : 1)
 
-    Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
 
     Rectangle {
         anchors.fill: parent
@@ -25,20 +26,34 @@ Item {
             GradientStop {
                 position: 0
                 color: root.strong
-                    ? "#8776ff"
-                    : (root.active || hover.hovered ? Qt.rgba(0.48, 0.42, 1.0, 0.20) : Qt.rgba(1, 1, 1, 0.065))
+                    ? "#9a72ff"
+                    : (root.active || hover.hovered
+                       ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.24)
+                       : Qt.rgba(1, 1, 1, 0.072))
+            }
+            GradientStop {
+                position: 0.62
+                color: root.strong
+                    ? "#6559ef"
+                    : (root.active || hover.hovered
+                       ? Qt.rgba(0.22, 0.27, 0.58, 0.18)
+                       : Qt.rgba(0.14, 0.17, 0.28, 0.040))
             }
             GradientStop {
                 position: 1
                 color: root.strong
-                    ? "#5d54e7"
-                    : (root.active || hover.hovered ? Qt.rgba(0.18, 0.24, 0.52, 0.18) : Qt.rgba(1, 1, 1, 0.028))
+                    ? "#4f8df8"
+                    : (root.active || hover.hovered
+                       ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.085)
+                       : Qt.rgba(1, 1, 1, 0.025))
             }
         }
         border.width: 1
         border.color: root.strong
-            ? Qt.rgba(0.76, 0.73, 1.0, 0.70)
-            : (root.active ? Qt.rgba(0.56, 0.51, 1.0, 0.48) : Qt.rgba(1, 1, 1, 0.10))
+            ? Qt.rgba(0.82, 0.81, 1.0, 0.72)
+            : (root.active
+               ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.54)
+               : Qt.rgba(1, 1, 1, hover.hovered ? 0.16 : 0.10))
 
         Rectangle {
             anchors.left: parent.left
@@ -47,9 +62,12 @@ Item {
             anchors.leftMargin: 1
             anchors.rightMargin: 1
             anchors.topMargin: 1
-            height: parent.height * 0.43
+            height: parent.height * 0.44
             radius: parent.radius
-            color: Qt.rgba(1, 1, 1, root.strong ? 0.08 : 0.03)
+            gradient: Gradient {
+                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, root.strong ? 0.16 : 0.065) }
+                GradientStop { position: 1; color: "transparent" }
+            }
         }
     }
 
@@ -57,7 +75,7 @@ Item {
         id: label
         anchors.centerIn: parent
         text: root.text
-        color: root.strong ? "white" : (root.active ? "#edeaff" : "#d4d9e8")
+        color: root.strong ? "white" : (root.active ? "#f5f1ff" : "#d9dfef")
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         font.bold: root.active || root.strong
