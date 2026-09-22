@@ -1,0 +1,35 @@
+name: One-shot V3 safety patcher
+
+on:
+  push:
+    branches:
+      - feature/build-network
+    paths:
+      - '.github/workflows/v3-safety-patcher.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/build-network
+      - name: Apply V3 safety patch
+        run: python3 scripts/_v3_safety_patch.py
+      - name: Validate patch
+        run: |
+          git diff --check
+          grep -q 'function declineFriendRequest' Service.qml
+          grep -q 'function cancelFriendRequest' Service.qml
+          grep -q 'text: "Hide builder"' FriendsPanelV3.qml
+          grep -q 'text: "Report"' FriendsPanelV3.qml
+      - name: Commit patch
+        run: |
+          git config user.name "omarchy-friends-migration"
+          git config user.email "67705498+harshithnadig@users.noreply.github.com"
+          git add Service.qml FriendsPanelV3.qml
+          git commit -m "feat: restore V3 people safety actions"
+          git push origin HEAD:feature/build-network
