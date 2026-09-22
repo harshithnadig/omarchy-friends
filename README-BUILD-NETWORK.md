@@ -1,157 +1,159 @@
-# Omarchy Friends Build Network — v4.13 prototype
+# Omarchy Friends Build Network — v4.14
 
-This branch turns the earlier data-model experiment into an integrated Omarchy-native collaboration layer beside the existing Friends messaging deck.
+This branch turns Omarchy Friends into an Omarchy-native social + collaboration layer while keeping the existing private messaging/World experience intact.
 
 ## Open it
 
-- **Left-click** the Friends bar pill: existing Friends deck.
-- **Middle-click** the Friends bar pill: **Build Network** deck.
-- **Right-click**: existing status-cycle behavior.
+- **Left-click** Friends: existing Friends deck (World, chats, Circles, groups, profile, focus).
+- **Middle-click** Friends: **Build Network**.
+- **Right-click** Friends: cycle status.
 
-The separate deck is deliberate for this prototype: it lets the real system validate a large new surface without destabilizing the mature `Panel.qml`. Once it is reliable, the visual surfaces can be merged into the main Friends navigation.
+## Active implementation
 
-## What is implemented
+There is one active Build UI path:
+
+```text
+BarWidget.qml
+  -> BuildNetworkPanelV3.qml
+  -> BuildNetworkService.qml
+  -> bin/build_network_app_v2.py
+  -> bin/build_network_runtime.py
+```
+
+Core public-object models live in:
+
+```text
+bin/build_network.py
+bin/build_network_social.py
+bin/build_network_v2.py
+```
+
+The old V1/V2 QML panels and V1 app entrypoint were removed so real-system testing does not waste time on dead prototypes.
+
+## UI direction
+
+V3 replaces the original dense debug-panel look with a dark **liquid-glass** design system:
+
+- `GlassSurface.qml` — translucent layered surfaces, soft edge light and depth;
+- `GlassPill.qml` — reusable capsule actions/tabs;
+- larger hierarchy and whitespace;
+- fewer hard borders;
+- floating segmented navigation;
+- clearer primary/secondary actions;
+- modern glass setup comparison, help, build, pulse and create surfaces;
+- responsive content width within the Omarchy popup card.
+
+It intentionally approximates frosted glass using safe native QML layers rather than depending on an unverified blur API. A real Omarchy pass can add true compositor blur only if the shell already exposes a stable supported effect.
+
+## Product loops implemented
 
 ### Discover
 
-A bounded activity surface for things people actually make or organize rather than an engagement-first infinite feed:
+Recent useful activity only: ideas, Build Rooms, setup cards, help requests, solutions, shipped work, events and challenges. Builders get contribution-oriented reputation from useful actions rather than follower counts.
 
-- shipped plugins/themes/features;
-- setup cards;
-- build rooms;
-- ideas;
-- community solutions;
-- help requests;
-- events;
-- challenges.
+### Ideas -> Build Rooms -> Ship
 
-It also derives contribution-oriented reputation from useful public actions (builds, setup shares, tests, solutions and ships) instead of follower counts.
+Users can publish ideas, signal interest, promote an idea into a Build Room, advertise roles, join a room, link a GitHub repository, open its Issues/PRs, publish task progress, move a room through building/testing/shipped states and publish a Ship entry.
 
-### Ideas → Build Rooms
-
-Users can:
-
-- publish an idea;
-- mark themselves interested;
-- promote an idea into a Build Room;
-- create Build Rooms directly;
-- advertise roles needed;
-- link a GitHub repository;
-- join a Build Room;
-- contact the owner through the existing Friends request/chat flow.
-
-GitHub remains the code/task source of truth. Build Network is the discovery and human-coordination layer.
+GitHub remains the code source of truth. Friends is the human discovery/coordination layer.
 
 ### Setup Cards
 
-A Setup Card can share deliberately shallow metadata:
+Setup sharing contains shallow metadata only: theme, plugin directory names, architecture/OS labels, shell, terminal, editor, optional HTTP(S) dotfiles URL and notes.
 
-- theme;
-- installed plugin directory names;
-- architecture/OS components;
-- shell;
-- terminal;
-- editor;
-- optional dotfiles/repo URL;
-- optional notes.
+Recipients can:
 
-A recipient can **copy the recipe** or open the author's HTTP(S) URL. Nothing is auto-installed or auto-executed.
+- compare a shared setup against their local metadata;
+- see missing/already-present plugins and differing fields;
+- copy the setup recipe;
+- open the author's HTTP(S) repo.
+
+Nothing is automatically installed or executed.
 
 ### Test Network
 
-Plugin/theme authors can publish a test request with requested environments (for example NVIDIA, AMD, Framework). Other builders can publish signed pass/issue results from their machine.
+Authors can request specific environments. Other users can report pass/issue results using safe local environment labels.
 
 ### Human escalation
 
-A builder can publish a bounded problem card including:
-
-- title/problem;
-- environment tags;
-- a short summary of what they/their AI agent already tried.
-
-Another builder can press Chat, which routes through the existing Friends relationship/messaging layer rather than inventing a second private-messaging system.
+A Help Request can contain the problem, a bounded description of what the user/AI already tried, and optional safe environment labels. Other users can offer help and then move to the existing Friends private chat flow. The author can mark a request solved/closed.
 
 ### Community memory
 
-Users can publish a compact Solution Card containing the problem, solution, environment tags and optional source URL. This is an MVP for preserving useful fixes that would otherwise disappear in chat history.
-
-### Ship Log
-
-Builders can publish a shipped plugin/theme/feature card with summary, tags and artifact URL. Discover surfaces these alongside active work.
+Solution Cards preserve useful fixes. Other builders can verify them as worked/partial/did-not-work, producing community evidence rather than a single unverified answer.
 
 ### Omarchy Update Pulse
 
-Users may **explicitly** publish an update report for an Omarchy version:
+Users explicitly opt in to report working/minor-issue/rolled-back for an Omarchy version. The UI shows totals plus a simple similar-environment aggregate based on safe shared labels. No background telemetry is collected.
 
-- working;
-- minor issue;
-- rolled back.
+### Events + challenges
 
-Build Network aggregates these public voluntary reports. There is no hidden telemetry or automatic machine reporting.
+Events support Going/Interested RSVP counts. Challenges support joining and converting the challenge into a Build Room/team.
 
-### Events and challenges
+### Save/hide
 
-Users can publish lightweight meetup/online-event cards and community build challenges. Challenges can be turned into Build Rooms.
+Public objects can be saved or hidden locally without changing the relay object.
 
 ## Federation
 
-The prototype reuses the Friends pseudonymous secp256k1 identity when available and publishes signed Nostr events using:
+Public Build Network objects use the existing pseudonymous Friends identity when available and are published as signed Nostr parameterized-replaceable events:
 
-- kind: `30079` (parameterized replaceable);
-- tag: `t=omarchy-friends-build`;
-- `d=<object-id>`;
-- a bounded JSON envelope containing one normalized public object.
+- kind `30079`
+- tag `t=omarchy-friends-build`
+- `d=<object-id>`
+- bounded normalized JSON envelope
 
-Multiple relay copies are de-duplicated. The newest event for the same author/object replaces an older cached version.
+Relay copies are de-duplicated and newer author/object versions replace older cached versions.
 
-The default relay list follows the existing Friends relay configuration and honors `OMARCHY_FRIENDS_RELAYS`.
+## Safe environment labels
 
-## Local state
+The v2 runtime may locally detect only non-identifying labels such as:
 
-Build Network keeps a separate cache at:
+- Omarchy version;
+- CPU architecture;
+- GPU vendor category (NVIDIA/AMD/Intel);
+- kernel version label.
+
+It does **not** collect hostname, username, IP address, serial number, tokens, config contents, SSH material or arbitrary file contents. These labels are not published unless the user explicitly performs an action that includes them.
+
+## Invite link handler
+
+`bin/omarchy-friends-open` safely parses only:
 
 ```text
-$XDG_STATE_HOME/omarchy-friends/build_network_state.json
+omarchy-friends://invite/<64-hex-public-key>
 ```
 
-or the corresponding `~/.local/state` path.
+and routes that key into the existing direct friend/chat invitation command. It never evaluates link content. Desktop URI registration still needs to be verified against the real Omarchy plugin install path before enabling it globally.
 
-The existing Friends private key is not copied into public objects or output. A fallback local identity exists only for testing before the main Friends identity has been initialized.
+## Tests
 
-## Main files
+GitHub Actions compiles all active Build Network Python modules, runs the complete repository unit suite and fails if Build Network code introduces obvious dynamic shell/eval primitives (`eval`, `exec`, `os.system`, `shell=True`).
 
-```text
-BuildNetworkPanel.qml        Build Network UI
-BuildNetworkService.qml      QML ↔ Python bridge
-bin/build_network.py         core collaboration models
-bin/build_network_social.py  help/solutions/ship/update/event/challenge models
-bin/build_network_runtime.py relay/cache/runtime implementation
-bin/build_network_app.py     unified CLI/runtime exposed to QML
-```
-
-## Validation
-
-Run:
+Local validation:
 
 ```bash
 python3 -m py_compile \
   bin/build_network.py \
   bin/build_network_social.py \
+  bin/build_network_v2.py \
   bin/build_network_runtime.py \
-  bin/build_network_app.py
+  bin/build_network_app_v2.py \
+  bin/omarchy-friends-open
 
 python3 -m unittest discover -s tests -v
 
 omarchy plugin validate .
 qmllint -I "$OMARCHY_PATH/shell" \
   BarWidget.qml Panel.qml Service.qml \
-  BuildNetworkPanel.qml BuildNetworkService.qml
+  BuildNetworkPanelV3.qml BuildNetworkService.qml \
+  GlassSurface.qml GlassPill.qml
 ```
 
-For the full real-system workflow, follow `CODEX_REAL_SYSTEM_TEST.md`.
+The final two commands require a real Omarchy/Quickshell environment.
 
 ## Security boundary
 
-Public Build Network data must be treated as untrusted text/metadata. The prototype intentionally does **not** provide remote command execution, config installation, remote file upload, shell snippets, package installation or automatic telemetry.
+Remote Build Network content is untrusted metadata. It must never become arbitrary command execution. The branch intentionally does not provide remote shell execution, automatic setup installation, arbitrary file uploads or automatic telemetry.
 
-Shared URLs are limited to HTTP(S). Setup recipes are copied for review rather than applied. Any future one-click setup import must first produce a local diff/review plan and must never execute arbitrary text received from a relay.
+A future one-click setup importer must first produce an exact local review/diff plan and require explicit user confirmation for every applied change.
