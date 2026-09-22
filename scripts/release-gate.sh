@@ -31,6 +31,8 @@ required=(
   GlassNavItem.qml
   GlassAvatar.qml
   bin/build_network_app_v4.py
+  bin/omarchy-friends
+  bin/omarchy-friends-open
   PROMISE_LEDGER.md
   CODEX_REAL_SYSTEM_TEST.md
 )
@@ -44,6 +46,8 @@ pass "required release files exist"
 [[ ! -f bin/omarchy-friends-auto-update ]] || fail "silent auto-update helper still exists"
 [[ ! -f .github/workflows/request-management-patcher.yml ]] || fail "one-shot write-capable request migration workflow still exists"
 [[ ! -f scripts/_request_patch.py ]] || fail "one-shot request migration script still exists"
+[[ ! -f .github/workflows/v3-safety-patcher.yml ]] || fail "one-shot write-capable V3 safety workflow still exists"
+[[ ! -f scripts/_v3_safety_patch.py ]] || fail "one-shot V3 safety migration script still exists"
 pass "obsolete panels, silent updater, and one-shot migration helpers are absent"
 
 grep -q 'FriendsPanelV3.qml' BarWidget.qml || fail "bar widget is not loading Friends V3"
@@ -52,16 +56,26 @@ grep -q 'Panel.qml' BarWidget.qml || fail "legacy Friends fallback is missing"
 grep -q 'BuildNetworkPanelV3.qml' BarWidget.qml || fail "bar widget is not loading Build Network V3"
 grep -q 'build_network_app_v4.py' BuildNetworkService.qml || fail "Build Network service is not using v4 hardening runtime"
 grep -q 'function openBuildTab' BarWidget.qml || fail "first-class Build navigation hook is missing"
+
 grep -q 'text: "Requests"' FriendsPanelV3.qml || fail "Friends V3 is missing the dedicated Requests view"
 grep -q 'function conversationFriends()' FriendsPanelV3.qml || fail "Friends V3 is missing conversation-only chat filtering"
 grep -q 'text: "Decline"' FriendsPanelV3.qml || fail "received requests cannot be declined"
 grep -q 'text: "Cancel"' FriendsPanelV3.qml || fail "sent requests cannot be cancelled"
+grep -q 'function declineFriendRequest' Service.qml || fail "Service is missing the decline request wrapper"
+grep -q 'function cancelFriendRequest' Service.qml || fail "Service is missing the cancel request wrapper"
 grep -q 'def decline_friend_request' bin/omarchy-friends || fail "Friends engine is missing decline request support"
 grep -q 'def cancel_friend_request' bin/omarchy-friends || fail "Friends engine is missing cancel request support"
 grep -q '"friend_decline"' bin/omarchy-friends || fail "Friends engine is missing decline synchronization"
 grep -q '"friend_cancel"' bin/omarchy-friends || fail "Friends engine is missing cancel synchronization"
+
+grep -q 'function hidePeer' FriendsPanelV3.qml || fail "Friends V3 is missing Hide safety handling"
+grep -q 'function reportPeer' FriendsPanelV3.qml || fail "Friends V3 is missing Report safety handling"
+grep -q 'text: "Hide builder"' FriendsPanelV3.qml || fail "World is missing on-demand Hide action"
+grep -q 'text: "Report"' FriendsPanelV3.qml || fail "Friends V3 is missing Report action"
+grep -q 'function blockGlobal' Service.qml || fail "Service is missing the block/hide action"
+
 ! grep -q 'autoUpdate' ServiceModern.qml || fail "manifest service entry point still contains background update behavior"
-pass "active UI/runtime paths and request lifecycle are final; updates are explicit"
+pass "active Friends V3 paths, request lifecycle, people safety, and explicit updates are wired"
 
 python3 -m py_compile \
   bin/build_network.py \
@@ -100,15 +114,10 @@ print(m.group(1) if m else '')
 PY
 )"
 
-if [[ "$manifest_version" != "$engine_version" ]]; then
-  if [[ "$CI_MODE" -eq 1 ]]; then
-    warn "manifest is $manifest_version but main Friends engine advertises $engine_version; final local release gate must fix this"
-  else
-    fail "version mismatch: manifest=$manifest_version engine=$engine_version"
-  fi
-else
-  pass "manifest and live Friends engine advertise $manifest_version"
-fi
+[[ -n "$manifest_version" ]] || fail "manifest version is empty"
+[[ -n "$engine_version" ]] || fail "Friends engine version is missing"
+[[ "$manifest_version" == "$engine_version" ]] || fail "version mismatch: manifest=$manifest_version engine=$engine_version"
+pass "manifest and live Friends engine advertise $manifest_version"
 
 TMP_STATE="$(mktemp -d)"
 trap 'rm -rf "$TMP_STATE"' EXIT
