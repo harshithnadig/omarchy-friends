@@ -94,6 +94,14 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('source: Qt.resolvedUrl("BuildNetworkPanelV3.qml")', body)
         self.assertNotIn("active: true", body)
 
+    def test_generic_popup_close_dismisses_friends_and_build(self):
+        bar = read("BarWidget.qml")
+        start = bar.index("function close()")
+        end = bar.index("function toggleBuildCard()", start)
+        close_body = bar[start:end]
+        self.assertIn("cardOpen = false", close_body)
+        self.assertIn("buildCardOpen = false", close_body)
+
     def test_primary_glass_actions_are_keyboard_reachable(self):
         for path in ("GlassButton.qml", "GlassNavItem.qml", "GlassPill.qml"):
             text = read(path)

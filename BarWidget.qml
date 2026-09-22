@@ -52,7 +52,10 @@ BarWidget {
 
     function toggleCard() { if (cardOpen) close(); else open() }
     function open() { buildCardOpen = false; cardOpen = true }
-    function close() { cardOpen = false }
+    function close() {
+        cardOpen = false
+        buildCardOpen = false
+    }
 
     function toggleBuildCard() {
         if (buildCardOpen) closeBuild()
