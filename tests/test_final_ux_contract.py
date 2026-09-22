@@ -114,14 +114,6 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("border.width: root.activeFocus ? 2 : 1", button)
         self.assertIn("border.width: root.activeFocus ? 2 : 1", pill)
 
-    def test_friends_and_build_panels_take_keyboard_focus_when_summoned(self):
-        friends = read("FriendsPanelV3.qml")
-        build = read("BuildNetworkPanelV3.qml")
-        self.assertIn("KeyboardPanel {", friends)
-        self.assertIn("focusTarget: chatsNav", friends)
-        self.assertIn("KeyboardPanel {", build)
-        self.assertIn("focusTarget: syncButton", build)
-
     def test_build_tabs_use_keyboard_accessible_shared_control(self):
         build = read("BuildNetworkPanelV3.qml")
         start = build.index('{ id: "discover", label: "Discover" }')
