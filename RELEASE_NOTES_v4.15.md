@@ -1,6 +1,6 @@
-# Omarchy Friends v4.15.0
+# Omarchy Friends v4.15.0 — Public Beta
 
-**Release posture:** stable build intended for a public beta rollout.
+**Release posture:** Public Beta. The feature scope is frozen and the build has passed the final real-Omarchy release gate.
 
 v4.15 turns Omarchy Friends from the old experimental/demo experience into a real Omarchy-native social and collaboration plugin with a hardened runtime, modern private messaging, a clearer Friends information architecture, and the Build Network.
 
@@ -29,6 +29,7 @@ v4.15 turns Omarchy Friends from the old experimental/demo experience into a rea
 - Preserve solved knowledge as Solution Cards with verification context.
 - Publish Ship posts, update reports, events and challenges.
 - Relay-failed publishes are saved locally and retried in bounded batches.
+- Offline retry, block filtering, helper expiry and Build state hardening protect the collaboration feed.
 
 ## Private messaging
 
@@ -38,6 +39,7 @@ Current Friends peers prefer:
 - NIP-17 kind-14 private-message structure;
 - NIP-59 kind-13 seals and kind-1059 gift wraps;
 - signed NIP-17 kind-10050 inbox relay lists.
+- multi-relay private inbox fan-in follows all configured recipient inbox relays instead of waiting on one relay.
 
 Legacy read/send compatibility remains for peers that have never advertised the complete modern capability set. Modern protocol state persists across restarts so an upgraded friendship does not silently downgrade just because presence is stale.
 
@@ -46,8 +48,9 @@ The implementation is **not independently security-audited** and NIP-44 does not
 ## Reliability and safety work
 
 - Friends V3 -> V2 -> legacy UI fallback chain.
+- Explicit updates remain user-triggered; there is no silent background updater.
 - Build Network lazy-loads only when opened, avoiding unnecessary Python/network work during normal Friends use.
-- Keyboard focus/activation support on shared glass buttons, nav items and pills.
+- Keyboard-reachable shared controls expose focus and activation on glass buttons, nav items and pills.
 - Real Omarchy `omarchy plugin validate` and installed-import `qmllint` pass completed on the RC before the final release-prep changes.
 - Python compile checks, private-message vectors, complete unit suite, remote-execution safety boundary and release gate run in CI.
 - Bounded WebSocket frame/message/fragment/deadline handling.
@@ -58,15 +61,19 @@ The implementation is **not independently security-audited** and NIP-44 does not
 
 ## Visual direction
 
-v4.15 uses the shared Friends glass primitives for translucent midnight surfaces with violet/cyan highlights and clear selected/focus states. The implementation deliberately keeps a safe QtQuick-only fallback rather than depending on an unverified blur/effects module that could prevent the plugin from loading on a user's Omarchy install.
+v4.15 uses a shared liquid-glass visual system for translucent midnight surfaces with violet/cyan highlights and clear selected/focus states. The implementation deliberately keeps a safe QtQuick-only fallback rather than depending on an unverified blur/effects module that could prevent the plugin from loading on a user's Omarchy install.
 
 ## Installation
 
 After this branch is merged/tagged, install through the normal Omarchy plugin command documented in `README.md`.
 
-## Public beta expectations
+## Known Public Beta limitations
 
-The build is intended to be usable rather than demo material, but the first public rollout should still be described as **beta** so real-world Omarchy/relay combinations can surface compatibility issues without overstating maturity.
+The first public rollout is intentionally **beta**:
+
+- Private messaging has not had an independent external security audit.
+- Public relay availability can vary, including intermittent relay timeouts or rejection.
+- Exhaustive automated interaction testing of the native Omarchy layer-shell popup is limited.
 
 When reporting a bug, include:
 

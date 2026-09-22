@@ -2,7 +2,7 @@
 
 Feature scope is frozen. Repository-side v4.15 work is complete; do not add another product feature before release.
 
-**Release posture:** stable build intended for a public beta rollout. The remaining checks are real-machine interoperability checks, not permission to redesign the product.
+**Release posture:** Omarchy Friends v4.15.0 — Public Beta. The feature scope is frozen and final real-machine validation is complete.
 
 ## Repository-side state
 
@@ -13,6 +13,7 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 - `manifest.json` and the live Friends engine advertise `4.15.0`.
 - The shared glass primitives now expose visible keyboard focus and keyboard activation for primary buttons, navigation items and pills, so the main product is not mouse-only.
 - The latest release prep includes `SECURITY.md` and `RELEASE_NOTES_v4.15.md`.
+- Private inbox listening fans in all configured NIP-17 inbox relays, so one silent relay cannot park the listener indefinitely.
 
 ## Friends V3 product behavior
 
@@ -32,6 +33,7 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 
 - Current-to-current Friends private messaging uses NIP-44 v2 + NIP-17 kind-14 + NIP-59 kind-13 seals/kind-1059 gift wraps.
 - Current clients publish signed NIP-17 kind-10050 DM inbox relay lists and use only recipient relay metadata that overlaps locally configured Friends relays.
+- The persistent private inbox listener fans in all configured recipient relays and deduplicates duplicate gift wraps.
 - A modern friendship's protocol choice/inbox metadata survives restart, preventing stale presence from silently downgrading an upgraded friendship.
 - Incoming gift wraps fail closed when recipient/inner-rumor checks do not match.
 - Legacy read/send compatibility remains for peers that have never advertised the complete modern capability set.
@@ -54,30 +56,27 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 - no silent background updater; updates remain explicit user actions;
 - release CI is read-only and one-shot patcher workflows/scripts are absent.
 
-## Validation already completed
+## Final validation completed
 
-The RC was exercised on a real Omarchy machine and the following passed before the last small accessibility/lazy-load release-prep changes:
+The final Public Beta validation was run on the real Omarchy machine at commit `7c2792123304e1cf8a88b29675790ebe634f7426`:
 
-- `bash scripts/release-gate.sh` — PASS;
-- complete unit suite — PASS (132 tests at that point);
-- private messaging standard/engine checks — 13/13 PASS;
-- `omarchy plugin validate` — PASS;
-- installed-Omarchy `qmllint` for requested Friends/Build files — PASS;
-- live RC install and shell restart — Friends loaded without warnings;
-- relay health — 5/5 reachable in that run, zero reported errors/queued publishes;
-- invalid invite-handler inputs were rejected correctly.
+- `bash scripts/release-gate.sh` — PASS, 139 tests;
+- `omarchy plugin validate .` — PASS;
+- installed-Omarchy `qmllint` for active Friends, Build Network, service and shared-glass QML — PASS;
+- source and installed checkout — exact commit match at `7c2792123304e1cf8a88b29675790ebe634f7426`;
+- one shell restart and Friends popup open — Friends rendered and no new Friends/Build runtime warnings;
+- real two-instance messaging, NIP-17/NIP-59 delivery, signed kind-10050 routing, private group delivery, restart persistence, Build retry, helper expiry and block filtering — PASS;
+- `relay.damus.io` returned an HTTP 503 during one probe; other configured inbox relays delivered normally, so this was non-blocking.
 
-After the final code-side pass, CI also passed on commit `a1fd5caee89578b329040d2871aa6ff6e5ceee74`, including Python compile, private-message vectors, complete unit suite, remote-execution safety boundary and static release gate. Subsequent release-prep commits add regression coverage/documentation only and must finish the same CI before merge.
+The release-gate run above is the current verification record; the documentation changes in this commit do not alter runtime code, protocol behavior or the installed plugin.
 
-## Only remaining Codex / real-machine checks
+## Public Beta limitations
 
-These are the few things that cannot be honestly completed from the repository connection alone:
+- Private messaging has not had an independent external security audit.
+- Public relay availability can vary, including intermittent relay timeouts or rejection.
+- Exhaustive automated interaction testing of the native Omarchy layer-shell popup is limited.
 
-1. **Latest-head runtime smoke:** pull the current `feature/build-network` head, run `omarchy plugin validate .`, installed-import `qmllint`, restart the shell, open Friends and Build once, and verify there are no new QML warnings after the keyboard/lazy-load changes.
-2. **Real interaction + fallback smoke:** keyboard-click through Chats, Requests, World, Circles, Me and all six Build sections; verify friend request send/accept/decline/cancel, one DM, one group creation/message, Build -> existing-friend chat handoff, update button, real `omarchy-friends://invite/...` desktop dispatch, and force V3 failure once to prove V2/legacy fallback still recovers. Mouse-only middle/right-click behavior is not a release blocker because Build/status have visible UI paths.
-3. **Two-instance network check:** two current v4.15 installs over real configured relays must complete friend request -> accept -> NIP-17/NIP-59 DM both directions, signed kind-10050 inbox routing, one private-group message, restart/anti-downgrade persistence, and the Build Network two-instance retry/block/helper-expiry smoke. Record exact relay errors if any instead of adding speculative protocol code.
-
-If these three checks pass without a release-blocking regression, v4.15.0 is ready to merge/tag as the stable build and announce publicly as **beta**.
+The release is ready for owner merge/tag as Public Beta. Do not merge `main` automatically.
 
 ## Stop condition
 
