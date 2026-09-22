@@ -728,6 +728,30 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(migrated.state["global"]["friendships"][peer_key]["status"], "friends")
         self.assertEqual(migrated.state["global"]["messages"][0]["media"][0]["kind"], "video")
 
+    def test_duplicate_community_events_are_collapsed_during_migration(self):
+        state_file = Path(self.test_dir) / "friends_state.json"
+        peer_key = friends_module.generate_keypair()["public_key"]
+        duplicate_id = "f" * 64
+        base = {
+            "id": duplicate_id,
+            "public_key": peer_key,
+            "handle": "Builder",
+            "avatar": "🦊",
+            "text": "one event, one bubble",
+            "timestamp": int(time.time()),
+        }
+        state_file.write_text(
+            json.dumps({"global_identity": self.engine.state["global_identity"], "global": {"community": [
+                {**base, "incoming": True},
+                {**base, "incoming": False},
+            ]}}),
+            encoding="utf-8",
+        )
+        migrated = friends_module.FriendsEngine(state_dir=self.test_dir)
+        community = migrated.state["global"]["community"]
+        self.assertEqual(len(community), 1)
+        self.assertFalse(community[0]["incoming"])
+
     def test_conversation_memory_records_waves_and_enriches_peers(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)

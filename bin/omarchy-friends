@@ -747,11 +747,11 @@ class FriendsEngine:
                 for item in old_global.get("messages", [])
                 if (normalized := self._normalize_global_message(item))
             ][-MAX_MESSAGES:]
-            global_state["community"] = [
+            global_state["community"] = self._unique_messages([
                 normalized
                 for item in old_global.get("community", [])
                 if (normalized := self._normalize_community_message(item))
-            ][-MAX_COMMUNITY_MESSAGES:]
+            ])[-MAX_COMMUNITY_MESSAGES:]
             global_state["sent_pings"] = [
                 {
                     "public_key": trim_text(item.get("public_key"), 64).lower(),
@@ -1084,6 +1084,25 @@ class FriendsEngine:
             if peer and peer["code"] not in seen:
                 result.append(peer)
                 seen.add(peer["code"])
+        return result
+
+    @staticmethod
+    def _unique_messages(messages):
+        """Collapse relay echoes and legacy duplicate messages by event id."""
+        result = []
+        positions = {}
+        for message in messages:
+            message_id = message.get("id") if isinstance(message, dict) else ""
+            if not message_id:
+                continue
+            position = positions.get(message_id)
+            if position is None:
+                positions[message_id] = len(result)
+                result.append(message)
+                continue
+            # Keep the local copy when a relay echo has the same event id.
+            if result[position].get("incoming") and not message.get("incoming"):
+                result[position] = message
         return result
 
     def save_state(self, state=None):
