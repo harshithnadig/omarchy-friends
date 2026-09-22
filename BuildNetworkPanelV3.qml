@@ -14,12 +14,15 @@ PopupCard {
     open: hostWidget ? hostWidget.buildCardOpen === true : false
     triggerMode: "click"
 
-    readonly property color fg: Color.foreground
-    readonly property color bg: Color.background
-    readonly property color accent: Color.accent
-    readonly property color muted: Qt.rgba(fg.r, fg.g, fg.b, 0.60)
-    readonly property color faint: Qt.rgba(fg.r, fg.g, fg.b, 0.38)
-    readonly property color glassLine: Qt.rgba(fg.r, fg.g, fg.b, 0.10)
+    // Friends owns a stable cool product palette instead of inheriting every
+    // Omarchy theme hue. This keeps Build Network visually consistent with
+    // FriendsPanelV2 even on red/gold/green desktop themes.
+    readonly property color fg: "#f3f5ff"
+    readonly property color bg: "#070b14"
+    readonly property color accent: "#7c6cff"
+    readonly property color muted: "#98a2ba"
+    readonly property color faint: "#68738d"
+    readonly property color glassLine: Qt.rgba(0.84, 0.87, 1.0, 0.10)
     readonly property var friendsService: hostWidget && hostWidget.service ? hostWidget.service : null
 
     property string tab: "discover"

@@ -6,7 +6,7 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 
 - Product architecture: complete for the planned v4.15 scope.
 - Build Network backend: complete.
-- Liquid-glass V3 panel: implemented.
+- Unified liquid-glass UI: `FriendsPanelV2.qml` is the preferred Friends shell and `BuildNetworkPanelV3.qml` is the matching Build workspace; the old `Panel.qml` remains only as automatic load-failure fallback.
 - Release runtime: `bin/build_network_app_v4.py`.
 - `manifest.json` and the live Friends engine both advertise `4.15.0`.
 - Build Network is visibly reachable from the normal Friends panel and remains available by middle-click.

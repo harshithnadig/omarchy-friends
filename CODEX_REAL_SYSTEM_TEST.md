@@ -35,9 +35,10 @@ python3 -m unittest tests.test_private_messaging tests.test_private_messaging_en
 omarchy plugin validate .
 
 qmllint -I "$OMARCHY_PATH/shell" \
-  BarWidget.qml Panel.qml Service.qml \
+  BarWidget.qml FriendsPanelV2.qml Panel.qml Service.qml \
   BuildNetworkPanelV3.qml BuildNetworkService.qml \
-  GlassSurface.qml GlassPill.qml
+  GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
+  GlassNavItem.qml GlassAvatar.qml
 ```
 
 ## 3. Load the real plugin
@@ -46,6 +47,10 @@ Reload Omarchy shell/plugin using the normal local workflow.
 
 Verify the normal Friends widget first:
 
+- left-click opens the **modern `FriendsPanelV2.qml` shell**, not the legacy fallback;
+- the shell uses the midnight/violet product palette even when the desktop theme is red/gold/green;
+- Chats uses the split conversation layout, message bubbles and modern composer;
+- World, Circles and Me use the same shared glass primitives;
 - left-click opens Friends;
 - the visible `🛠 Build` button opens Build Network;
 - middle-click also opens Build Network;

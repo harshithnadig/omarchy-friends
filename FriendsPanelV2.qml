@@ -1189,7 +1189,7 @@ PopupCard {
                                             Repeater {
                                                 model: root.service && root.service.availableInterests ? root.service.availableInterests : ["linux", "open-source", "plugins", "ricing", "coding", "design", "hardware", "music"]
                                                 GlassPill {
-                                                    text: typeof modelData === "string" ? modelData : (modelData.label || modelData.id || "Interest")
+                                                    text: typeof modelData === "string" ? modelData : ((modelData.emoji ? modelData.emoji + " " : "") + (modelData.name || modelData.label || modelData.id || "Interest"))
                                                     active: root.interestsDraft.indexOf(typeof modelData === "string" ? modelData : (modelData.id || modelData.label)) >= 0
                                                     onClicked: root.toggleInterest(typeof modelData === "string" ? modelData : (modelData.id || modelData.label))
                                                 }
@@ -1298,10 +1298,9 @@ PopupCard {
 
             // Bottom status rail
             Row {
-                width: parent.width
+                width: parent.width - Style.space(36)
+                x: Style.space(18)
                 height: Style.space(34)
-                leftPadding: Style.space(18)
-                rightPadding: Style.space(18)
                 spacing: Style.space(10)
                 Text { anchors.verticalCenter: parent.verticalCenter; text: "●"; color: root.worldStatus.last_error ? root.warning : root.success; font.pixelSize: Style.font.caption }
                 Text { anchors.verticalCenter: parent.verticalCenter; text: root.worldStatus.last_error ? "Reconnecting" : "Friends connected"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
