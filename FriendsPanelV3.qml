@@ -49,6 +49,8 @@ PopupCard {
     property string messageDraft: ""
     property string mediaDraft: ""
     property string draftConversationKey: ""
+    property bool sendingMessage: false
+    property bool creatingGroup: false
     property bool mediaComposerOpen: false
     property string communityDraft: ""
     property string notice: ""
@@ -324,17 +326,25 @@ PopupCard {
     }
 
     function sendMessage() {
+        if (root.sendingMessage) return
         var friend = root.selectedFriend()
         var group = root.selectedGroup()
         var text = root.messageDraft.trim()
         var media = root.mediaDraft.trim()
         if (!root.service || (!friend && !group)) { root.showNotice("Choose a conversation first"); return }
         if (!text && !media) return
-        if (group) root.service.sendGroupMessage(group.id, text, media)
-        else root.service.sendDm(friend.public_key, text, media)
-        root.messageDraft = ""
-        root.mediaDraft = ""
-        root.mediaComposerOpen = false
+        var conversationKey = root.draftConversationKey
+        root.sendingMessage = true
+        function clearSentDraft(ok) {
+            root.sendingMessage = false
+            if (!ok || root.draftConversationKey !== conversationKey) return
+            if (root.messageDraft.trim() !== text || root.mediaDraft.trim() !== media) return
+            root.messageDraft = ""
+            root.mediaDraft = ""
+            root.mediaComposerOpen = false
+        }
+        if (group) root.service.sendGroupMessage(group.id, text, media, clearSentDraft)
+        else root.service.sendDm(friend.public_key, text, media, clearSentDraft)
     }
 
     function sendCommunity() {
@@ -436,15 +446,21 @@ PopupCard {
     }
 
     function createGroup() {
+        if (root.creatingGroup) return
         var name = root.groupNameDraft.trim()
         if (!root.service || !name || root.groupMemberKeys.length < 2) {
             root.showNotice("Name the group and choose at least two friends")
             return
         }
-        root.service.createGroup(name, root.groupMemberKeys)
-        root.groupNameDraft = ""
-        root.groupMemberKeys = []
-        root.groupCreateOpen = false
+        var selectedMembers = root.groupMemberKeys.slice()
+        root.creatingGroup = true
+        root.service.createGroup(name, selectedMembers, function(ok) {
+            root.creatingGroup = false
+            if (!ok || root.groupNameDraft.trim() !== name || root.groupMemberKeys.join(",") !== selectedMembers.join(",")) return
+            root.groupNameDraft = ""
+            root.groupMemberKeys = []
+            root.groupCreateOpen = false
+        })
     }
 
     function openProfile() {
@@ -913,7 +929,7 @@ PopupCard {
                                             spacing: Style.space(7)
                                             GlassButton { text: "Link"; icon: "＋"; compact: true; selected: root.mediaComposerOpen; enabled: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked: root.mediaComposerOpen = !root.mediaComposerOpen }
                                             GlassField { id: messageInput; width: parent.width - sendButton.width - Style.space(70); placeholder: root.selectedFriend() || root.selectedGroup() ? "Message…" : "Choose a chat first"; enabled: root.selectedFriend() !== null || root.selectedGroup() !== null; text: root.messageDraft; onTextChanged: root.messageDraft = text; onAccepted: root.sendMessage() }
-                                            GlassButton { id: sendButton; text: "Send"; icon: "➤"; primary: true; enabled: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked: root.sendMessage() }
+                                            GlassButton { id: sendButton; text: "Send"; icon: "➤"; primary: true; enabled: !root.sendingMessage && (root.selectedFriend() !== null || root.selectedGroup() !== null); onClicked: root.sendMessage() }
                                         }
                                         GlassField { visible: root.mediaComposerOpen; width: parent.width; placeholder: "Optional https:// link"; text: root.mediaDraft; onTextChanged: root.mediaDraft = text }
                                     }
@@ -1642,7 +1658,7 @@ PopupCard {
                                     }
                                 }
                             }
-                            GlassButton { width: parent.width; text: "Create encrypted group"; icon: "✦"; primary: true; onClicked: root.createGroup() }
+                            GlassButton { width: parent.width; text: "Create encrypted group"; icon: "✦"; primary: true; enabled: !root.creatingGroup; onClicked: root.createGroup() }
                         }
                     }
                 }

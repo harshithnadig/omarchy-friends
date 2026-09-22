@@ -87,6 +87,28 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('root.draftConversationKey !== key', panel)
         self.assertIn('root.messageDraft = ""', panel)
 
+    def test_failed_private_sends_and_group_creation_preserve_user_input(self):
+        panel = self.read("FriendsPanelV3.qml")
+        service = self.read("Service.qml")
+        send = panel.split("function sendMessage()", 1)[1].split("function sendCommunity()", 1)[0]
+        create_group = panel.split("function createGroup()", 1)[1].split("function openProfile()", 1)[0]
+        self.assertIn("function clearSentDraft(ok)", send)
+        self.assertIn("if (root.sendingMessage) return", send)
+        self.assertIn("root.sendingMessage = false", send)
+        draft_callback = send.split("function clearSentDraft(ok)", 1)[1].split("if (group) root.service.sendGroupMessage", 1)[0]
+        self.assertIn("if (!ok || root.draftConversationKey !== conversationKey) return", draft_callback)
+        self.assertLess(draft_callback.index("draftConversationKey !== conversationKey"), draft_callback.index('root.messageDraft = ""'))
+        self.assertIn("root.service.sendGroupMessage(group.id, text, media, clearSentDraft)", send)
+        self.assertIn("root.service.sendDm(friend.public_key, text, media, clearSentDraft)", send)
+        self.assertIn("root.service.createGroup(name, selectedMembers, function(ok)", create_group)
+        self.assertIn("if (root.creatingGroup) return", create_group)
+        self.assertIn("root.creatingGroup = false", create_group)
+        self.assertIn("if (!ok || root.groupNameDraft.trim() !== name", create_group)
+        for method, fallback in (("sendDm", "Private message sent"), ("sendGroupMessage", "Group message could not be sent"), ("createGroup", "Group could not be created")):
+            block = service.split(f"function {method}(", 1)[1].split("\n    function ", 1)[0]
+            self.assertIn(f'root.reportResult(output, "{fallback}")', block)
+            self.assertIn("if (callback) callback(result.ok === true, result)", block)
+
     def test_world_cards_keep_one_clear_primary_connection_action(self):
         panel = self.read("FriendsPanelV3.qml")
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]

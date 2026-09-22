@@ -357,7 +357,6 @@ def _store_and_publish_durable(model, success_message):
         if isinstance(item, dict)
         and f"{item.get('type','')}:{item.get('id','')}" != key
     ]
-    filtered.append(payload)
     if len(filtered) >= MAX_PENDING:
         result["message"] = "Saved locally, but the retry queue is full; this item was not queued for automatic retry"
         core._write_json(core.BUILD_STATE, state)

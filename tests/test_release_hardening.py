@@ -94,6 +94,27 @@ class ReleaseHardeningTests(unittest.TestCase):
             release.core.BUILD_STATE = original_build
             release._previous_store_and_publish = original_store
 
+    def test_failed_publish_adds_exactly_one_retry_queue_entry(self):
+        original_build = release.core.BUILD_STATE
+        original_store = release._previous_store_and_publish
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                release.core.BUILD_STATE = pathlib.Path(tmp) / "build.json"
+                release.core._write_json(release.core.BUILD_STATE, {"pending_publish": []})
+                release._previous_store_and_publish = lambda *_args: {"ok": False, "message": "offline"}
+
+                class Model:
+                    def to_payload(self):
+                        return {"type": "idea", "id": "offline-item"}
+
+                result = release._store_and_publish_durable(Model(), "Shared")
+                state = release.core._read_json(release.core.BUILD_STATE, {})
+                self.assertFalse(result["ok"])
+                self.assertEqual(state["pending_publish"], [{"type": "idea", "id": "offline-item"}])
+        finally:
+            release.core.BUILD_STATE = original_build
+            release._previous_store_and_publish = original_store
+
     def test_helper_availability_expires(self):
         now = 2_000_000
         fresh = {"status": "active", "created_at": now - 60, "available_minutes": 30}

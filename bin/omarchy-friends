@@ -11,6 +11,7 @@ address, a real name, or an account credential.
 
 import hashlib
 import base64
+import copy
 import fcntl
 import json
 import os
@@ -554,6 +555,7 @@ class FriendsEngine:
         self.state_dir = Path(state_dir) if state_dir else STATE_DIR
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.state_file = self.state_dir / "friends_state.json"
+        self._persisted_state = None
         self.state = self.load_state()
 
     @staticmethod
@@ -638,31 +640,160 @@ class FriendsEngine:
         }
 
     def load_state(self):
-        data = {}
         lock_file = self.state_dir / ".friends_state.lock"
-        try:
-            with lock_file.open("w", encoding="utf-8") as lock:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_SH)
-                try:
-                    if self.state_file.exists():
+        with lock_file.open("a", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                existed = self.state_file.exists()
+                data = None
+                corrupt = False
+                if existed:
+                    try:
+                        with self.state_file.open("r", encoding="utf-8") as state_file:
+                            data = json.load(state_file)
+                    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+                        corrupt = True
+                    except OSError as error:
+                        raise RuntimeError(f"Cannot read Friends state; refusing to replace it: {error}") from error
+
+                    if not corrupt and (not isinstance(data, dict) or not data):
+                        corrupt = True
+                    if not corrupt:
+                        expected = {"profile", "friends", "global", "global_identity"}
+                        if not expected.intersection(data):
+                            corrupt = True
+                        elif "profile" in data and not isinstance(data["profile"], dict):
+                            corrupt = True
+                        elif "friends" in data and not isinstance(data["friends"], list):
+                            corrupt = True
+                        elif "global" in data and not isinstance(data["global"], dict):
+                            corrupt = True
+                        elif "global_identity" in data:
+                            identity = data["global_identity"]
+                            try:
+                                generated = generate_keypair(identity.get("secret_key"))
+                                corrupt = (
+                                    not isinstance(identity, dict)
+                                    or generated["public_key"] != trim_text(identity.get("public_key"), 64).lower()
+                                )
+                            except (AttributeError, TypeError, ValueError, OverflowError):
+                                corrupt = True
+                        global_data = data.get("global") if isinstance(data.get("global"), dict) else {}
+                        for name in ("peers", "friendships", "groups", "memory", "relays"):
+                            if name in global_data and not isinstance(global_data[name], dict):
+                                corrupt = True
+                        for name in (
+                            "pings", "blocked_pubkeys", "incoming_receipts", "messages",
+                            "community", "sent_pings", "processed_event_ids",
+                        ):
+                            if name in global_data and not isinstance(global_data[name], list):
+                                corrupt = True
+                    if not corrupt:
                         try:
-                            with self.state_file.open("r", encoding="utf-8") as state_file:
-                                data = json.load(state_file)
-                        except (OSError, TypeError, ValueError):
-                            data = {}
-                finally:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            if self.state_file.exists():
-                try:
-                    with self.state_file.open("r", encoding="utf-8") as state_file:
-                        data = json.load(state_file)
-                except (OSError, TypeError, ValueError):
-                    data = {}
-        state = self._migrate_state(data)
-        if not self.state_file.exists() or state != data:
-            self.save_state(state)
-        return state
+                            state = self._migrate_state(data)
+                        except (AttributeError, KeyError, TypeError, ValueError):
+                            corrupt = True
+
+                    if corrupt:
+                        quarantine = self.state_dir / (
+                            f"friends_state.corrupt-{int(time.time())}-{uuid.uuid4().hex[:8]}.json"
+                        )
+                        try:
+                            os.replace(self.state_file, quarantine)
+                            os.chmod(quarantine, 0o600)
+                        except OSError as error:
+                            raise RuntimeError(
+                                f"Friends state is invalid and could not be preserved; refusing to replace it: {error}"
+                            ) from error
+                        data = None
+
+                if data is None:
+                    state = self._default_state()
+                if not existed or corrupt or state != data:
+                    self._write_state_locked(state)
+                self.state = state
+                self._persisted_state = copy.deepcopy(state)
+                return state
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+    @staticmethod
+    def _state_list_key(value):
+        if isinstance(value, dict):
+            for name in ("id", "code", "public_key"):
+                if value.get(name) not in (None, ""):
+                    suffix = f":{value.get('timestamp')}" if name == "public_key" and value.get("timestamp") else ""
+                    return f"{name}:{value[name]}{suffix}"
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+    @classmethod
+    def _merge_concurrent_value(cls, base, current, desired, path=""):
+        if desired == base:
+            return copy.deepcopy(current)
+        if current == base:
+            return copy.deepcopy(desired)
+        if isinstance(base, dict) and isinstance(current, dict) and isinstance(desired, dict):
+            merged = {}
+            missing = object()
+            for key in set(base) | set(current) | set(desired):
+                old = base.get(key, missing)
+                latest = current.get(key, missing)
+                local = desired.get(key, missing)
+                if local is missing:
+                    if old is missing and latest is not missing:
+                        merged[key] = copy.deepcopy(latest)
+                    continue
+                if latest is missing:
+                    if old is missing:
+                        merged[key] = copy.deepcopy(local)
+                    elif local != old:
+                        merged[key] = copy.deepcopy(local)
+                    continue
+                if old is missing:
+                    merged[key] = copy.deepcopy(local)
+                else:
+                    child_path = f"{path}.{key}" if path else str(key)
+                    merged[key] = cls._merge_concurrent_value(old, latest, local, child_path)
+            return merged
+        if isinstance(base, list) and isinstance(current, list) and isinstance(desired, list):
+            base_keys = [cls._state_list_key(item) for item in base]
+            current_keys = [cls._state_list_key(item) for item in current]
+            desired_keys = [cls._state_list_key(item) for item in desired]
+            if len(set(base_keys)) != len(base_keys) or len(set(current_keys)) != len(current_keys) or len(set(desired_keys)) != len(desired_keys):
+                return copy.deepcopy(desired)
+            base_map = dict(zip(base_keys, base))
+            current_map = dict(zip(current_keys, current))
+            desired_map = dict(zip(desired_keys, desired))
+            removed = (set(base_keys) - set(current_keys)) | (set(base_keys) - set(desired_keys))
+            order = [*desired_keys, *(key for key in current_keys if key not in desired_map)]
+            merged = []
+            for key in order:
+                if key in removed:
+                    continue
+                if key in base_map and key in current_map and key in desired_map:
+                    item = cls._merge_concurrent_value(base_map[key], current_map[key], desired_map[key], path)
+                elif key in desired_map:
+                    item = copy.deepcopy(desired_map[key])
+                else:
+                    item = copy.deepcopy(current_map[key])
+                merged.append(item)
+            limits = {
+                "friends": GLOBAL_MAX_PEERS,
+                "pings": GLOBAL_MAX_PINGS,
+                "messages": MAX_MESSAGES,
+                "community": MAX_COMMUNITY_MESSAGES,
+                "sent_pings": GLOBAL_MAX_SENT_PINGS,
+                "processed_event_ids": MAX_SEEN_EVENT_IDS,
+                "world_pulse": MAX_PULSE_ITEMS,
+                "events": MAX_EVENTS,
+                "seen_event_ids": MAX_EVENTS * 2,
+                "signal_receipts": MAX_SIGNAL_RECEIPTS,
+                "incoming_receipts": MAX_SIGNAL_RECEIPTS,
+                "cowork_invites": MAX_INVITES,
+            }
+            limit = limits.get(path.rsplit(".", 1)[-1])
+            return merged[-limit:] if limit else merged
+        return copy.deepcopy(desired)
 
     def _migrate_state(self, data):
         state = self._default_state()
@@ -1221,31 +1352,81 @@ class FriendsEngine:
     def save_state(self, state=None):
         if state is not None:
             self.state = state
-        tmp_file = self.state_dir / f".friends_state.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        desired = copy.deepcopy(self.state)
         lock_file = self.state_dir / ".friends_state.lock"
-        try:
-            with lock_file.open("w", encoding="utf-8") as lock:
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-                try:
-                    with tmp_file.open("w", encoding="utf-8") as state_file:
-                        json.dump(self.state, state_file, indent=2)
-                        state_file.write("\n")
-                    os.replace(tmp_file, self.state_file)
-                    try:
-                        os.chmod(self.state_file, 0o600)
-                    except OSError:
-                        pass
-                finally:
-                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            with tmp_file.open("w", encoding="utf-8") as state_file:
-                json.dump(self.state, state_file, indent=2)
-                state_file.write("\n")
-            os.replace(tmp_file, self.state_file)
+        with lock_file.open("a", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             try:
-                os.chmod(self.state_file, 0o600)
-            except OSError:
-                pass
+                if self.state_file.exists():
+                    try:
+                        with self.state_file.open("r", encoding="utf-8") as state_file:
+                            latest = json.load(state_file)
+                    except (OSError, TypeError, ValueError) as error:
+                        raise RuntimeError(f"Cannot safely update Friends state: {error}") from error
+                    if not isinstance(latest, dict):
+                        raise RuntimeError("Cannot safely update invalid Friends state")
+                    if isinstance(self._persisted_state, dict):
+                        old_blocked = set(
+                            self._persisted_state.get("global", {}).get("blocked_pubkeys", [])
+                        )
+                        latest_blocked = set(latest.get("global", {}).get("blocked_pubkeys", []))
+                        newly_blocked = latest_blocked - old_blocked
+                        desired = self._merge_concurrent_value(self._persisted_state, latest, desired)
+                    else:
+                        newly_blocked = set()
+                else:
+                    newly_blocked = set()
+                self._remove_blocked_state(desired, newly_blocked)
+                self._write_state_locked(desired)
+                self._replace_state_in_place(self.state, desired)
+                self._persisted_state = copy.deepcopy(desired)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+    @classmethod
+    def _replace_state_in_place(cls, target, source):
+        """Apply merged state without invalidating nested references held by callers."""
+        if isinstance(target, dict) and isinstance(source, dict):
+            for key in list(target):
+                if key not in source:
+                    del target[key]
+            for key, value in source.items():
+                current = target.get(key)
+                if isinstance(current, dict) and isinstance(value, dict):
+                    cls._replace_state_in_place(current, value)
+                elif isinstance(current, list) and isinstance(value, list):
+                    current[:] = copy.deepcopy(value)
+                else:
+                    target[key] = copy.deepcopy(value)
+
+    @staticmethod
+    def _remove_blocked_state(state, blocked):
+        global_state = state.get("global") if isinstance(state, dict) else None
+        if not isinstance(global_state, dict) or not blocked:
+            return
+        for name in ("peers", "friendships", "memory"):
+            mapping = global_state.get(name)
+            if isinstance(mapping, dict):
+                for public_key in blocked:
+                    mapping.pop(public_key, None)
+        for name in ("pings", "messages", "community"):
+            entries = global_state.get(name)
+            if isinstance(entries, list):
+                global_state[name] = [
+                    item for item in entries
+                    if not isinstance(item, dict) or item.get("public_key") not in blocked
+                ]
+
+    def _write_state_locked(self, state):
+        tmp_file = self.state_dir / f".friends_state.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        try:
+            with tmp_file.open("w", encoding="utf-8") as state_file:
+                json.dump(state, state_file, indent=2)
+                state_file.write("\n")
+            os.chmod(tmp_file, 0o600)
+            os.replace(tmp_file, self.state_file)
+        except OSError as error:
+            raise RuntimeError(f"Could not safely save Friends state: {error}") from error
         finally:
             try:
                 tmp_file.unlink()
@@ -2121,7 +2302,7 @@ class FriendsEngine:
 
         if not message_id:
             self.save_state()
-            return False, "Could not send the private message"
+            return False, "No inbox relay confirmed delivery; the message may still arrive, so check before retrying"
 
         friend = self.state["global"]["friendships"][public_key]
         self.state["global"].setdefault("messages", []).append({
@@ -2653,11 +2834,16 @@ class FriendsEngine:
                             ok_seen = True
                             accepted = bool(message[2])
                             break
-                    # A successful websocket write is useful even if a relay
-                    # does not send an OK frame before its short timeout.
-                    if accepted or not ok_seen:
+                    if accepted:
                         published += 1
                         relay_status[relay_url] = {"online": True, "accepted": accepted, "acknowledged": ok_seen}
+                    elif not ok_seen:
+                        relay_status[relay_url] = {
+                            "online": True,
+                            "accepted": False,
+                            "acknowledged": False,
+                            "error": "No matching relay acknowledgement",
+                        }
                     else:
                         relay_status[relay_url] = {"online": True, "accepted": False, "acknowledged": True}
             except (OSError, ValueError, ssl.SSLError) as error:

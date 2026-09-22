@@ -88,6 +88,45 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.assertEqual(opened["public_key"], self.key(self.alice))
         self.assertTrue(opened["incoming"])
 
+    def test_dm_is_not_reported_or_stored_without_matching_relay_acceptance(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_modern(self.alice, self.bob)
+        rejected_status = {
+            relay: {"online": True, "accepted": False, "acknowledged": False,
+                    "error": "No matching relay acknowledgement"}
+            for relay in friends.NIP17_DM_RELAYS
+        }
+        with patch.object(self.alice, "_publish_event_to_relays", return_value=(False, rejected_status)):
+            ok, message = self.alice.send_dm(self.key(self.bob), "keep as unconfirmed", "")
+        self.assertFalse(ok)
+        self.assertIn("may still arrive", message)
+        self.assertEqual(self.alice.state["global"]["messages"], [])
+
+    def test_private_relay_without_ack_is_not_counted_as_delivery(self):
+        event = {"id": "event-id", "kind": friends.NIP59_GIFT_WRAP_KIND}
+
+        class SilentRelay:
+            def __init__(self, _url, timeout):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def send_json(self, _value):
+                pass
+
+            def recv_json(self, _timeout):
+                raise EOFError("relay closed before OK")
+
+        with patch.object(friends, "WebSocketClient", SilentRelay):
+            published, status = self.alice._publish_event_to_relays(event, friends.NIP17_DM_RELAYS[:1])
+        self.assertFalse(published)
+        self.assertFalse(status[friends.NIP17_DM_RELAYS[0]]["accepted"])
+        self.assertFalse(status[friends.NIP17_DM_RELAYS[0]]["acknowledged"])
+
     def test_modern_capability_is_sticky_after_presence_expires(self):
         self.make_friends(self.alice, self.bob)
         self.advertise_modern(self.alice, self.bob)

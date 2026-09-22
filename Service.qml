@@ -304,19 +304,31 @@ Item {
         runAction([root.binPath, "cancel-friend", publicKey], function(output) { root.reportResult(output, "Friend request cancelled"); root.refresh() })
     }
 
-    function sendDm(publicKey, text, mediaUrl) {
+    function sendDm(publicKey, text, mediaUrl, callback) {
         var payload = JSON.stringify({ text: text || "", media_url: mediaUrl || "" })
-        runAction([root.binPath, "send-dm", publicKey, payload], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
+        runAction([root.binPath, "send-dm", publicKey, payload], function(output) {
+            var result = root.reportResult(output, "Private message sent")
+            root.refresh()
+            if (callback) callback(result.ok === true, result)
+        })
     }
 
-    function createGroup(name, members) {
+    function createGroup(name, members, callback) {
         var payload = JSON.stringify({ name: name || "", members: members || [] })
-        runAction([root.binPath, "create-group", payload], function(output) { root.reportResult(output, "Group could not be created"); root.refresh() })
+        runAction([root.binPath, "create-group", payload], function(output) {
+            var result = root.reportResult(output, "Group could not be created")
+            root.refresh()
+            if (callback) callback(result.ok === true, result)
+        })
     }
 
-    function sendGroupMessage(groupId, text, mediaUrl) {
+    function sendGroupMessage(groupId, text, mediaUrl, callback) {
         var payload = JSON.stringify({ text: text || "", media_url: mediaUrl || "" })
-        runAction([root.binPath, "send-group", groupId, payload], function(output) { root.reportResult(output, "Group message could not be sent"); root.refresh() })
+        runAction([root.binPath, "send-group", groupId, payload], function(output) {
+            var result = root.reportResult(output, "Group message could not be sent")
+            root.refresh()
+            if (callback) callback(result.ok === true, result)
+        })
     }
 
     function sendCommunity(text) {

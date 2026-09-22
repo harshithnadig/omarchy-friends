@@ -1013,6 +1013,54 @@ class TestFriendsEngine(unittest.TestCase):
         reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
         self.assertEqual(reloaded.state["profile"]["handle"], "MainWriter")
 
+    def test_concurrent_state_writes_merge_disjoint_changes_and_messages(self):
+        other = friends_module.FriendsEngine(state_dir=self.test_dir)
+        key = friends_module.generate_keypair()["public_key"]
+        self.engine.state["profile"]["handle"] = "MainWriter"
+        self.engine.state["global"]["messages"].append({"id": "message-a", "public_key": key, "text": "A"})
+        self.engine.save_state()
+
+        other.state["global"]["messages"].append({"id": "message-b", "public_key": key, "text": "B"})
+        other.save_state()
+        reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
+        self.assertEqual(reloaded.state["profile"]["handle"], "MainWriter")
+        self.assertEqual(
+            {item["id"] for item in reloaded.state["global"]["messages"]},
+            {"message-a", "message-b"},
+        )
+
+    def test_stale_save_preserves_friendship_added_by_another_process(self):
+        other = friends_module.FriendsEngine(state_dir=self.test_dir)
+        public_key = friends_module.generate_keypair()["public_key"]
+        other.state["global"]["friendships"][public_key] = {"status": "friends", "handle": "Pal", "avatar": "🦊"}
+        other.save_state()
+        self.engine.state["profile"]["handle"] = "Local edit"
+        self.engine.save_state()
+        reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
+        self.assertEqual(reloaded.state["global"]["friendships"][public_key]["status"], "friends")
+        self.assertEqual(reloaded.state["profile"]["handle"], "Local edit")
+
+    def test_stale_process_cannot_restore_messages_for_newly_blocked_peer(self):
+        other = friends_module.FriendsEngine(state_dir=self.test_dir)
+        blocked_key = friends_module.generate_keypair()["public_key"]
+        self.engine.block_global(blocked_key)
+        other.state["global"]["messages"].append({"id": "stale-message", "public_key": blocked_key, "text": "private"})
+        other.save_state()
+        reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
+        self.assertIn(blocked_key, reloaded.state["global"]["blocked_pubkeys"])
+        self.assertFalse(any(item.get("public_key") == blocked_key for item in reloaded.state["global"]["messages"]))
+
+    def test_corrupt_state_is_quarantined_before_defaults_are_written(self):
+        state_file = self.engine.state_file
+        invalid = '{"profile": '
+        state_file.write_text(invalid, encoding="utf-8")
+        recovered = friends_module.FriendsEngine(state_dir=self.test_dir)
+        quarantined = list(Path(self.test_dir).glob("friends_state.corrupt-*.json"))
+        self.assertEqual(len(quarantined), 1)
+        self.assertEqual(quarantined[0].read_text(encoding="utf-8"), invalid)
+        self.assertTrue(friends_module.is_valid_public_key(recovered.state["global_identity"]["public_key"]))
+        self.assertEqual(json.loads(state_file.read_text(encoding="utf-8"))["global_identity"], recovered.state["global_identity"])
+
     def test_focus_accept_survives_stale_lobby_cache(self):
         ping = {
             "id": "f" * 64, "public_key": friends_module.generate_keypair()["public_key"],
