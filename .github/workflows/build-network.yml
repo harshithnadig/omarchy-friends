@@ -11,7 +11,8 @@ on:
       - 'BuildNetwork*.qml'
       - 'Glass*.qml'
       - 'BarWidget.qml'
-      - 'tests/test_build_network.py'
+      - 'tests/test_*.py'
+      - 'scripts/release-gate.sh'
       - 'manifest.json'
 
 permissions:
@@ -35,6 +36,7 @@ jobs:
             bin/build_network_runtime.py \
             bin/build_network_app_v2.py \
             bin/build_network_app_v3.py \
+            bin/build_network_app_v4.py \
             bin/omarchy-friends-open
       - name: Run complete unit suite
         run: python -m unittest discover -s tests -v
@@ -42,3 +44,5 @@ jobs:
         run: |
           ! grep -R -nE 'eval\(|exec\(|os\.system\(|shell=True' \
             bin/build_network*.py bin/omarchy-friends-open
+      - name: Static release gate
+        run: bash scripts/release-gate.sh --ci
