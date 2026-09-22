@@ -35,29 +35,73 @@ python3 -m unittest tests.test_private_messaging tests.test_private_messaging_en
 omarchy plugin validate .
 
 qmllint -I "$OMARCHY_PATH/shell" \
-  BarWidget.qml FriendsPanelV2.qml Panel.qml Service.qml \
+  BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml Service.qml \
   BuildNetworkPanelV3.qml BuildNetworkService.qml \
   GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
   GlassNavItem.qml GlassAvatar.qml
 ```
 
-## 3. Load the real plugin
+## 3. Load the real plugin and validate Friends V3
 
 Reload Omarchy shell/plugin using the normal local workflow.
 
 Verify the normal Friends widget first:
 
-- left-click opens the **modern `FriendsPanelV2.qml` shell**, not the legacy fallback;
+- left-click opens the **new `FriendsPanelV3.qml` shell**;
+- if V3 fails to load, V2 appears as a compatibility fallback; only if both fail may `Panel.qml` load;
 - the shell uses the midnight/violet product palette even when the desktop theme is red/gold/green;
-- Chats uses the split conversation layout, message bubbles and modern composer;
-- World, Circles and Me use the same shared glass primitives;
 - left-click opens Friends;
-- the visible `🛠 Build` button opens Build Network;
+- the visible `Build` button opens Build Network;
 - middle-click also opens Build Network;
 - right-click cycles status;
-- no QML/runtime warnings or crashes appear from either panel.
+- no QML/runtime warnings or crashes appear from V3, V2 fallback, Build Network, or the service.
 
-## 4. Visual V3 check
+### 3.1 Chats / Requests information architecture
+
+This is a release gate, not cosmetic preference.
+
+- **Chats contains only opened conversations**, not every friend and not incoming requests.
+- A friend with no opened/history conversation stays out of Chats until selected through **New chat** or opened from World.
+- **New chat** opens a separate friend picker; the full friends list lives there.
+- Existing private groups appear as conversations only when opened/history exists.
+- Each person/group has its own selected conversation and message history; switching people must not mix messages.
+- Search filters the visible conversation list.
+- **Requests is a separate destination** with clear `Received` and `Sent` states.
+- Incoming requests appear under Received with an Accept action.
+- Pending outgoing requests appear under Sent and do not clutter Chats.
+- Accepting a request opens that person's private chat after state refresh.
+- Message composer is one primary field; the optional HTTPS link field appears only when Link is toggled.
+- Focus and Build-together actions stay in the selected conversation header, not repeated on every World card.
+
+### 3.2 World
+
+- World reads as a people-discovery surface, not a dashboard of repeated `Wave / Focus / Build` micro-buttons.
+- Search works across people/projects/interests.
+- `All / New / Building / Friends` filters work and do not invent users.
+- Each person card has one clear relationship action: `Connect`, `Accept`, `Requested`, `Needs update`, or `Message`.
+- Project/status/common-ground context is readable without clipping at normal laptop scale.
+- Opening `Message` for a friend lands in that person's private chat.
+
+### 3.3 Circles
+
+- Circles renders as one coherent public community room with a compact room header, safety note, message stream, and bottom composer.
+- Messages do not appear as giant disconnected dashboard cards.
+- Long messages wrap without clipping.
+- The stream auto-follows new messages without making manual scrolling unusable.
+- The empty state is truthful when no community messages exist.
+
+### 3.4 Me / Profile
+
+- Me renders a concise profile hero plus clearly separated **About you**, **Presence**, and **Privacy** controls.
+- Saving handle/project fields works.
+- Avatar, status and up-to-four interests are usable without overlap.
+- Privacy chips correctly toggle World visibility, active app, music, project, interests and room sharing.
+- Copy Invite works.
+- Update status/action is visible without dominating the profile page.
+
+Capture screenshots of **Chats, Requests, World, Circles and Me** at normal laptop scale. If a supported QML/API incompatibility or actual clipping/input bug appears, make the smallest fix and rerun this section.
+
+## 4. Visual Build Network check
 
 Check all six Build Network tabs: Discover, Build, Share, Help, Community and Create.
 
@@ -190,17 +234,20 @@ Verify:
 
 ## 9. Existing Friends regression
 
-Do not approve v4.15 if Build Network or the messaging migration breaks the existing product. Test:
+Do not approve v4.15 if Build Network, messaging migration or the V3 shell breaks the existing product. Test:
 
-- friend request/accept;
+- friend request/accept through the separate Requests surface;
+- Sent/Received request state does not leak into Chats;
+- one-to-one conversation isolation and New chat picker;
 - direct messages;
 - private groups;
-- World presence/waves;
+- World presence and connection flow;
 - Circles/community;
 - Focus ritual;
 - block/report behavior;
 - update banner/flow;
-- profile/privacy controls.
+- profile/avatar/status/interests/privacy controls;
+- V3 -> V2 -> legacy fallback behavior when each higher shell is deliberately made unavailable in a disposable checkout.
 
 ## 10. Security/privacy regression
 
@@ -259,7 +306,7 @@ Do not:
 - weaken inbox-relay verification or allow arbitrary remote relay URLs merely to make interoperability tests pass;
 - add NIP-42 or another relay-auth path unless a real selected relay demonstrates that it is required;
 - remove legacy read/fallback compatibility merely to make tests easier;
-- rebuild old V1/V2 panels.
+- rebuild obsolete Build Network V1/V2 panels.
 
 ## 13. Final report
 
@@ -268,6 +315,7 @@ Return:
 - failures found;
 - files changed to fix them;
 - exact release-gate, private-messaging test, unit, plugin-validation and qmllint results;
+- screenshots of Chats, Requests, World, Circles and Me;
 - screenshots of all six Build Network tabs;
 - kind-10050 publish/fetch results and concrete relays tested;
 - current-to-current NIP-17/NIP-59 DM/group result, inbox routing and outer-event metadata inspection;
