@@ -777,6 +777,11 @@ class FriendsEngine:
                 else:
                     item = copy.deepcopy(current_map[key])
                 merged.append(item)
+            if (
+                path.rsplit(".", 1)[-1] == "messages"
+                and all(isinstance(item, dict) and "timestamp" in item for item in merged)
+            ):
+                merged.sort(key=lambda item: safe_int(item.get("timestamp")))
             limits = {
                 "friends": GLOBAL_MAX_PEERS,
                 "pings": GLOBAL_MAX_PINGS,

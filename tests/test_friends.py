@@ -1017,16 +1017,20 @@ class TestFriendsEngine(unittest.TestCase):
         other = friends_module.FriendsEngine(state_dir=self.test_dir)
         key = friends_module.generate_keypair()["public_key"]
         self.engine.state["profile"]["handle"] = "MainWriter"
-        self.engine.state["global"]["messages"].append({"id": "message-a", "public_key": key, "text": "A"})
+        self.engine.state["global"]["messages"].append({"id": "message-a", "public_key": key, "text": "A", "timestamp": 100})
         self.engine.save_state()
 
-        other.state["global"]["messages"].append({"id": "message-b", "public_key": key, "text": "B"})
+        other.state["global"]["messages"].append({"id": "message-b", "public_key": key, "text": "B", "timestamp": 200})
         other.save_state()
         reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
         self.assertEqual(reloaded.state["profile"]["handle"], "MainWriter")
         self.assertEqual(
             {item["id"] for item in reloaded.state["global"]["messages"]},
             {"message-a", "message-b"},
+        )
+        self.assertEqual(
+            [item["id"] for item in reloaded.state["global"]["messages"]],
+            ["message-a", "message-b"],
         )
 
     def test_stale_save_preserves_friendship_added_by_another_process(self):
