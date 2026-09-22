@@ -18,18 +18,29 @@ Item {
     implicitHeight: Style.space(root.compact ? 30 : 38)
     opacity: root.enabled ? 1 : 0.42
     scale: tap.pressed ? 0.965 : (hover.hovered ? 1.015 : 1)
+    activeFocusOnTab: root.enabled
+
+    Keys.onPressed: function(event) {
+        if (!root.enabled) return
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+            root.clicked()
+            event.accepted = true
+        }
+    }
 
     Behavior on scale { NumberAnimation { duration: 105; easing.type: Easing.OutCubic } }
 
     Rectangle {
-        visible: root.primary || root.selected
+        visible: root.primary || root.selected || root.activeFocus
         anchors.fill: parent
         anchors.margins: -Style.space(2)
         radius: Style.space(root.compact ? 12 : 15)
         color: "transparent"
-        border.width: 1
-        border.color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b,
-                              root.primary ? 0.28 : 0.18)
+        border.width: root.activeFocus ? 2 : 1
+        border.color: root.activeFocus
+            ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.92)
+            : Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b,
+                      root.primary ? 0.28 : 0.18)
     }
 
     Rectangle {
@@ -40,7 +51,7 @@ Item {
                 position: 0
                 color: root.primary
                     ? Qt.rgba(0.58, 0.45, 1.0, 0.98)
-                    : (hover.hovered || root.selected
+                    : (hover.hovered || root.selected || root.activeFocus
                        ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.22)
                        : Qt.rgba(1, 1, 1, 0.072))
             }
@@ -48,7 +59,7 @@ Item {
                 position: 0.58
                 color: root.primary
                     ? Qt.rgba(0.38, 0.34, 0.94, 0.97)
-                    : (hover.hovered || root.selected
+                    : (hover.hovered || root.selected || root.activeFocus
                        ? Qt.rgba(0.24, 0.27, 0.58, 0.19)
                        : Qt.rgba(0.12, 0.16, 0.28, 0.055))
             }
@@ -56,7 +67,7 @@ Item {
                 position: 1
                 color: root.primary
                     ? Qt.rgba(0.18, 0.56, 0.96, 0.94)
-                    : (hover.hovered || root.selected
+                    : (hover.hovered || root.selected || root.activeFocus
                        ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.10)
                        : Qt.rgba(1, 1, 1, 0.028))
             }
@@ -64,7 +75,7 @@ Item {
         border.width: 1
         border.color: root.primary
             ? Qt.rgba(0.82, 0.82, 1.0, 0.76)
-            : (root.selected
+            : (root.selected || root.activeFocus
                ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.58)
                : Qt.rgba(1, 1, 1, hover.hovered ? 0.17 : 0.11))
 
@@ -106,6 +117,9 @@ Item {
     TapHandler {
         id: tap
         enabled: root.enabled
-        onTapped: root.clicked()
+        onTapped: {
+            root.forceActiveFocus()
+            root.clicked()
+        }
     }
 }
