@@ -11,6 +11,7 @@ on:
       - 'bin/omarchy_friends_*.py'
       - 'bin/omarchy-friends-open'
       - 'BuildNetwork*.qml'
+      - 'FriendsPanel*.qml'
       - 'Glass*.qml'
       - 'BarWidget.qml'
       - 'Panel.qml'
