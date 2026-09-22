@@ -42,6 +42,35 @@ class ReleaseHardeningTests(unittest.TestCase):
         self.assertEqual(successes, 0)
         self.assertIn("blocked: rate-limited", errors[0])
 
+    def test_publish_acknowledgement_timeout_remains_retryable(self):
+        event = {"id": "event-id"}
+
+        class SilentRelay:
+            def __init__(self, _url, timeout):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def send_json(self, _value):
+                pass
+
+            def recv_json(self, timeout):
+                raise TimeoutError("no acknowledgement")
+
+        with patch.object(release.core, "_build_state", return_value={}), \
+             patch.object(release.core, "_identity", return_value={"secret_key": "1"}), \
+             patch.object(release.core, "build_event", return_value=event), \
+             patch.object(release.core, "RELAYS", ("wss://silent.test",)), \
+             patch.object(release.core, "WebSocketClient", SilentRelay):
+            ok, successes, errors, _published = release.core._publish({"id": "item", "type": "idea"})
+        self.assertFalse(ok)
+        self.assertEqual(successes, 0)
+        self.assertIn("acknowledgement timeout", errors[0])
+
     def test_full_retry_queue_does_not_silently_drop_or_claim_retry(self):
         original_build = release.core.BUILD_STATE
         original_store = release._previous_store_and_publish
