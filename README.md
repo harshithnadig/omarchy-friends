@@ -173,6 +173,8 @@ qmllint -I "$OMARCHY_PATH/shell" \
 
 Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, restart/anti-downgrade validation, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
 
+Repository-side scope is frozen. From this point, code changes should be limited to small fixes for failures demonstrated by the real-system checklist.
+
 ## License
 
 MIT License — Omarchy Community Contributors.
