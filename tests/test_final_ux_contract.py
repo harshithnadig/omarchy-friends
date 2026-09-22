@@ -98,6 +98,16 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("border.width: root.activeFocus ? 2 : 1", button)
         self.assertIn("border.width: root.activeFocus ? 2 : 1", pill)
 
+    def test_build_tabs_use_keyboard_accessible_shared_control(self):
+        build = read("BuildNetworkPanelV3.qml")
+        start = build.index('{ id: "discover", label: "Discover" }')
+        end = build.index('visible: root.notice !== ""', start)
+        tab_bar = build[start:end]
+        self.assertIn("GlassPill {", tab_bar)
+        self.assertIn("text: modelData.label", tab_bar)
+        self.assertIn("onClicked: root.tab = modelData.id", tab_bar)
+        self.assertNotIn("TapHandler { onTapped: root.tab = modelData.id }", tab_bar)
+
     def test_no_one_shot_write_patchers_remain(self):
         forbidden = (
             ".github/workflows/request-management-patcher.yml",
@@ -110,6 +120,8 @@ class FinalUxContractTests(unittest.TestCase):
             "scripts/_request_layout_fix.py",
             ".github/workflows/group-visibility-fixer.yml",
             "scripts/_group_visibility_fix.py",
+            ".github/workflows/final-build-tabs-patch.yml",
+            "scripts/_final_build_tabs_patch.py",
         )
         for path in forbidden:
             self.assertFalse((ROOT / path).exists(), path)
