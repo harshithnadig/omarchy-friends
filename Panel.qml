@@ -758,8 +758,15 @@ PopupCard {
                 ]
 
                 Item {
+                    id: tabButton
                     width: parent.width / 4
                     height: parent.height
+                    property bool pressed: false
+                    scale: pressed ? 0.965 : 1
+
+                    Behavior on scale {
+                        NumberAnimation { duration: 110; easing.type: Easing.OutCubic }
+                    }
 
                     Text {
                         anchors.centerIn: parent
@@ -787,6 +794,9 @@ PopupCard {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
+                        onPressed: tabButton.pressed = true
+                        onReleased: tabButton.pressed = false
+                        onCanceled: tabButton.pressed = false
                         onClicked: {
                             if (modelData.id === "profile") root.openProfile()
                             else root.tab = modelData.id
@@ -823,7 +833,16 @@ PopupCard {
             visible: root.tab === "world"
             width: parent.width
             height: visible ? implicitHeight : 0
+            opacity: visible ? 1 : 0
+            scale: visible ? 1 : 0.985
             spacing: Style.space(12)
+
+            Behavior on opacity {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
 
             Item { width: 1; height: Style.space(18) }
 
@@ -1355,7 +1374,16 @@ PopupCard {
             visible: root.tab === "chats"
             width: parent.width
             height: visible ? implicitHeight : 0
+            opacity: visible ? 1 : 0
+            scale: visible ? 1 : 0.985
             spacing: Style.space(12)
+
+            Behavior on opacity {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
             Item { width: 1; height: Style.space(18) }
             Text { text: "Chats"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
             Text { text: "Tap a chat to open it. New here? Find people and say hello. Press ? for help."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
@@ -1549,7 +1577,16 @@ PopupCard {
             visible: root.tab === "community"
             width: parent.width
             height: visible ? implicitHeight : 0
+            opacity: visible ? 1 : 0
+            scale: visible ? 1 : 0.985
             spacing: Style.space(12)
+
+            Behavior on opacity {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
 
             Item { width: 1; height: Style.space(18) }
             Row {
@@ -2166,7 +2203,16 @@ PopupCard {
             visible: root.tab === "profile"
             width: parent.width
             height: visible ? implicitHeight : 0
+            opacity: visible ? 1 : 0
+            scale: visible ? 1 : 0.985
             spacing: Style.space(10)
+
+            Behavior on opacity {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale {
+                NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+            }
 
             Item { width: 1; height: Style.space(18) }
 
