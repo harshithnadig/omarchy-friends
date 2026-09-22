@@ -35,7 +35,14 @@ class TwoUserJourney(unittest.TestCase):
     def deliver(self, sender, receiver, event):
         """A relay handing one published event to the other side."""
         tags = [t[1] for t in event.get("tags", []) if len(t) > 1]
-        if friends_module.GLOBAL_DM_TAG in tags:
+        # Updated Friends peers use NIP-59 kind-1059 gift wraps. During the
+        # migration window, older peers still use the historical tagged kind-4
+        # envelope. The simulated relay must route both to the private-message
+        # ingestion path just like the real subscriptions do.
+        if (
+            friends_module.GLOBAL_DM_TAG in tags
+            or int(event.get("kind", -1)) == friends_module.NIP59_GIFT_WRAP_KIND
+        ):
             result = {"published": True, "presence": [], "pings": [],
                       "messages": [event], "community": []}
         elif friends_module.GLOBAL_COMMUNITY_TAG in tags:
@@ -90,7 +97,15 @@ class TwoUserJourney(unittest.TestCase):
         self.deliver(bob, alice, back[0])
         self.assertEqual(alice.state["global"]["friendships"][self.bkey]["status"], "friends")
 
-        # 4. DMs both directions, each with a popup.
+        # Refresh both presence/capability caches after becoming friends. This
+        # is what the live World sync does before choosing the private transport.
+        peer_a = bob._global_peer_from_event(alice._global_presence_event())
+        peer_b = alice._global_peer_from_event(bob._global_presence_event())
+        bob.state["global"]["peers"][peer_a["public_key"]] = peer_a
+        alice.state["global"]["peers"][peer_b["public_key"]] = peer_b
+
+        # 4. DMs both directions, each with a popup. Capable peers now use
+        # NIP-17/NIP-59; legacy fallback remains covered in unit tests.
         for sender, receiver, skey, text in (
                 (alice, bob, self.bkey, "hey bob"), (bob, alice, self.akey, "hey alice")):
             out = []
@@ -98,7 +113,12 @@ class TwoUserJourney(unittest.TestCase):
                               side_effect=lambda e: out.append(e) or (True, {})):
                 ok, _ = sender.send_dm(skey, text, "")
             self.assertTrue(ok)
-            self.deliver(sender, receiver, out[0])
+            recipient_event = next(
+                e for e in out
+                if int(e.get("kind", -1)) == friends_module.NIP59_GIFT_WRAP_KIND
+                and self._targets(e, receiver.state["global_identity"]["public_key"])
+            )
+            self.deliver(sender, receiver, recipient_event)
             got = [m for m in receiver.state["global"]["messages"] if m["text"] == text]
             self.assertEqual(len(got), 1)
             self.assertTrue(got[0]["incoming"])
@@ -146,6 +166,13 @@ class TwoUserJourney(unittest.TestCase):
             self.assertNotIn(self.bkey, alice.state["global"][store])
         self.assertEqual([m for m in alice.state["global"]["messages"]
                           if m["public_key"] == self.bkey], [])
+
+    @staticmethod
+    def _targets(event, public_key):
+        return any(
+            isinstance(tag, list) and len(tag) >= 2 and tag[0] == "p" and tag[1] == public_key
+            for tag in event.get("tags", [])
+        )
 
 
 if __name__ == "__main__":
