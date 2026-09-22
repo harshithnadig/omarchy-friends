@@ -80,7 +80,7 @@ BarWidget {
         anchors.fill: parent
         bar: root.bar
         horizontalMargin: 6
-        active: root.service && root.service.cowork && root.service.cowork.active
+        active: (root.service && root.service.cowork && root.service.cowork.active) || (root.service && root.service.globalFocus && root.service.globalFocus.active)
         activeColor: "#f59e0b"
         text: {
             if (root.service && root.service.cowork && root.service.cowork.active) {
@@ -89,6 +89,13 @@ BarWidget {
                 var secs = s % 60
                 var padSecs = secs < 10 ? "0" + secs : String(secs)
                 return "🍅 " + mins + ":" + padSecs
+            }
+            if (root.service && root.service.globalFocus && root.service.globalFocus.active) {
+                var g = root.service.globalFocus.remaining_seconds || 0
+                var gm = Math.floor(g / 60)
+                var gs = g % 60
+                var gpad = gs < 10 ? "0" + gs : String(gs)
+                return "🍅 " + gm + ":" + gpad
             }
             var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
             return "👥 " + count
@@ -99,6 +106,11 @@ BarWidget {
                 var bName = root.service.cowork.buddy_name || "yourself"
                 var title = root.service.cowork.mode === "solo" ? "🍅 Quiet focus" : "🍅 Co-Working with " + bName
                 return title + " (" + Math.ceil(s / 60) + "m left)\nClick to open Friends Deck"
+            }
+            if (root.service && root.service.globalFocus && root.service.globalFocus.active) {
+                var g = root.service.globalFocus.remaining_seconds || 0
+                var gb = root.service.globalFocus.buddy_name || "a builder"
+                return "🍅 World focus with " + gb + " (" + Math.ceil(g / 60) + "m left)\nClick to open Friends Deck"
             }
             var count = root.service && root.service.onlineCount !== undefined ? root.service.onlineCount : 0
             var handle = root.service && root.service.profile ? root.service.profile.handle : "Me"

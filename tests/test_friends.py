@@ -848,6 +848,86 @@ class TestFriendsEngine(unittest.TestCase):
             self.engine._remember_memory_signal(peer_key, "focus_accept", "sent", "Pal", "🦊")
         self.assertEqual(self.engine.state["global"]["memory"][peer_key]["focus_streak"], 2)
 
+    def test_blocked_peer_cannot_dm_or_appear_in_circles(self):
+        peer_key = friends_module.generate_keypair()["public_key"]
+        self.engine.state["global"]["friendships"][peer_key] = {"status": "friends", "handle": "Spammer", "avatar": "🦊"}
+        self.engine.state["global"]["messages"].append({"id": "c" * 64, "public_key": peer_key, "handle": "Spammer", "text": "old", "media": [], "timestamp": int(time.time()), "incoming": True})
+        ok, _ = self.engine.block_global(peer_key)
+        self.assertTrue(ok)
+        self.assertNotIn(peer_key, self.engine.state["global"]["friendships"])
+        self.assertEqual(self.engine.state["global"]["messages"], [])
+        # A late-arriving DM or Circles note from them is dropped silently.
+        fake_dm = {"id": "d" * 64, "public_key": peer_key, "handle": "Spammer", "text": "hi", "media": [], "timestamp": int(time.time()), "incoming": True}
+        with patch.object(self.engine, "_global_dm_from_event", return_value=fake_dm):
+            self.assertFalse(self.engine._ingest_global_dm({"id": "raw"}))
+        self.assertEqual(self.engine.state["global"]["messages"], [])
+        fake_room = {"id": "e" * 64, "public_key": peer_key, "handle": "Spammer", "avatar": "🦊", "text": "spam", "timestamp": int(time.time()), "incoming": True}
+        with patch.object(self.engine, "_global_community_from_event", return_value=fake_room):
+            self.assertFalse(self.engine._ingest_global_community({"id": "raw"}))
+        self.assertEqual(self.engine.state["global"]["community"], [])
+
+    def test_own_community_post_is_not_duplicated_on_refetch(self):
+        published = []
+        with patch.object(
+            self.engine, "_publish_global_event",
+            side_effect=lambda event: published.append(event) or (True, {}),
+        ):
+            ok, _ = self.engine.send_community_message("my own note")
+        self.assertTrue(ok)
+        self.assertEqual(len(self.engine.state["global"]["community"]), 1)
+        relay_result = {"published": True, "presence": [], "pings": [], "messages": [], "community": published}
+        with patch.object(self.engine, "_global_relay_sync", return_value=relay_result):
+            ok, _ = self.engine.sync_global()
+        self.assertTrue(ok)
+        texts = [item["text"] for item in self.engine.state["global"]["community"]]
+        self.assertEqual(texts.count("my own note"), 1)
+
+    def test_automatic_signals_rotate_instead_of_hammering_top_peer(self):
+        key_a = friends_module.generate_keypair()["public_key"]
+        key_b = friends_module.generate_keypair()["public_key"]
+        peers = [{"public_key": key_a, "handle": "A"}, {"public_key": key_b, "handle": "B"}]
+        self.engine.state["global"]["sent_pings"] = [{"public_key": key_a, "timestamp": int(time.time())}]
+        self.assertEqual(self.engine._least_recently_pinged(peers)["public_key"], key_b)
+
+    def test_dm_and_community_flood_is_rate_limited(self):
+        peer_key = friends_module.generate_keypair()["public_key"]
+        self.engine.state["global"]["friendships"][peer_key] = {"status": "friends", "handle": "Chatter", "avatar": "🦊"}
+        stored = 0
+        for index in range(20):
+            fake = {"id": f"ab{index:062d}", "public_key": peer_key, "handle": "Chatter",
+                    "avatar": "🦊", "text": f"msg {index}", "timestamp": int(time.time()), "incoming": True}
+            with patch.object(self.engine, "_global_community_from_event", return_value=fake):
+                if self.engine._ingest_global_community({"id": "raw"}):
+                    stored += 1
+        self.assertLessEqual(stored, 12)
+        self.assertLessEqual(len(self.engine.state["global"]["community"]), 12)
+
+    def test_popup_event_ids_keep_full_relay_id(self):
+        event = self.engine._append_event("hello", "👋", "Pal", "🦊", "hi", "a" * 64)
+        self.assertEqual(event["id"], "a" * 64)
+        self.assertEqual(len(self.engine.pop_events()), 1)
+
+    def test_state_survives_concurrent_processes(self):
+        other = friends_module.FriendsEngine(state_dir=self.test_dir)
+        other.state["profile"]["handle"] = "OtherWriter"
+        other.save_state()
+        self.engine.state["profile"]["handle"] = "MainWriter"
+        self.engine.save_state()
+        reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
+        self.assertEqual(reloaded.state["profile"]["handle"], "MainWriter")
+
+    def test_focus_accept_survives_stale_lobby_cache(self):
+        ping = {
+            "id": "f" * 64, "public_key": friends_module.generate_keypair()["public_key"],
+            "handle": "FocusPal", "avatar": "🦊", "action": "focus",
+            "session_id": "s" * 32, "minutes": 25, "timestamp": int(time.time()),
+        }
+        self.engine.state["global"]["pings"] = [dict(ping)]
+        with patch.object(self.engine, "_publish_global_event", return_value=(True, {})):
+            ok, message = self.engine.global_focus_accept(ping["id"])
+        self.assertTrue(ok, message)
+        self.assertEqual(self.engine.state["global_focus"]["buddy_name"], "FocusPal")
+
     def test_conversation_memory_is_bounded(self):
         for _ in range(friends_module.MAX_MEMORY_PEERS + 5):
             key = friends_module.generate_keypair()["public_key"]

@@ -313,7 +313,12 @@ Item {
             root.lastNotice = "Friends update checked"
             root.actionResult(true, "Friends update checked")
             Util.execArgv(["omarchy-shell", "shell", "rescanPlugins"])
+            // Reload background workers so they run the new code, not the old one.
+            daemonProc.running = false
+            listenProc.running = false
             root.refresh()
+            daemonRestartTimer.restart()
+            listenRestartTimer.restart()
         })
     }
 

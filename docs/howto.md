@@ -40,11 +40,12 @@ Press **?** anywhere in the deck for this cheat sheet.
   inside the room field. Same tribe, zero setup.
 * **Invite link 🔗** — Me → Copy invite gives you an
   `omarchy-friends://invite/...` link. Send it anywhere; the other person
-  pastes it into Me → Connect. Works even when you are both offline.
+  pastes it into Me → Connect. Needs a relay connection on both sides, but
+  no shared World presence — the invite finds them directly.
 
 ## Keyboard first
 
-`1–4` tabs · `h/l` switch tab · `j/k` pick a person · `Enter` wave ·
+`1–4` tabs · `h/l` switch tab · in World: `j/k` pick a person · `Enter` wave ·
 `r` refresh World · `?` help · `Esc` close.
 
 ## Privacy in one minute

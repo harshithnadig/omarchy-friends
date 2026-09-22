@@ -41,6 +41,8 @@ PopupCard {
     property string bugText: ""
     property bool menuOpen: false
     property bool helpOpen: false
+    property bool showcaseOpen: false
+    property bool activityOpen: false
     property string handleDraft: ""
     property string projectNameDraft: ""
     property string projectDescDraft: ""
@@ -242,6 +244,14 @@ PopupCard {
         return "Add"
     }
 
+    function acceptAndOpen(request) {
+        if (!request || !root.service) return
+        root.service.acceptFriendRequest(request.id)
+        root.selectedFriendKey = request.public_key
+        root.tab = "chats"
+        Qt.callLater(root.markMessagesRead)
+    }
+
     function activateFriend(peer) {
         if (!peer || !peer.public_key) return
         var friendship = root.friendshipFor(peer.public_key)
@@ -251,8 +261,8 @@ PopupCard {
             return
         }
         var request = root.requestFor(peer.public_key)
-        if (request && root.service) {
-            root.service.acceptFriendRequest(request.id)
+        if (request) {
+            root.acceptAndOpen(request)
             return
         }
         if (!friendship || friendship.status !== "pending") root.askToBeFriends(peer)
@@ -284,6 +294,7 @@ PopupCard {
 
     onTabChanged: {
         if (root.tab === "chats") Qt.callLater(root.markMessagesRead)
+        if (root.tab === "world") root.selectedPeer = 0
     }
 
     function showNotice(message) {
@@ -320,10 +331,10 @@ PopupCard {
         var index = next.indexOf(id)
         if (index >= 0) {
             next.splice(index, 1)
-        } else if (next.length < 5) {
+        } else if (next.length < 4) {
             next.push(id)
         } else {
-            showNotice("Choose up to five interests")
+            showNotice("Choose up to four interests")
             return
         }
         root.interestsDraft = next
@@ -380,8 +391,13 @@ PopupCard {
         var value = root.inviteDraft.trim()
         var prefix = "omarchy-friends://invite/"
         if (value.indexOf(prefix) === 0) value = value.substring(prefix.length)
+        if (/^OMAR-[A-Za-z0-9]{4}-[A-Za-z0-9]{3}$/.test(value.toUpperCase())) {
+            if (root.service) root.service.addFriend(value.toUpperCase())
+            root.inviteDraft = ""
+            return
+        }
         if (!/^[0-9a-fA-F]{64}$/.test(value)) {
-            showNotice("Paste a valid Omarchy Friends invite link")
+            showNotice("Paste an invite link or a Friend Code like OMAR-AB12-C34")
             return
         }
         if (root.service) root.service.requestFriendDirect(value.toLowerCase())
@@ -450,6 +466,7 @@ PopupCard {
             return
         }
         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.tab === "world" && root.visibleWorld().length > 0) {
+            root.selectedPeer = Math.min(root.selectedPeer, root.visibleWorld().length - 1)
             sayHi(root.visibleWorld()[root.selectedPeer])
             event.accepted = true
         }
@@ -475,6 +492,7 @@ PopupCard {
             target: root
             function onOpenChanged() {
                 if (root.open) Qt.callLater(function() { parent.forceActiveFocus() })
+                if (root.open && root.tab === "chats") Qt.callLater(root.markMessagesRead)
             }
         }
 
@@ -485,6 +503,7 @@ PopupCard {
             }
             function onEventReceived(event) {
                 root.showNotice(event && event.message ? event.message : "A builder sent a signal")
+                if (root.open && root.tab === "chats") Qt.callLater(root.markMessagesRead)
             }
         }
     }
@@ -493,123 +512,12 @@ PopupCard {
         id: contentScroller
         anchors.fill: parent
         contentWidth: width
-        contentHeight: Math.max(deck.implicitHeight, communityPanel.y + communityPanel.implicitHeight)
+        contentHeight: deck.implicitHeight
         clip: true
         interactive: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-        Column {
-            id: communityPanel
-            visible: false
-            width: parent.width
-            height: visible ? implicitHeight : 0
-            y: deck.y + Style.space(154)
-            z: 1
-            spacing: Style.space(12)
-
-            Item { width: 1; height: Style.space(18) }
-            Row {
-                width: parent.width
-                height: Style.space(42)
-                Column {
-                    width: parent.width - communityRefreshButton.width - Style.space(8)
-                    spacing: Style.space(2)
-                    Text { text: "Community"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                    Text { text: "A public room for Omarchy builders."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                }
-                Rectangle {
-                    id: communityRefreshButton
-                    width: communityRefreshText.implicitWidth + Style.space(18)
-                    height: Style.space(28)
-                    radius: height / 2
-                    color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text { id: communityRefreshText; anchors.centerIn: parent; text: "Refresh"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.refreshGlobal() }
-                }
-            }
-
-            Rectangle {
-                width: parent.width
-                height: Style.space(40)
-                radius: Style.space(8)
-                color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
-                Text { anchors.fill: parent; anchors.margins: Style.space(10); text: "Everyone using the updated plugin is in this shared room. Messages are public on the relay."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
-            }
-
-            Rectangle {
-                width: parent.width
-                height: Style.space(38)
-                radius: Style.space(8)
-                color: soft
-                TextInput {
-                    anchors.fill: parent
-                    anchors.margins: Style.space(10)
-                    text: root.communityDraft
-                    color: fg
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                    onTextChanged: root.communityDraft = text
-                    onAccepted: root.sendCommunity()
-                }
-                Text { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Chat with everyone…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
-            }
-            Rectangle {
-                width: parent.width
-                height: Style.space(32)
-                radius: height / 2
-                color: accent
-                Text { anchors.centerIn: parent; text: "Send message"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendCommunity() }
-            }
-
-            Column {
-                width: parent.width
-                spacing: Style.space(8)
-                Repeater {
-                    model: root.communityMessages()
-                    Rectangle {
-                        width: parent.width
-                        height: communityMessageColumn.implicitHeight + Style.space(16)
-                        radius: Style.space(9)
-                        color: modelData.incoming ? soft : Qt.rgba(accent.r, accent.g, accent.b, 0.12)
-                        Column {
-                            id: communityMessageColumn
-                            anchors.fill: parent
-                            anchors.margins: Style.space(9)
-                            spacing: Style.space(3)
-                            Row {
-                                width: parent.width
-                                spacing: Style.space(6)
-                                Text { text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                Text { text: modelData.incoming ? "" : " · you"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                            }
-                            Text { width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                visible: root.community.length === 0
-                width: parent.width
-                height: Style.space(110)
-                radius: Style.space(12)
-                color: soft
-                border.width: 1
-                border.color: line
-                Column {
-                    anchors.centerIn: parent
-                    width: parent.width - Style.space(34)
-                    spacing: Style.space(6)
-                    Text { width: parent.width; text: "Start the room."; color: fg; font.family: Style.font.family; font.pixelSize: Style.space(16); font.bold: true; horizontalAlignment: Text.AlignHCenter }
-                    Text { width: parent.width; text: "Say what you are building and give the next person an easy reply."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
-                }
-            }
-
-        }
 
         Column {
             id: deck
@@ -832,7 +740,7 @@ PopupCard {
                 Text { width: parent.width; text: "2 · Chats holds every private conversation. Unread counts appear here."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                 Text { width: parent.width; text: "3 · Circles is the public room. Say hello there before sliding into DMs."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                 Text { width: parent.width; text: "4 · Me is your beacon: name, project, interests. That is how people find you."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                Text { width: parent.width; text: "Keys: 1–4 tabs · h/l switch · j/k pick · Enter wave · r refresh · ? help"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                Text { width: parent.width; text: "Keys: 1 Chats · 2 World · 3 Circles · 4 Me · h/l switch · j/k pick in World · Enter wave in World · r refresh World · ? help"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             }
         }
 
@@ -991,6 +899,67 @@ PopupCard {
             }
 
             Rectangle {
+                visible: root.world.length > 0
+                width: parent.width
+                height: visible ? Style.space(32) : 0
+                radius: height / 2
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.12)
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "✨ Send a World Spark to the best live match"
+                    color: accent
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (root.service) root.service.sparkWorld()
+                }
+            }
+
+            Row {
+                width: parent.width
+                spacing: Style.space(6)
+
+                Repeater {
+                    model: [
+                        { id: "showcase", label: "✦ Showcase", on: root.showcaseOpen },
+                        { id: "activity", label: "Pulse", on: root.activityOpen }
+                    ]
+
+                    Rectangle {
+                        width: sectionToggleText.implicitWidth + Style.space(16)
+                        height: Style.space(28)
+                        radius: height / 2
+                        color: modelData.on ? Qt.rgba(accent.r, accent.g, accent.b, 0.16) : soft
+
+                        Text {
+                            id: sectionToggleText
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            color: modelData.on ? accent : muted
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: modelData.on
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (modelData.id === "showcase") root.showcaseOpen = !root.showcaseOpen
+                                else root.activityOpen = !root.activityOpen
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
                 visible: root.pings.length > 0
                 width: parent.width
                 height: visible ? pingRow.implicitHeight + Style.space(16) : 0
@@ -1013,6 +982,8 @@ PopupCard {
                         width: parent.width - pingButton.width - Style.space(36)
                         text: root.primaryPing() && root.primaryPing().action === "friend_request"
                             ? (root.primaryPing().handle || "Someone") + " wants to chat"
+                            : root.primaryPing() && root.primaryPing().action === "focus"
+                                ? (root.primaryPing().handle || "Someone") + " invited you to focus"
                             : (root.primaryPing() && root.primaryPing().handle ? root.primaryPing().handle + " waved at you" : "Someone waved at you")
                         color: fg
                         font.family: Style.font.family
@@ -1032,7 +1003,9 @@ PopupCard {
                         Text {
                             id: pingText
                             anchors.centerIn: parent
-                            text: root.primaryPing() && root.primaryPing().action === "friend_request" ? "Accept" : "Wave back"
+                            text: root.primaryPing() && root.primaryPing().action === "friend_request" ? "Accept"
+                                : root.primaryPing() && root.primaryPing().action === "focus" ? "Join focus"
+                                : "Wave back"
                             color: bg
                             font.family: Style.font.family
                             font.pixelSize: Style.font.caption
@@ -1042,7 +1015,8 @@ PopupCard {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: if (root.service && root.primaryPing()) {
-                                if (root.primaryPing().action === "friend_request") root.service.acceptFriendRequest(root.primaryPing().id)
+                                if (root.primaryPing().action === "friend_request") root.acceptAndOpen(root.primaryPing())
+                                else if (root.primaryPing().action === "focus") root.service.acceptGlobalFocus(root.primaryPing().id)
                                 else root.service.pingGlobal(root.primaryPing().public_key, "hello")
                             }
                         }
@@ -1146,8 +1120,8 @@ PopupCard {
                         width: parent.width - updateWorldButton.width - Style.space(34)
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(2)
-                        Text { text: root.legacyPeerCount() + " builder" + (root.legacyPeerCount() === 1 ? " needs" : "s need") + " an update for DMs"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                        Text { text: "Update Friends to keep chat invites compatible."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        Text { text: root.legacyPeerCount() + " builder" + (root.legacyPeerCount() === 1 ? " runs" : "s run") + " an older Friends without DMs"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        Text { text: "Stay updated yourself so every invite works."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                     }
 
                     Rectangle {
@@ -1245,6 +1219,18 @@ PopupCard {
                                     text: modelData.status_emoji || "•"
                                     color: accent
                                     font.pixelSize: Style.font.caption
+                                }
+
+                                Text {
+                                    text: "Hide"
+                                    color: muted
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (root.service) root.service.blockGlobal(modelData.public_key)
+                                    }
                                 }
                             }
 
@@ -1394,7 +1380,7 @@ PopupCard {
                             color: accent
                             anchors.verticalCenter: parent.verticalCenter
                             Text { id: acceptRequestText; anchors.centerIn: parent; text: "Accept"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.acceptFriendRequest(modelData.id) }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.acceptAndOpen(modelData) }
                         }
                     }
                 }
@@ -1636,7 +1622,21 @@ PopupCard {
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(6) }
             Text { visible: root.selectedFriend() !== null; text: root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-            Text { visible: root.friendStreak() >= 2; text: "🔥 " + root.friendStreak() + "-day focus streak — keep shipping together"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+            Row {
+                visible: root.selectedFriend() !== null
+                width: parent.width
+                spacing: Style.space(6)
+                Text { visible: root.friendStreak() >= 2; text: "🔥 " + root.friendStreak() + "-day focus streak — keep shipping together"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                Item { width: 1; height: 1; visible: root.friendStreak() >= 2 }
+                Rectangle {
+                    width: focusInviteText.implicitWidth + Style.space(14)
+                    height: Style.space(26)
+                    radius: height / 2
+                    color: soft
+                    Text { id: focusInviteText; anchors.centerIn: parent; text: "🍅 Invite to focus 25m"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
+                }
+            }
             Rectangle {
                 visible: root.selectedFriend() !== null
                 width: parent.width
@@ -1745,7 +1745,7 @@ PopupCard {
 
         Column {
             id: showcasePanel
-            visible: false
+            visible: root.tab === "world" && root.showcaseOpen
             width: parent.width
             height: visible ? implicitHeight : 0
             spacing: Style.space(12)
@@ -1877,6 +1877,21 @@ PopupCard {
                                 wrapMode: Text.WordWrap
                                 elide: Text.ElideRight
                             }
+
+                            Text {
+                                visible: modelData.project_url !== undefined && modelData.project_url !== ""
+                                width: parent.width
+                                text: "↗ " + modelData.project_url
+                                color: accent
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                elide: Text.ElideRight
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.openSharedUrl(modelData.project_url)
+                                }
+                            }
                         }
 
                         Rectangle {
@@ -1968,9 +1983,9 @@ PopupCard {
 
         Column {
             id: activityPanel
-            visible: false
+            visible: root.tab === "world" && root.activityOpen
             width: parent.width
-            height: 0
+            height: visible ? implicitHeight : 0
             spacing: Style.space(12)
 
             Item { width: 1; height: Style.space(18) }
@@ -2252,7 +2267,7 @@ PopupCard {
             }
 
             Text {
-                text: "Choose up to five."
+                text: "Choose up to four."
                 color: muted
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
@@ -2297,6 +2312,55 @@ PopupCard {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: root.toggleInterest(modelData.id)
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: "Hack Circles"
+                color: fg
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+            }
+
+            Text {
+                text: root.profile.room ? "You are in " + root.profile.room + ". Tap to switch or leave." : "Join a temporary tribe. Builders in the same circle find each other."
+                color: muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+            }
+
+            Flow {
+                width: parent.width
+                spacing: Style.space(5)
+
+                Repeater {
+                    model: ["Ship It", "Open Source", "Rice Club", "Night Owls"]
+
+                    Rectangle {
+                        height: Style.space(26)
+                        width: roomChip.implicitWidth + Style.space(14)
+                        radius: height / 2
+                        color: root.profile.room === modelData ? Qt.rgba(accent.r, accent.g, accent.b, 0.2) : soft
+                        border.width: root.profile.room === modelData ? 1 : 0
+                        border.color: accent
+
+                        Text {
+                            id: roomChip
+                            anchors.centerIn: parent
+                            text: modelData
+                            color: root.profile.room === modelData ? accent : muted
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption
+                            font.bold: root.profile.room === modelData
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: if (root.service) root.service.setRoom(root.profile.room === modelData ? "" : modelData)
                         }
                     }
                 }
@@ -2408,6 +2472,24 @@ PopupCard {
 
             Rectangle {
                 width: parent.width
+                height: Style.space(34)
+                radius: Style.space(7)
+                color: soft
+
+                TextInput {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    text: root.projectUrlDraft
+                    color: fg
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    onTextChanged: root.projectUrlDraft = text
+                }
+                Text { visible: root.projectUrlDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(9); anchors.verticalCenter: parent.verticalCenter; text: "Project link https://… (optional)"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+            }
+
+            Rectangle {
+                width: parent.width
                 height: Style.space(38)
                 radius: height / 2
                 color: accent
@@ -2429,7 +2511,7 @@ PopupCard {
 
             Rectangle {
                 width: parent.width
-                height: Style.space(46)
+                height: Style.space(38)
                 radius: Style.space(8)
                 color: soft
 

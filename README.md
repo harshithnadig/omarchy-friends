@@ -3,7 +3,7 @@
 **Omarchy World: find real people who are building on Omarchy right now.**
 
 Friends is a small human layer in the bar. A fresh install creates a memorable
-pseudonymous identity, appears in the Friends tab while it is running, and can
+pseudonymous identity, appears in the World tab while it is running, and can
 receive a friendly wave without anyone having to copy a code. The experience
 is global and federated, with the original LAN radar and co-work tools still
 available when people are nearby.
@@ -24,16 +24,16 @@ or press **?** inside the deck.
   world profile. Incoming waves appear in the deck and as a desktop
   notification. No Friend Code is required.
 * **🤝 Chat invites:** Invite a builder from World, accept chat invites
-  explicitly, and keep accepted people in the Friends tab. The action is named
+  explicitly, and keep accepted people in Chats. The action is named
   **Invite to chat** so it is clear that accepting unlocks messaging.
   You can also open Profile, copy your personal `omarchy-friends://invite/...`
   link, and send it anywhere. The recipient pastes it into **Connect** to send
   a request even when you are not currently visible in their World list.
-* **💬 Community room:** Post short public messages in the Community tab so
+* **💬 Community room:** Post short public messages in Circles so
   builders can meet in one shared room before becoming private friends. Public
   room messages are signed and relay-readable; never share private information.
 * **🔒 Private DMs:** Accepted friends can send short encrypted one-to-one
-  messages from the dedicated Messages tab. Messages are stored locally after
+  messages from the Chats conversation. Messages are stored locally after
   delivery; relays carry only signed ciphertext. Paste an image, video, audio,
   or file URL to share media without uploading a file to a third party.
   Requests, blocks, and visibility remain under the recipient's control.
@@ -49,8 +49,8 @@ or press **?** inside the deck.
 * **💬 Chats:** WhatsApp-easy by design — open Friends and your conversations
   are right there with the latest line, unread counts, and one-tap entry.
   Tap any chat to read and reply; invites waiting for you sit at the top.
-* **⌨️ Friends Deck:** Press `h/l` to move between tabs, `j/k` to select a
-  person, `Enter` to say hello, and `r` to refresh the World. The tab
+* **⌨️ Friends Deck:** Press `h/l` to move between tabs; in World, `j/k` to
+  select a person, `Enter` to wave, and `r` to refresh. The tab
   shortcuts are `1` Chats, `2` World, `3` Circles, and `4` Me.
 * **⚡ Instant delivery:** A live relay listener keeps one subscription open,
   so DMs, waves, and Circle notes arrive in about a second with a desktop
@@ -115,7 +115,7 @@ update prompt with this exact command:
     omarchy plugin update community.omarchy-friends --yes
 
 After updating, reopen Friends or run `omarchy-shell shell rescanPlugins` if
-the new Messages tab does not appear immediately. Older installations remain
+the new Chats tab does not appear immediately. Older installations remain
 visible in World, but cannot accept chat invites until they update.
 
 ### Direct invite links

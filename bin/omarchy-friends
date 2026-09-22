@@ -11,6 +11,7 @@ address, a real name, or an account credential.
 
 import hashlib
 import base64
+import fcntl
 import json
 import os
 import re
@@ -36,7 +37,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.8.0"
+PLUGIN_VERSION = "4.10.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -601,12 +602,26 @@ class FriendsEngine:
 
     def load_state(self):
         data = {}
-        if self.state_file.exists():
-            try:
-                with self.state_file.open("r", encoding="utf-8") as state_file:
-                    data = json.load(state_file)
-            except (OSError, TypeError, ValueError):
-                data = {}
+        lock_file = self.state_dir / ".friends_state.lock"
+        try:
+            with lock_file.open("w", encoding="utf-8") as lock:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_SH)
+                try:
+                    if self.state_file.exists():
+                        try:
+                            with self.state_file.open("r", encoding="utf-8") as state_file:
+                                data = json.load(state_file)
+                        except (OSError, TypeError, ValueError):
+                            data = {}
+                finally:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            if self.state_file.exists():
+                try:
+                    with self.state_file.open("r", encoding="utf-8") as state_file:
+                        data = json.load(state_file)
+                except (OSError, TypeError, ValueError):
+                    data = {}
         state = self._migrate_state(data)
         if not self.state_file.exists() or state != data:
             self.save_state(state)
@@ -1025,7 +1040,7 @@ class FriendsEngine:
     def _normalize_event(self, event):
         if not isinstance(event, dict):
             return None
-        event_id = trim_text(event.get("id"), 40)
+        event_id = trim_text(event.get("id"), 64)
         if not event_id:
             return None
         return {
@@ -1074,7 +1089,22 @@ class FriendsEngine:
         if state is not None:
             self.state = state
         tmp_file = self.state_dir / f".friends_state.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+        lock_file = self.state_dir / ".friends_state.lock"
         try:
+            with lock_file.open("w", encoding="utf-8") as lock:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+                try:
+                    with tmp_file.open("w", encoding="utf-8") as state_file:
+                        json.dump(self.state, state_file, indent=2)
+                        state_file.write("\n")
+                    os.replace(tmp_file, self.state_file)
+                    try:
+                        os.chmod(self.state_file, 0o600)
+                    except OSError:
+                        pass
+                finally:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        except OSError:
             with tmp_file.open("w", encoding="utf-8") as state_file:
                 json.dump(self.state, state_file, indent=2)
                 state_file.write("\n")
@@ -1086,7 +1116,7 @@ class FriendsEngine:
         finally:
             try:
                 tmp_file.unlink()
-            except FileNotFoundError:
+            except (FileNotFoundError, OSError):
                 pass
 
     def get_focus_minutes(self):
@@ -1551,12 +1581,21 @@ class FriendsEngine:
         day_number = now_seconds() // 86400
         return WORLD_PROMPTS[day_number % len(WORLD_PROMPTS)]
 
+    def _least_recently_pinged(self, peers):
+        """Rotate automatic signals across builders instead of hammering peers[0]."""
+        sent = {
+            item.get("public_key"): safe_int(item.get("timestamp"))
+            for item in self.state.get("global", {}).get("sent_pings", [])
+            if isinstance(item, dict)
+        }
+        return min(peers, key=lambda peer: (sent.get(peer.get("public_key"), 0), peer.get("handle", "")))
+
     def global_spark(self):
         """Choose the most promising real peer and send a bounded opener."""
         peers = self._global_peers()
         if not peers:
             return False, "No builders are online yet — refresh the World in a moment"
-        peer = peers[0]
+        peer = self._least_recently_pinged(peers)
         prompt = peer.get("icebreaker") or self._world_prompt()
         ok, message = self.global_ping(peer["public_key"], "spark", prompt)
         if ok:
@@ -1702,6 +1741,10 @@ class FriendsEngine:
         if message:
             self.state["global"].setdefault("community", []).append(message)
             self.state["global"]["community"] = self.state["global"]["community"][-MAX_COMMUNITY_MESSAGES:]
+            processed = self.state["global"].setdefault("processed_event_ids", [])
+            if message["id"] not in processed:
+                processed.append(message["id"])
+                self.state["global"]["processed_event_ids"] = processed[-MAX_SEEN_EVENT_IDS:]
         self.save_state()
         return True, "Posted to the community"
 
@@ -1744,7 +1787,9 @@ class FriendsEngine:
             return False, "Finish your current World focus ritual first"
         peers = self._global_peers()
         requested_key = trim_text(public_key, 64).lower() if public_key else ""
-        peer = next((item for item in peers if item.get("public_key") == requested_key), None) if requested_key else (peers[0] if peers else None)
+        peer = next((item for item in peers if item.get("public_key") == requested_key), None) if requested_key else None
+        if peer is None and peers:
+            peer = self._least_recently_pinged(peers)
         if not peer:
             return False, "No builders are online yet — refresh the World in a moment"
         duration_mins = safe_int(duration_mins, GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120)
@@ -1820,7 +1865,11 @@ class FriendsEngine:
             self.save_state()
             return False, "That focus invite has expired"
         peer = self.state.get("global", {}).get("peers", {}).get(ping.get("public_key"))
-        if not peer or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS:
+        if peer is None or safe_int(peer.get("last_seen")) < now_seconds() - GLOBAL_PEER_TTL_SECONDS:
+            # The invite outlives the lobby cache: a fresh invite proves they
+            # were online moments ago, so accept from the ping itself.
+            peer = None
+        if peer is None and (not ping.get("handle") or not ping.get("public_key")):
             return False, "That builder is no longer online"
         minutes = safe_int(ping.get("minutes"), GLOBAL_FOCUS_DEFAULT_MINUTES, 5, 120)
         ok, message = self.global_ping(
@@ -1828,6 +1877,7 @@ class FriendsEngine:
             "focus_accept",
             session_id=ping.get("session_id"),
             minutes=minutes,
+            allow_offline=True,
         )
         if not ok:
             return False, message
@@ -1984,6 +2034,12 @@ class FriendsEngine:
         message = self._global_dm_from_event(event)
         if not message or message["id"] in processed_ids:
             return False
+        if message["public_key"] in global_state.get("blocked_pubkeys", []):
+            processed_ids.append(message["id"])
+            global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+            return False
+        if not self._allow_global_signal(message["public_key"]):
+            return False
         global_state.setdefault("messages", []).append(message)
         global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
         processed_ids.append(message["id"])
@@ -1998,6 +2054,12 @@ class FriendsEngine:
         processed_ids = global_state.setdefault("processed_event_ids", [])
         message = self._global_community_from_event(event)
         if not message or message["id"] in processed_ids:
+            return False
+        if message["public_key"] in global_state.get("blocked_pubkeys", []):
+            processed_ids.append(message["id"])
+            global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+            return False
+        if not self._allow_global_signal(message["public_key"]):
             return False
         community = global_state.setdefault("community", [])
         community.append(message)
@@ -2097,17 +2159,16 @@ class FriendsEngine:
         global_state = self.state.setdefault("global", {})
         own = parse_plugin_version(PLUGIN_VERSION) or (0, 0, 0)
         latest = own
-        latest_text = PLUGIN_VERSION
         for peer in global_state.get("peers", {}).values():
             if not isinstance(peer, dict):
                 continue
             parsed = parse_plugin_version(peer.get("plugin_version"))
             if parsed and parsed > latest:
                 latest = parsed
-                latest_text = trim_text(peer.get("plugin_version"), 16)
+        latest_text = f"{latest[0]}.{latest[1]}.{latest[2]}"
         available = latest > own
         global_state["update_available"] = available
-        global_state["latest_version"] = latest_text if available else PLUGIN_VERSION
+        global_state["latest_version"] = f"{latest[0]}.{latest[1]}.{latest[2]}" if available else PLUGIN_VERSION
         if available and global_state.get("last_notified_update") != latest_text:
             global_state["last_notified_update"] = latest_text
             self._append_event(
@@ -2232,6 +2293,7 @@ class FriendsEngine:
         """
         relay_index = 0
         last_reload = 0
+        failures = 0
         while True:
             current = time.time()
             if current - last_reload >= 2:
@@ -2240,11 +2302,17 @@ class FriendsEngine:
             if not self.state["profile"].get("privacy", {}).get("share_global", True):
                 self.save_state()
                 return
+            if not GLOBAL_RELAYS:
+                time.sleep(30)
+                continue
             relay_url = GLOBAL_RELAYS[relay_index % len(GLOBAL_RELAYS)]
             relay_index += 1
             try:
                 self._listen_on_relay(relay_url)
+                failures = 0
             except (OSError, ValueError, ssl.SSLError, EOFError):
+                failures += 1
+                time.sleep(min(30, 2 * failures))
                 continue
 
     def _listen_on_relay(self, relay_url):
@@ -2318,18 +2386,21 @@ class FriendsEngine:
                 sub_id = message[1] if len(message) > 1 else ""
                 event = message[2]
                 stored = False
-                if sub_id == ping_sub:
-                    if GLOBAL_DM_TAG in self._event_tag_values(event, "t"):
-                        stored = self._ingest_global_dm(event)
+                try:
+                    if sub_id == ping_sub:
+                        if GLOBAL_DM_TAG in self._event_tag_values(event, "t"):
+                            stored = self._ingest_global_dm(event)
+                        else:
+                            stored = self._ingest_global_ping(event)
+                    elif sub_id == community_sub:
+                        stored = self._ingest_global_community(event)
+                    elif sub_id == presence_sub:
+                        stored = self._ingest_global_presence(event)
+                        if stored:
+                            self._refresh_update_status()
                     else:
-                        stored = self._ingest_global_ping(event)
-                elif sub_id == community_sub:
-                    stored = self._ingest_global_community(event)
-                elif sub_id == presence_sub:
-                    stored = self._ingest_global_presence(event)
-                    if stored:
-                        self._refresh_update_status()
-                else:
+                        continue
+                except (ValueError, TypeError, AttributeError):
                     continue
                 if stored:
                     global_state["last_sync"] = now_seconds()
@@ -2411,8 +2482,11 @@ class FriendsEngine:
         if public_key not in blocked:
             blocked.append(public_key)
         global_state.get("peers", {}).pop(public_key, None)
-        global_state["pings"] = [item for item in global_state.get("pings", []) if item.get("public_key") != public_key]
+        global_state.get("friendships", {}).pop(public_key, None)
         global_state.get("memory", {}).pop(public_key, None)
+        global_state["pings"] = [item for item in global_state.get("pings", []) if item.get("public_key") != public_key]
+        global_state["messages"] = [item for item in global_state.get("messages", []) if item.get("public_key") != public_key]
+        global_state["community"] = [item for item in global_state.get("community", []) if item.get("public_key") != public_key]
         self.save_state()
         return True, "Builder hidden from your world"
 
@@ -2670,7 +2744,7 @@ class FriendsEngine:
 
     def _append_event(self, action, icon, from_name, from_avatar, message, event_id=None):
         event = {
-            "id": trim_text(event_id, 40) or uuid.uuid4().hex,
+            "id": trim_text(event_id, 64) or uuid.uuid4().hex,
             "action": trim_text(action, 16),
             "icon": trim_text(icon, 4),
             "from_name": trim_text(from_name, 24) or "A nearby builder",
@@ -3364,7 +3438,7 @@ def main():
         ok, message = engine.share_rice(sys.argv[2] if len(sys.argv) >= 3 else None)
         print_result(ok, message)
     elif command == "start-cowork":
-        minutes = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 25
+        minutes = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() and len(sys.argv[2]) <= 3 else 25
         target = sys.argv[3] if len(sys.argv) >= 4 else None
         ok, message = engine.start_cowork(minutes, target)
         print_result(ok, message)
