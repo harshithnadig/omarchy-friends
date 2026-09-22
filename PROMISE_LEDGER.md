@@ -179,4 +179,4 @@ If real public relays reject kind-10050/kind-1059 or demand authentication, reco
 
 These unchecked items are external validation gates, not missing repository features. Codex should only implement a minimal fix when an actual gate demonstrates a concrete problem.
 
-When all ten pass, cut v4.15 stable. Do not reopen feature brainstorming for this release.
+When all ten pass, cut v4.15 stable. Do not reopen feature brainstorming for this release, and do not merge `main` without Harshu's explicit instruction.
