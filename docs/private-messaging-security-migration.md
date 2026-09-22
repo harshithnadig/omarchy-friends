@@ -80,7 +80,7 @@ Before calling v4.15 stable:
 
 See `CODEX_REAL_SYSTEM_TEST.md` for the exact procedure.
 
-These are deliberately real-environment validation gates. A failing gate may justify a small targeted fix; a passing gate is not an invitation to add another crypto layer, transport architecture or social feature.
+These are deliberately real-environment validation gates. A failing gate may justify a small targeted fix; a passing gate is not an invitation to add another crypto layer, transport architecture or social feature. This implementation record is frozen for v4.15 unless one of those real tests demonstrates a factual mismatch.
 
 ## Security limitations / wording
 
