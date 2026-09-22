@@ -19,7 +19,7 @@ The existing Friends experience remains focused on people and conversation:
 - **Focus** — bounded 25-minute co-working/focus rituals.
 - **Local Radar** — optional LAN discovery for nearby opted-in Omarchy users.
 
-### Build Network — middle click
+### Build Network — middle click or visible Build button
 
 The Build Network is the workshop layer:
 
@@ -58,11 +58,19 @@ Friends deliberately applies several hard boundaries:
 - failed Build Network publishes are kept locally and retried on a later sync;
 - `Can Help / Pair` availability expires instead of creating stale forever-online helpers.
 
-### Private messaging security
+### Private messaging security — v4.15
 
-Accepted friends can exchange encrypted DMs and encrypted small-group messages through the existing Friends engine. The current implementation predates the Build Network and uses an application-specific secp256k1 shared-secret construction.
+For two current Friends peers, private DMs and small-group messages use the standardized Nostr private-message stack implemented in `bin/omarchy_friends_private.py`:
 
-A migration to a standardized audited Nostr private-message scheme (NIP-44 v2, with NIP-17/NIP-59 evaluated for metadata protection) is tracked separately in `docs/private-messaging-security-migration.md`. Do not market the current implementation as formally audited cryptography.
+- **NIP-44 v2** for authenticated private-message encryption;
+- **NIP-17 kind-14 rumors** for private-message structure;
+- **NIP-59 seals and gift wraps** so the relay-facing event does not expose the real sender, plaintext, group id/name or the other group members.
+
+Friends advertises these capabilities in World presence and selects the standards-based transport when the peer supports it. During the upgrade window, a current client can still **read the historical Friends ciphertext format** and can send the historical kind-4 format to a friend whose current presence does not advertise the new capabilities. This avoids breaking existing friendships just because one side updated first.
+
+The implementation is tested against the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient gift wraps, full FriendsEngine DM delivery, old-peer fallback, and group metadata hiding. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
+
+The compatibility/design record is in `docs/private-messaging-security-migration.md`.
 
 ## Global discovery
 
@@ -132,6 +140,12 @@ Run the normal unit suite:
 python3 -m unittest discover -s tests -v
 ```
 
+Run the private-message standard/engine gates explicitly:
+
+```bash
+python3 -m unittest tests.test_private_messaging tests.test_private_messaging_engine -v
+```
+
 Run the final static/release gate:
 
 ```bash
@@ -152,7 +166,7 @@ qmllint -I "$OMARCHY_PATH/shell" \
 
 ## Release rule
 
-Do **not** merge the Build Network branch solely because Python CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
+Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, two-instance relay synchronization including NIP-17/NIP-59 messaging, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
 
 ## License
 
