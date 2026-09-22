@@ -1,6 +1,6 @@
-# Omarchy Friends Build Network — v4.14 release candidate
+# Omarchy Friends Build Network — v4.15 release candidate
 
-Build Network is the Omarchy-native collaboration layer inside Friends. The v4.14 product scope is frozen; remaining work is real-system validation, not feature invention.
+Build Network is the Omarchy-native collaboration layer inside Friends. The v4.15 product scope is frozen; remaining work is real-system validation, not feature invention.
 
 ## Open it
 
@@ -21,7 +21,9 @@ BarWidget.qml
 
 Core public-object models live in `bin/build_network.py`, `bin/build_network_social.py`, `bin/build_network_v2.py` and `bin/build_network_v3.py`.
 
-## What v4.14 includes
+Private Friends messaging now has a separate standards layer in `bin/omarchy_friends_private.py` using NIP-44 v2 plus NIP-17/NIP-59 for current peers, with bounded legacy compatibility for older Friends installs.
+
+## What v4.15 includes
 
 - Discover feed for recent useful community work without follower/engagement ranking.
 - Ideas -> Build Rooms -> roles/tasks -> testing/shipped lifecycle.
@@ -33,12 +35,14 @@ Core public-object models live in `bin/build_network.py`, `bin/build_network_soc
 - Ship Log, voluntary Update Pulse, events and challenges.
 - External share-text generation and `omarchy-friends://` invite handling.
 - Local save/hide plus reuse of the existing Friends block list.
+- Current-peer private DMs/groups through NIP-44/NIP-17/NIP-59 gift wrapping.
+- Compatibility read/fallback for pre-v4.15 Friends private messages.
 
 ## Federation and release hardening
 
 Public Build Network objects are signed with the existing pseudonymous Friends identity and use Nostr kind `30079` with bounded normalized metadata. Relay copies are de-duplicated and newer author/object versions replace older cached versions.
 
-v4.14 also adds bounded offline retry, stale-helper expiry, corrupt-state quarantine, schema migration backup, longer bounded knowledge lookback, per-author cache fairness, malformed-event metadata/tag/timestamp/content checks, and serialized QML actions so refresh timers cannot race user writes.
+The release also adds bounded offline retry, stale-helper expiry, corrupt-state quarantine, schema migration backup, longer bounded knowledge lookback, per-author cache fairness, malformed-event metadata/tag/timestamp/content checks, and serialized QML actions so refresh timers cannot race user writes.
 
 ## Safety boundary
 
@@ -46,7 +50,7 @@ Build Network cards are public signed metadata. They do **not** remotely execute
 
 Safe optional environment labels are limited to coarse non-identifying information such as Omarchy version, architecture, GPU vendor category and kernel version label, and are only published by explicit user actions that include them.
 
-Private chat stays in the existing Friends messaging layer. Its current encryption is application-specific and is not described as formally audited; standardized NIP-44 migration is intentionally a separate compatibility-tested release.
+Private chat uses standardized Nostr private-message protocol pieces for current peers, but the Friends implementation itself has not received an independent security audit and NIP-44 does not provide forward secrecy. Do not market Friends as an audited/high-assurance secure messenger.
 
 ## Invite handler
 
@@ -56,7 +60,7 @@ Private chat stays in the existing Friends messaging layer. Its current encrypti
 omarchy-friends://invite/<64-hex-public-key>
 ```
 
-The v4.14 runtime installs an idempotent user-local desktop handler using the actual installed plugin path. The final desktop-open behavior still has to be verified on the real Omarchy machine.
+The runtime installs an idempotent user-local desktop handler using the actual installed plugin path. The final desktop-open behavior still has to be verified on the real Omarchy machine.
 
 ## Final validation
 
@@ -66,6 +70,6 @@ Run on the actual Omarchy system:
 bash scripts/release-gate.sh
 ```
 
-Then complete `CODEX_REAL_SYSTEM_TEST.md`, including real `omarchy plugin validate .`, `qmllint`, two-instance relay tests, existing Friends regressions and desktop invite URI opening.
+Then complete `CODEX_REAL_SYSTEM_TEST.md`, including real `omarchy plugin validate .`, `qmllint`, current-to-current NIP-17/NIP-59 messaging, legacy compatibility, Build Network relay tests, existing Friends regressions and desktop invite URI opening.
 
-If those gates pass, cut v4.14 stable. Do not add another feature to this release.
+If those gates pass, cut v4.15 stable. Do not add another feature to this release.
