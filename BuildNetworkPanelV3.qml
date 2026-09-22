@@ -964,7 +964,18 @@ PopupCard {
                         Text { text: "Turn this fix into community memory"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                         GlassSurface {
                             width: parent.width; height: Style.space(92); radius: Style.space(13); fillOpacity: 0.48
-                            TextArea { anchors.fill: parent; anchors.margins: Style.space(8); text: root.solutionDraft; onTextChanged: root.solutionDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: TextEdit.Wrap; background: Item {} ; placeholderText: "What fixed it?" }
+                            TextArea {
+                                anchors.fill: parent
+                                anchors.margins: Style.space(8)
+                                text: root.solutionDraft
+                                onTextChanged: root.solutionDraft = text
+                                color: fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                wrapMode: TextEdit.Wrap
+                                background: Item {}
+                                placeholderText: "What fixed it?"
+                            }
                         }
                         Flow {
                             spacing: Style.space(7)

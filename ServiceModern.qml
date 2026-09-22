@@ -1,4 +1,5 @@
 import QtQuick
+import "."
 
 // Keep the manifest entry point stable while delegating all behavior to the
 // normal Friends service. v4.15 deliberately performs updates only after an
