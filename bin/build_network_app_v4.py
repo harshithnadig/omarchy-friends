@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import sys
 import time
@@ -23,13 +22,7 @@ core = app.base.core
 APP_VERSION = "4.14.0"
 STATE_SCHEMA = 2
 MAX_PENDING = 64
-DURABLE_TYPES = {
-    "solution_card",
-    "setup_card",
-    "setup_component",
-    "ship_post",
-    "project_activity",
-}
+MAX_RETRY_PER_SYNC = 4
 
 _previous_aggregate = app.aggregate_v3
 _previous_store_and_publish = core._store_and_publish
@@ -37,30 +30,140 @@ _previous_refresh_network = core.refresh_network
 
 
 def _blocked_pubkeys():
+    """Reuse the private/social engine's local block list."""
     main = core._main_state()
     global_state = main.get("global", {}) if isinstance(main, dict) else {}
     values = global_state.get("blocked_pubkeys", []) if isinstance(global_state, dict) else []
-    return {
-        str(value).strip().lower()
-        for value in values
-        if isinstance(value, str) and len(value.strip()) == 64
-    }
+    result = set()
+    for value in values:
+        value = str(value or "").strip().lower()
+        if len(value) != 64:
+            continue
+        try:
+            int(value, 16)
+        except ValueError:
+            continue
+        result.add(value)
+    return result
 
 
 def _helper_live(item, now=None):
+    """Availability expires from the most recent signed replacement event."""
     if not isinstance(item, dict) or item.get("status") != "active":
         return False
     now = int(time.time()) if now is None else int(now)
     try:
         created = int(item.get("created_at", 0) or 0)
+        updated = int(item.get("updated_at", 0) or 0)
+        anchor = max(created, updated)
         minutes = max(10, min(240, int(item.get("available_minutes", 30) or 30)))
     except (TypeError, ValueError, OverflowError):
         return False
-    return created > 0 and created + minutes * 60 >= now
+    return anchor > 0 and anchor + minutes * 60 >= now
 
 
 def _not_blocked(item, blocked):
     return not isinstance(item, dict) or str(item.get("public_key", "")).lower() not in blocked
+
+
+def _filtered(values, blocked):
+    return [item for item in values or [] if _not_blocked(item, blocked)]
+
+
+def _recompute_derived(result, blocked):
+    """Blocked authors should not remain visible indirectly through counters/nested data."""
+    help_offers = result.get("help_offers", [])
+    offer_counts = {}
+    for item in help_offers:
+        hid = item.get("help_id", "")
+        offer_counts[hid] = offer_counts.get(hid, 0) + 1
+    for item in result.get("help_requests", []):
+        item["offer_count"] = offer_counts.get(item.get("id", ""), 0)
+
+    verification_counts = {}
+    worked_counts = {}
+    for item in result.get("solution_verifications", []):
+        sid = item.get("solution_id", "")
+        verification_counts[sid] = verification_counts.get(sid, 0) + 1
+        if item.get("result") == "worked":
+            worked_counts[sid] = worked_counts.get(sid, 0) + 1
+    for item in result.get("solutions", []):
+        sid = item.get("id", "")
+        item["verification_count"] = verification_counts.get(sid, 0)
+        item["worked_count"] = worked_counts.get(sid, 0)
+
+    rsvp = {}
+    for item in result.get("event_rsvps", []):
+        eid = item.get("event_id", "")
+        row = rsvp.setdefault(eid, {"going": 0, "interested": 0})
+        response = item.get("response", "interested")
+        if response in row:
+            row[response] += 1
+    for item in result.get("events", []):
+        row = rsvp.get(item.get("id", ""), {"going": 0, "interested": 0})
+        item["going_count"] = row["going"]
+        item["interested_count"] = row["interested"]
+
+    challenge_counts = {}
+    for item in result.get("challenge_joins", []):
+        cid = item.get("challenge_id", "")
+        challenge_counts[cid] = challenge_counts.get(cid, 0) + 1
+    for item in result.get("challenges", []):
+        item["join_count"] = challenge_counts.get(item.get("id", ""), 0)
+
+    # V2/V3 attach children before the release block filter. Filter those nested
+    # lists too so a blocked builder cannot remain visible inside another card.
+    allowed_tasks = result.get("task_updates", [])
+    tasks_by_room = {}
+    for item in allowed_tasks:
+        tasks_by_room.setdefault(item.get("room_id", ""), []).append(item)
+    allowed_activity = result.get("project_activity", [])
+    activity_by_room = {}
+    for item in allowed_activity:
+        activity_by_room.setdefault(item.get("room_id", ""), []).append(item)
+    for room in result.get("build_rooms", []):
+        rid = room.get("id", "")
+        room["task_updates"] = tasks_by_room.get(rid, [])[:24]
+        room["done_count"] = sum(1 for item in room["task_updates"] if item.get("status") == "done")
+        room["blocked_count"] = sum(1 for item in room["task_updates"] if item.get("status") == "blocked")
+        room["project_activity"] = activity_by_room.get(rid, [])[:16]
+
+    components_by_setup = {}
+    for item in result.get("setup_components", []):
+        components_by_setup.setdefault(item.get("setup_id", ""), []).append(item)
+    for setup in result.get("setups", []):
+        setup["shared_components"] = components_by_setup.get(setup.get("id", ""), [])[:24]
+
+    # A blocked author's update report should not continue affecting a local
+    # aggregate after the user has chosen to block them.
+    environment = result.get("environment", {}) if isinstance(result.get("environment"), dict) else {}
+    local_tags = {str(item).casefold() for item in environment.get("tags", []) if item}
+    pulse = {}
+    for report in result.get("update_reports", []):
+        version = report.get("version", "unknown") or "unknown"
+        row = pulse.setdefault(version, {
+            "version": version,
+            "working": 0,
+            "minor_issue": 0,
+            "rolled_back": 0,
+            "total": 0,
+            "matching_working": 0,
+            "matching_minor_issue": 0,
+            "matching_rolled_back": 0,
+            "matching_total": 0,
+        })
+        status = report.get("result")
+        if status in {"working", "minor_issue", "rolled_back"}:
+            row[status] += 1
+        row["total"] += 1
+        remote_tags = {str(item).casefold() for item in report.get("environment_tags", []) if item}
+        if local_tags and remote_tags and local_tags.intersection(remote_tags):
+            row["matching_total"] += 1
+            if status in {"working", "minor_issue", "rolled_back"}:
+                row["matching_" + status] += 1
+    result["update_pulse"] = sorted(
+        pulse.values(), key=lambda row: (row["total"], row["version"]), reverse=True
+    )
 
 
 def aggregate_release(state=None):
@@ -78,7 +181,7 @@ def aggregate_release(state=None):
     for key in public_lists:
         values = result.get(key)
         if isinstance(values, list):
-            result[key] = [item for item in values if _not_blocked(item, blocked)]
+            result[key] = _filtered(values, blocked)
 
     helpers = [
         item for item in result.get("helpers", [])
@@ -90,15 +193,35 @@ def aggregate_release(state=None):
         if item.get("mode") in {"pair", "building"}
     ][:40]
 
-    # Recompute matches after blocked/stale helpers have been removed.
+    _recompute_derived(result, blocked)
+
+    # Recompute matches only after blocked/stale helper availability is gone.
     for request in result.get("help_requests", []):
         request["helper_matches"] = app._match_helpers(request, helpers)
 
     stats = result.setdefault("stats", {})
-    stats["helpers"] = len(helpers)
-    stats["blocked_filtered"] = len(blocked)
+    stats.update({
+        "ideas": len(result.get("ideas", [])),
+        "build_rooms": len(result.get("build_rooms", [])),
+        "setups": len(result.get("setups", [])),
+        "tests": len(result.get("tests", [])),
+        "ships": len(result.get("ship_posts", [])),
+        "solutions": len(result.get("solutions", [])),
+        "help_requests": len(result.get("help_requests", [])),
+        "events": len(result.get("events", [])),
+        "challenges": len(result.get("challenges", [])),
+        "helps": len(result.get("help_offers", [])),
+        "verifications": len(result.get("solution_verifications", [])),
+        "task_updates": len(result.get("task_updates", [])),
+        "helpers": len(helpers),
+        "setup_components": len(result.get("setup_components", [])),
+        "project_activity": len(result.get("project_activity", [])),
+        "blocked_filtered": len(blocked),
+    })
+
     state_obj = state if isinstance(state, dict) else core._build_state()
-    stats["pending_publish"] = len(state_obj.get("pending_publish", [])) if isinstance(state_obj.get("pending_publish"), list) else 0
+    pending = state_obj.get("pending_publish", [])
+    stats["pending_publish"] = len(pending) if isinstance(pending, list) else 0
     result["release"] = {
         "app_version": APP_VERSION,
         "state_schema": int(state_obj.get("schema", 1) or 1),
@@ -179,19 +302,20 @@ core._store_and_publish = _store_and_publish_durable
 
 
 def _retry_pending():
+    """Retry a small oldest-first batch so an outage never freezes the UI for minutes."""
     state = core._build_state()
     pending = state.get("pending_publish", [])
     if not isinstance(pending, list) or not pending:
         return {"retried": 0, "published": 0, "remaining": 0}
 
-    remaining = []
+    queue = [item for item in pending[-MAX_PENDING:] if isinstance(item, dict)]
+    batch = queue[:MAX_RETRY_PER_SYNC]
+    untouched = queue[MAX_RETRY_PER_SYNC:]
+    failed = []
     published = 0
-    retried = 0
     objects = state.setdefault("objects", {})
-    for payload in pending[-MAX_PENDING:]:
-        if not isinstance(payload, dict):
-            continue
-        retried += 1
+
+    for payload in batch:
         try:
             model = core.parse_payload(payload)
             normalized = model.to_payload()
@@ -211,15 +335,20 @@ def _retry_pending():
             state["last_errors"] = errors[:8]
             published += 1
         else:
-            remaining.append(payload)
-    state["pending_publish"] = remaining[-MAX_PENDING:]
+            failed.append(payload)
+
+    state["pending_publish"] = (failed + untouched)[-MAX_PENDING:]
     core._write_json(core.BUILD_STATE, state)
-    return {"retried": retried, "published": published, "remaining": len(remaining)}
+    return {
+        "retried": len(batch),
+        "published": published,
+        "remaining": len(state["pending_publish"]),
+    }
 
 
 def refresh_release():
     retry = _retry_pending()
-    result = _previous_refresh_network()
+    _previous_refresh_network()
     result = aggregate_release(core._build_state())
     result["retry"] = retry
     return result
@@ -228,8 +357,8 @@ def refresh_release():
 core.refresh_network = refresh_release
 
 
-# Live discovery stays bounded, but knowledge should not disappear after one month.
-# A one-year lookback is still capped by the existing relay/query limits.
+# Community memory should outlive a normal live feed. The relay query still has
+# an explicit result cap, so this is bounded even with the longer time window.
 core.LOOKBACK_SECONDS = 365 * 24 * 60 * 60
 
 
@@ -243,6 +372,7 @@ def health_payload():
         "state_schema": state.get("schema", 1),
         "objects": len(state.get("objects", {})) if isinstance(state.get("objects"), dict) else 0,
         "pending_publish": len(state.get("pending_publish", [])) if isinstance(state.get("pending_publish"), list) else 0,
+        "retry_batch_size": MAX_RETRY_PER_SYNC,
         "blocked_filtered": len(_blocked_pubkeys()),
         "active_helpers": len(status.get("helpers", [])),
         "relay_ok": status.get("relay_ok", 0),
