@@ -8,6 +8,9 @@ receive a friendly wave without anyone having to copy a code. The experience
 is global and federated, with the original LAN radar and co-work tools still
 available when people are nearby.
 
+New here? Read **[How to use Friends](docs/howto.md)** — the 60-second tour,
+or press **?** inside the deck.
+
 ## The experience
 
 * **🌍 Omarchy World:** See recently active, real plugin installations across
@@ -54,6 +57,10 @@ available when people are nearby.
   popup — no refresh needed. The periodic World sync remains as backup.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
+* **↻ Fast updates:** Every install advertises its version, so the moment a
+  newer Friends appears in your World you get a banner and one popup —
+  one tap updates. Silent auto-update is a non-goal: updating code always
+  stays your explicit choice.
 * **↺ Conversation memory:** Returning builders feel familiar with a tiny
   local-only note — exchanges, last signal, and friends-since — kept on
   your machine, never published, and cleared when you block someone.

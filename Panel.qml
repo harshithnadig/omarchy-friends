@@ -40,6 +40,7 @@ PopupCard {
     property bool bugOpen: false
     property string bugText: ""
     property bool menuOpen: false
+    property bool helpOpen: false
     property string handleDraft: ""
     property string projectNameDraft: ""
     property string projectDescDraft: ""
@@ -177,6 +178,13 @@ PopupCard {
             }
         }
         return "Say hello"
+    }
+
+    function friendStreak() {
+        var friend = root.selectedFriend()
+        if (!friend || !root.service || !root.service.globalMemory) return 0
+        var entry = root.service.globalMemory[friend.public_key]
+        return entry ? (entry.focus_streak || 0) : 0
     }
 
     function communityMessages() {
@@ -383,7 +391,16 @@ PopupCard {
     function keyPressed(event) {
         if (!root.open) return
         if (event.key === Qt.Key_Escape) {
-            root.close()
+            if (root.helpOpen) {
+                root.helpOpen = false
+            } else {
+                root.close()
+            }
+            event.accepted = true
+            return
+        }
+        if (event.text === "?") {
+            root.helpOpen = !root.helpOpen
             event.accepted = true
             return
         }
@@ -642,6 +659,40 @@ PopupCard {
         }
 
         Rectangle {
+            visible: root.service && root.service.updateInfo && root.service.updateInfo.available
+            width: parent.width
+            height: visible ? updateBannerRow.implicitHeight + Style.space(16) : 0
+            radius: Style.space(9)
+            color: Qt.rgba(accent.r, accent.g, accent.b, 0.12)
+
+            Row {
+                id: updateBannerRow
+                anchors.fill: parent
+                anchors.margins: Style.space(9)
+                spacing: Style.space(8)
+
+                Column {
+                    width: parent.width - updateNowButton.width - Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(2)
+                    Text { text: "↻ Friends " + (root.service.updateInfo.latest || "") + " is out"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                    Text { text: "One tap to update — new chats need it."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                }
+
+                Rectangle {
+                    id: updateNowButton
+                    width: updateNowText.implicitWidth + Style.space(16)
+                    height: Style.space(28)
+                    radius: height / 2
+                    color: accent
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text { id: updateNowText; anchors.centerIn: parent; text: "Update"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
+                }
+            }
+        }
+
+        Rectangle {
             visible: root.menuOpen
             width: parent.width
             height: quickMenuColumn.implicitHeight + Style.space(18)
@@ -761,6 +812,30 @@ PopupCard {
             color: line
         }
 
+        Rectangle {
+            visible: root.helpOpen
+            width: parent.width
+            height: visible ? helpColumn.implicitHeight + Style.space(20) : 0
+            radius: Style.space(10)
+            color: soft
+            border.width: 1
+            border.color: line
+
+            Column {
+                id: helpColumn
+                anchors.fill: parent
+                anchors.margins: Style.space(10)
+                spacing: Style.space(6)
+
+                Text { text: "How Friends works — press ? to close"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                Text { width: parent.width; text: "1 · World shows live builders. Tap Add, they accept, and you are chatting."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                Text { width: parent.width; text: "2 · Chats holds every private conversation. Unread counts appear here."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                Text { width: parent.width; text: "3 · Circles is the public room. Say hello there before sliding into DMs."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                Text { width: parent.width; text: "4 · Me is your beacon: name, project, interests. That is how people find you."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                Text { width: parent.width; text: "Keys: 1–4 tabs · h/l switch · j/k pick · Enter wave · r refresh · ? help"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            }
+        }
+
         Row {
             width: parent.width
             height: Style.space(42)
@@ -859,6 +934,16 @@ PopupCard {
                         font.family: Style.font.family
                         font.pixelSize: Style.font.heading
                         font.bold: true
+                    }
+
+                    Text {
+                        visible: root.service && root.service.worldEvent && root.service.worldEvent.label !== ""
+                        text: "🚀 " + root.service.worldEvent.title + " · " + root.service.worldEvent.label
+                        color: root.service.worldEvent.live ? accent : muted
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        font.bold: root.service.worldEvent.live
+                        elide: Text.ElideRight
                     }
 
                     Text {
@@ -1240,7 +1325,47 @@ PopupCard {
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(18) }
             Text { text: "Chats"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            Text { text: "Tap a chat to open it. New here? Find people and say hello."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Text { text: "Tap a chat to open it. New here? Find people and say hello. Press ? for help."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Rectangle {
+                visible: root.service && root.service.inviteNudge
+                width: parent.width
+                height: visible ? inviteNudgeRow.implicitHeight + Style.space(16) : 0
+                radius: Style.space(9)
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.12)
+                Row {
+                    id: inviteNudgeRow
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(8)
+                    Column {
+                        width: parent.width - inviteNudgeCopy.width - inviteNudgeLater.width - Style.space(16)
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Style.space(2)
+                        Text { text: "🎉 First chat sent!"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        Text { text: "Builders you invite become your people."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                    }
+                    Rectangle {
+                        id: inviteNudgeCopy
+                        width: inviteNudgeCopyText.implicitWidth + Style.space(14)
+                        height: Style.space(28)
+                        radius: height / 2
+                        color: accent
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text { id: inviteNudgeCopyText; anchors.centerIn: parent; text: "Copy invite"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
+                    }
+                    Rectangle {
+                        id: inviteNudgeLater
+                        width: inviteNudgeLaterText.implicitWidth + Style.space(14)
+                        height: Style.space(28)
+                        radius: height / 2
+                        color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text { id: inviteNudgeLaterText; anchors.centerIn: parent; text: "Later"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.dismissNudge() }
+                    }
+                }
+            }
             Text { visible: root.incomingFriendRequests().length > 0; text: "Pending requests"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Repeater {
                 model: root.incomingFriendRequests()
@@ -1372,6 +1497,16 @@ PopupCard {
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
                         }
                     }
+
+                    Rectangle {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: soloFocusText.implicitWidth + Style.space(20)
+                        height: Style.space(30)
+                        radius: height / 2
+                        color: soft
+                        Text { id: soloFocusText; anchors.centerIn: parent; text: "🍅 Start a 25m focus instead"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.startCowork(25) }
+                    }
                 }
             }
         }
@@ -1501,6 +1636,7 @@ PopupCard {
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(6) }
             Text { visible: root.selectedFriend() !== null; text: root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Text { visible: root.friendStreak() >= 2; text: "🔥 " + root.friendStreak() + "-day focus streak — keep shipping together"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
             Rectangle {
                 visible: root.selectedFriend() !== null
                 width: parent.width

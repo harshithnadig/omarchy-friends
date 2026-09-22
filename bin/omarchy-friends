@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.6.0"
+PLUGIN_VERSION = "4.8.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -250,6 +250,23 @@ def safe_int(value, default=0, minimum=None, maximum=None):
     if maximum is not None:
         parsed = min(maximum, parsed)
     return parsed
+
+
+def parse_plugin_version(value):
+    """Parse a dotted version like 4.6.0 into a comparable tuple. Returns None when invalid."""
+    parts = trim_text(value, 16).split(".")
+    if len(parts) not in (2, 3):
+        return None
+    numbers = []
+    for part in parts:
+        if not part.isdigit():
+            return None
+        numbers.append(int(part))
+    while len(numbers) < 3:
+        numbers.append(0)
+    if any(number > 999 for number in numbers):
+        return None
+    return tuple(numbers)
 
 
 def normalize_code(value):
@@ -566,6 +583,8 @@ class FriendsEngine:
             },
             "cowork_invites": [],
             "global_focus": self._empty_global_focus(),
+            "invite_nudge": False,
+            "invite_nudge_dismissed": False,
             "events": [],
             "seen_event_ids": [],
             "signal_receipts": [],
@@ -656,6 +675,9 @@ class FriendsEngine:
             global_state["last_sync"] = safe_int(old_global.get("last_sync"))
             global_state["last_publish"] = safe_int(old_global.get("last_publish"))
             global_state["last_error"] = trim_text(old_global.get("last_error"), 180)
+            global_state["update_available"] = bool(old_global.get("update_available", False))
+            global_state["latest_version"] = trim_text(old_global.get("latest_version"), 16)
+            global_state["last_notified_update"] = trim_text(old_global.get("last_notified_update"), 16)
             global_state["relays"] = {
                 trim_text(relay_url, 180): {
                     "online": bool(info.get("online")),
@@ -809,6 +831,8 @@ class FriendsEngine:
                     {"code": receipt_code, "timestamp": receipt_timestamp}
                 )
         state["signal_receipts"] = signal_receipts[-MAX_SIGNAL_RECEIPTS:]
+        state["invite_nudge"] = bool(data.get("invite_nudge", False))
+        state["invite_nudge_dismissed"] = bool(data.get("invite_nudge_dismissed", False))
 
         old_stats = data.get("stats")
         if isinstance(old_stats, dict):
@@ -1337,6 +1361,8 @@ class FriendsEngine:
             "dms_sent": safe_int(entry.get("dms_sent"), maximum=100000),
             "dms_received": safe_int(entry.get("dms_received"), maximum=100000),
             "focus_shared": safe_int(entry.get("focus_shared"), maximum=100000),
+            "focus_streak": safe_int(entry.get("focus_streak"), maximum=3650),
+            "focus_last_day": safe_int(entry.get("focus_last_day")),
             "last_action": trim_text(entry.get("last_action"), 16),
             "last_direction": trim_text(entry.get("last_direction"), 8) if trim_text(entry.get("last_direction"), 8) in ("sent", "received") else "",
             "last_at": safe_int(entry.get("last_at")),
@@ -1404,6 +1430,13 @@ class FriendsEngine:
         elif action in ("focus", "focus_accept"):
             if action == "focus_accept":
                 entry["focus_shared"] = safe_int(entry.get("focus_shared")) + 1
+                day = now // 86400
+                last_day = safe_int(entry.get("focus_last_day"))
+                if last_day == day - 1:
+                    entry["focus_streak"] = safe_int(entry.get("focus_streak")) + 1
+                elif last_day != day:
+                    entry["focus_streak"] = 1
+                entry["focus_last_day"] = day
             else:
                 entry["waves_" + suffix] = safe_int(entry.get("waves_" + suffix)) + 1
         elif action == "focus_cancel":
@@ -1439,6 +1472,7 @@ class FriendsEngine:
         )
         familiar = bool(safe_int(entry.get("encounters")) > 1 or exchanges > 0 or safe_int(entry.get("friends_since")))
         summary = ""
+        streak = safe_int(entry.get("focus_streak"))
         if familiar:
             parts = []
             if exchanges > 0:
@@ -1447,6 +1481,8 @@ class FriendsEngine:
                 parts.append(f"seen {safe_int(entry.get('encounters'))}x")
             if safe_int(entry.get("friends_since")):
                 parts.append("friends")
+            if streak >= 2:
+                parts.append(f"🔥 {streak}-day focus streak")
             last_at = safe_int(entry.get("last_at") or entry.get("last_seen"))
             if last_at:
                 parts.append(f"last {trim_text(entry.get('last_action'), 16) or 'seen'} {format_age(last_at)}")
@@ -1456,6 +1492,7 @@ class FriendsEngine:
             "exchanges": exchanges,
             "encounters": safe_int(entry.get("encounters")),
             "friends_since": safe_int(entry.get("friends_since")),
+            "focus_streak": streak,
             "last_action": trim_text(entry.get("last_action"), 16),
             "last_direction": entry.get("last_direction") if entry.get("last_direction") in ("sent", "received") else "",
             "last_at": safe_int(entry.get("last_at") or entry.get("last_seen")),
@@ -1496,7 +1533,7 @@ class FriendsEngine:
             item["common_ground"] = self._common_ground(item, active_app)
             item["icebreaker"] = self._icebreaker(item)
             entry = memory.get(item.get("public_key"), {})
-            item["memory"] = self._memory_summary(entry) if entry else {"familiar": False, "exchanges": 0, "encounters": 0, "friends_since": 0, "last_action": "", "last_direction": "", "last_at": 0, "last_ago": "never", "first_seen": 0, "summary": ""}
+            item["memory"] = self._memory_summary(entry) if entry else {"familiar": False, "exchanges": 0, "encounters": 0, "friends_since": 0, "focus_streak": 0, "last_action": "", "last_direction": "", "last_at": 0, "last_ago": "never", "first_seen": 0, "summary": ""}
             peers.append(item)
         own_interests = set(profile.get("interests", []))
         peers.sort(
@@ -1622,6 +1659,8 @@ class FriendsEngine:
         self.state["global"].setdefault("messages", []).append({"id": event["id"], "public_key": public_key, "handle": friend.get("handle", "Friend"), "text": text, "media": media, "timestamp": now_seconds(), "incoming": False})
         self.state["global"]["messages"] = self.state["global"]["messages"][-MAX_MESSAGES:]
         self._remember_memory_signal(public_key, "dm", "sent", friend.get("handle", ""), "")
+        if not self.state.get("invite_nudge_dismissed"):
+            self.state["invite_nudge"] = True
         self.save_state()
         return True, "Private message sent"
 
@@ -2047,6 +2086,67 @@ class FriendsEngine:
             return True
         return False
 
+    def _refresh_update_status(self):
+        """Compare our plugin version against live World peers.
+
+        When a newer version is seen, flag it and raise one popup per version
+        so the deck banner and a desktop notification point at one-click Update.
+        Silent auto-update is deliberately avoided: updating code always stays
+        the user's explicit choice.
+        """
+        global_state = self.state.setdefault("global", {})
+        own = parse_plugin_version(PLUGIN_VERSION) or (0, 0, 0)
+        latest = own
+        latest_text = PLUGIN_VERSION
+        for peer in global_state.get("peers", {}).values():
+            if not isinstance(peer, dict):
+                continue
+            parsed = parse_plugin_version(peer.get("plugin_version"))
+            if parsed and parsed > latest:
+                latest = parsed
+                latest_text = trim_text(peer.get("plugin_version"), 16)
+        available = latest > own
+        global_state["update_available"] = available
+        global_state["latest_version"] = latest_text if available else PLUGIN_VERSION
+        if available and global_state.get("last_notified_update") != latest_text:
+            global_state["last_notified_update"] = latest_text
+            self._append_event(
+                "update", "↻", "Omarchy Friends", "👾",
+                f"Friends {latest_text} is out (you have {PLUGIN_VERSION}). Open the deck and tap Update.",
+            )
+        return available
+
+    @staticmethod
+    def _world_event():
+        """The weekly Ship-It Friday hour all builders share. Fridays 18:00 UTC, one hour."""
+        now = now_seconds()
+        days = time.gmtime(now)
+        # Monday=0 … Sunday=6; Friday=4.
+        weekday = days.tm_wday
+        midnight = now - (days.tm_hour * 3600 + days.tm_min * 60 + days.tm_sec)
+        days_until_friday = (4 - weekday) % 7
+        friday_18 = midnight + days_until_friday * 86400 + 18 * 3600
+        if now >= friday_18 and now < friday_18 + 3600:
+            return {"title": "Ship-It Friday", "live": True, "label": "Live now — open World and say hello"}
+        if now >= friday_18 + 3600:
+            friday_18 += 7 * 86400
+        delta = friday_18 - now
+        days_left, remainder = divmod(delta, 86400)
+        hours_left = remainder // 3600
+        if days_left > 0:
+            label = f"In {days_left}d {hours_left}h — every Friday 18:00 UTC"
+        elif hours_left > 0:
+            label = f"In {hours_left}h — every Friday 18:00 UTC"
+        else:
+            label = "Starting in under an hour — every Friday 18:00 UTC"
+        return {"title": "Ship-It Friday", "live": False, "label": label}
+
+    def dismiss_nudge(self):
+        self.state["invite_nudge"] = False
+        self.state["invite_nudge_dismissed"] = True
+        self.save_state()
+        return True
+
     def sync_global(self):
         """Publish the current presence and refresh the public lobby."""
         global_state = self.state.setdefault("global", {})
@@ -2114,6 +2214,7 @@ class FriendsEngine:
             global_state["last_error"] = "No public relay answered" if not errors else trim_text(errors[0], 180)
         global_state["relays"] = relay_status
         self._cleanup_global_peers()
+        self._refresh_update_status()
         self.save_state()
         if successes and published:
             return True, f"Visible to the Omarchy World ({len(self._global_peers())} online)"
@@ -2152,6 +2253,7 @@ class FriendsEngine:
         presence_event = self._global_presence_event()
         ping_sub = "ofl" + uuid.uuid4().hex[:12]
         community_sub = "ofcl" + uuid.uuid4().hex[:12]
+        presence_sub = "ofpl" + uuid.uuid4().hex[:12]
         started_at = now_seconds()
         with WebSocketClient(relay_url, timeout=5.0) as relay:
             relay.send_json(["EVENT", presence_event])
@@ -2172,6 +2274,15 @@ class FriendsEngine:
                     "#t": [GLOBAL_COMMUNITY_TAG],
                     "since": max(0, started_at - 300),
                     "limit": 20,
+                },
+            ])
+            relay.send_json([
+                "REQ", presence_sub,
+                {
+                    "kinds": [GLOBAL_PRESENCE_KIND],
+                    "#t": ["omarchy-friends"],
+                    "since": max(0, started_at - GLOBAL_PEER_TTL_SECONDS),
+                    "limit": GLOBAL_MAX_PEERS,
                 },
             ])
             global_state["relays"][relay_url] = {"online": True, "accepted": True}
@@ -2214,6 +2325,10 @@ class FriendsEngine:
                         stored = self._ingest_global_ping(event)
                 elif sub_id == community_sub:
                     stored = self._ingest_global_community(event)
+                elif sub_id == presence_sub:
+                    stored = self._ingest_global_presence(event)
+                    if stored:
+                        self._refresh_update_status()
                 else:
                     continue
                 if stored:
@@ -3099,6 +3214,13 @@ class FriendsEngine:
             "global_messages": global_state.get("messages", []),
             "global_community": global_state.get("community", []),
             "global_memory": global_state.get("memory", {}),
+            "update": {
+                "available": bool(global_state.get("update_available", False)),
+                "current": PLUGIN_VERSION,
+                "latest": trim_text(global_state.get("latest_version") or PLUGIN_VERSION, 16),
+            },
+            "invite_nudge": bool(self.state.get("invite_nudge", False) and not self.state.get("invite_nudge_dismissed", False)),
+            "world_event": self._world_event(),
             "global_status": {
                 "visible": bool(privacy.get("share_global", True)),
                 "online_count": len(global_peers),
@@ -3325,6 +3447,8 @@ def main():
         print(json.dumps({"events": engine.pop_events()}))
     elif command == "daemon":
         engine.run_daemon()
+    elif command == "dismiss-nudge":
+        print_result(engine.dismiss_nudge(), "Noted — enjoy your chats")
     elif command == "listen-global":
         engine.listen_global()
     else:

@@ -785,6 +785,69 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertTrue(ok)
         self.assertNotIn(peer_key, migrated.state["global"].get("memory", {}))
 
+    def test_update_detector_flags_newer_world_version_once(self):
+        self.assertEqual(friends_module.parse_plugin_version("4.6.0"), (4, 6, 0))
+        self.assertEqual(friends_module.parse_plugin_version("4.6"), (4, 6, 0))
+        self.assertIsNone(friends_module.parse_plugin_version("latest"))
+        self.assertIsNone(friends_module.parse_plugin_version("4.6.0.1"))
+        peer_key = friends_module.generate_keypair()["public_key"]
+        self.engine.state["global"]["peers"][peer_key] = {"public_key": peer_key, "plugin_version": "99.0.0", "last_seen": int(time.time())}
+        self.assertTrue(self.engine._refresh_update_status())
+        status = self.engine.get_full_status()
+        self.assertTrue(status["update"]["available"])
+        self.assertEqual(status["update"]["latest"], "99.0.0")
+        self.assertEqual(status["update"]["current"], friends_module.PLUGIN_VERSION)
+        notified = len(self.engine.pop_events())
+        self.assertEqual(notified, 1)
+        # Same version twice must not spam another popup.
+        self.assertTrue(self.engine._refresh_update_status())
+        self.assertEqual(len(self.engine.pop_events()), 0)
+        # Nobody newer anymore — the banner clears.
+        self.engine.state["global"]["peers"] = {}
+        self.assertFalse(self.engine._refresh_update_status())
+        self.assertFalse(self.engine.get_full_status()["update"]["available"])
+
+    def test_first_dm_raises_invite_nudge_until_dismissed(self):
+        receiver_dir = tempfile.mkdtemp()
+        receiver = friends_module.FriendsEngine(state_dir=receiver_dir)
+        try:
+            receiver_key = receiver.state["global_identity"]["public_key"]
+            self.engine.state["global"]["friendships"][receiver_key] = {"status": "friends", "handle": "Receiver", "avatar": "🦊"}
+            self.assertFalse(self.engine.get_full_status()["invite_nudge"])
+            with patch.object(self.engine, "_publish_global_event", return_value=(True, {})):
+                ok, _ = self.engine.send_dm(receiver_key, "first hello", "")
+            self.assertTrue(ok)
+            self.assertTrue(self.engine.get_full_status()["invite_nudge"])
+            self.assertTrue(self.engine.dismiss_nudge())
+            self.assertFalse(self.engine.get_full_status()["invite_nudge"])
+            # A restart keeps the dismissal.
+            restarted = friends_module.FriendsEngine(state_dir=self.test_dir)
+            self.assertFalse(restarted.get_full_status()["invite_nudge"])
+        finally:
+            shutil.rmtree(receiver_dir, ignore_errors=True)
+
+    def test_world_event_is_always_a_friday_shape(self):
+        event = friends_module.FriendsEngine._world_event()
+        self.assertEqual(event["title"], "Ship-It Friday")
+        self.assertIsInstance(event["live"], bool)
+        self.assertTrue(event["label"])
+        self.assertIn("Friday", self.engine.get_full_status()["world_event"]["label"])
+
+    def test_focus_streak_counts_consecutive_days(self):
+        peer_key = friends_module.generate_keypair()["public_key"]
+        day_one = 100 * 86400 + 3600
+        day_two = 101 * 86400 + 3600
+        with patch.object(friends_module, "now_seconds", return_value=day_one):
+            self.engine._remember_memory_signal(peer_key, "focus_accept", "sent", "Pal", "🦊")
+        entry = self.engine.state["global"]["memory"][peer_key]
+        self.assertEqual(entry["focus_streak"], 1)
+        with patch.object(friends_module, "now_seconds", return_value=day_one + 7200):
+            self.engine._remember_memory_signal(peer_key, "focus_accept", "sent", "Pal", "🦊")
+        self.assertEqual(self.engine.state["global"]["memory"][peer_key]["focus_streak"], 1)
+        with patch.object(friends_module, "now_seconds", return_value=day_two):
+            self.engine._remember_memory_signal(peer_key, "focus_accept", "sent", "Pal", "🦊")
+        self.assertEqual(self.engine.state["global"]["memory"][peer_key]["focus_streak"], 2)
+
     def test_conversation_memory_is_bounded(self):
         for _ in range(friends_module.MAX_MEMORY_PEERS + 5):
             key = friends_module.generate_keypair()["public_key"]

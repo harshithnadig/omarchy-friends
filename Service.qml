@@ -43,6 +43,9 @@ Item {
     property var globalMessages: []
     property var globalCommunity: []
     property var globalMemory: ({})
+    property var updateInfo: ({ available: false, current: "", latest: "" })
+    property bool inviteNudge: false
+    property var worldEvent: ({ title: "Ship-It Friday", live: false, label: "" })
     property var globalStatus: ({ visible: true, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     property string worldPrompt: "What tiny thing are you making better today?"
     property var globalFocus: ({ status: "idle", active: false, pending: false, buddy_name: "", buddy_avatar: "", remaining_seconds: 0, total_seconds: 0 })
@@ -321,6 +324,10 @@ Item {
         })
     }
 
+    function dismissNudge() {
+        runAction([root.binPath, "dismiss-nudge"], function() { root.refresh() })
+    }
+
     function copyFriendCode() {
         copyProc.command = ["wl-copy", root.profile.code || ""]
         copyProc.running = true
@@ -407,6 +414,9 @@ Item {
                     if (data.global_messages) root.globalMessages = data.global_messages
                     if (data.global_community) root.globalCommunity = data.global_community
                     if (data.global_memory) root.globalMemory = data.global_memory
+                    if (data.update) root.updateInfo = data.update
+                    if (data.invite_nudge !== undefined) root.inviteNudge = data.invite_nudge
+                    if (data.world_event) root.worldEvent = data.world_event
                     if (data.global_status) root.globalStatus = data.global_status
                     if (data.world_prompt) root.worldPrompt = data.world_prompt
                     if (data.global_focus) root.globalFocus = data.global_focus
