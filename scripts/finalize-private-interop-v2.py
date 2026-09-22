@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the final private interop patch with one intentional two-site wording edit."""
+"""Run the final private interop patch with guarded compatibility edits."""
 
 from pathlib import Path
 import runpy
@@ -18,8 +18,20 @@ def patch_resource_limit_wording():
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+def patch_capability_capacity():
+    path = ROOT / "bin" / "omarchy-friends"
+    text = path.read_text(encoding="utf-8")
+    old = '''        if isinstance(raw_capabilities, list):\n            capabilities = [\n                trim_text(item, 32)\n                for item in raw_capabilities\n                if isinstance(item, str) and trim_text(item, 32)\n            ][:8]\n'''
+    new = '''        if isinstance(raw_capabilities, list):\n            capabilities = [\n                trim_text(item, 32)\n                for item in raw_capabilities\n                if isinstance(item, str) and trim_text(item, 32)\n            ][:12]\n'''
+    count = text.count(old)
+    if count != 1:
+        raise RuntimeError(f"global capability capacity: expected one match, found {count}")
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
 def main():
     patch_resource_limit_wording()
+    patch_capability_capacity()
     patcher = runpy.run_path(str(ROOT / "scripts" / "finalize-private-interop.py"))
     # patch_private_module() is deliberately skipped: its only two edits were
     # the paired wording replacements handled above.
