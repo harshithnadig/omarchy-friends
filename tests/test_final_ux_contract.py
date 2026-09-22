@@ -29,7 +29,7 @@ class FinalUxContractTests(unittest.TestCase):
     def test_build_network_does_not_resend_request_to_existing_friend(self):
         build = read("BuildNetworkPanelV3.qml")
         start = build.index("function connectBuilder(publicKey)")
-        end = build.index("function", start + len("function connectBuilder(publicKey)"))
+        end = build.index("function repoIssues", start)
         body = build[start:end]
         friend_branch = body.split('relation.status === "friends"', 1)[1].split("var incoming", 1)[0]
         self.assertIn("openFriendChat(publicKey)", friend_branch)
