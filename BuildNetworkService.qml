@@ -5,7 +5,7 @@ import Quickshell.Io
 Item {
     id: root
 
-    readonly property string runtimePath: Qt.resolvedUrl("bin/build_network_app_v2.py").toString().replace(/^file:\/\//, "")
+    readonly property string runtimePath: Qt.resolvedUrl("bin/build_network_app_v3.py").toString().replace(/^file:\/\//, "")
 
     property var profile: ({ handle: "OmarchyBuilder", public_key: "" })
     property var ideas: []
@@ -30,7 +30,14 @@ Item {
     property var contributors: []
     property var discoverFeed: []
     property var saved: []
-    property var stats: ({ ideas: 0, build_rooms: 0, setups: 0, tests: 0, builders: 0, ships: 0, solutions: 0, help_requests: 0, events: 0, challenges: 0, helps: 0, verifications: 0, task_updates: 0 })
+    property var helpers: []
+    property var pairing: []
+    property var setupComponents: []
+    property var projectActivity: []
+    property var githubSnapshot: ({ repo_url: "", items: [] })
+    property string shareText: ""
+    property var uriRegistration: ({})
+    property var stats: ({ ideas: 0, build_rooms: 0, setups: 0, tests: 0, builders: 0, ships: 0, solutions: 0, help_requests: 0, events: 0, challenges: 0, helps: 0, verifications: 0, task_updates: 0, helpers: 0, setup_components: 0, project_activity: 0 })
     property int relayOk: 0
     property int relayTotal: 0
     property int lastRefresh: 0
@@ -42,6 +49,8 @@ Item {
     property string lastNotice: ""
 
     signal actionResult(bool ok, string message)
+    signal shareTextReady(string text)
+    signal githubSnapshotReady(var snapshot)
 
     function applyStatus(data) {
         if (!data || typeof data !== "object") return
@@ -68,7 +77,14 @@ Item {
         if (data.contributors) root.contributors = data.contributors
         if (data.discover_feed) root.discoverFeed = data.discover_feed
         if (data.saved) root.saved = data.saved
+        if (data.helpers) root.helpers = data.helpers
+        if (data.pairing) root.pairing = data.pairing
+        if (data.setup_components) root.setupComponents = data.setup_components
+        if (data.project_activity) root.projectActivity = data.project_activity
         if (data.environment) root.detectedEnvironment = data.environment
+        if (data.github_snapshot) { root.githubSnapshot = data.github_snapshot; root.githubSnapshotReady(data.github_snapshot) }
+        if (data.share_text !== undefined) { root.shareText = data.share_text; root.shareTextReady(data.share_text) }
+        if (data.registration) root.uriRegistration = data.registration
         if (data.stats) root.stats = data.stats
         if (data.relay_ok !== undefined) root.relayOk = data.relay_ok
         if (data.relay_total !== undefined) root.relayTotal = data.relay_total
@@ -119,12 +135,15 @@ Item {
     function taskUpdate(roomId, task, status, note) { run("task-update", { room_id: roomId, task: task, status: status || "doing", note: note || "" }, "Task updated") }
     function updateRoom(roomId, status, repoUrl) { run("update-room", { room_id: roomId, status: status || "building", repo_url: repoUrl || "" }, "Build Room updated") }
     function createSetup(title, repoUrl, wallpaperUrl, notes, useDetected) { run("create-setup", { title: title, repo_url: repoUrl || "", wallpaper_url: wallpaperUrl || "", notes: notes || "", use_detected: useDetected !== false }, "Setup shared") }
+    function shareComponent(type, name, sourceUrl, setupId, tags, notes) { run("share-component", { component_type: type || "other", name: name, source_url: sourceUrl || "", setup_id: setupId || "", tags: tags || [], notes: notes || "" }, "Component shared") }
     function createTest(title, artifactUrl, version, requestedTags, notes, roomId) { run("create-test", { title: title, artifact_url: artifactUrl || "", version: version || "", requested_tags: requestedTags || [], notes: notes || "", build_room_id: roomId || "" }, "Test request shared") }
     function submitTestResult(requestId, result, tags, note) { run("test-result", { request_id: requestId, result: result, environment_tags: tags || [], note: note || "" }, "Test result shared") }
     function createHelp(title, problem, tried, environmentTags, useDetected) { run("create-help", { title: title, problem: problem, tried: tried || "", environment_tags: environmentTags || [], use_detected: useDetected === true }, "Help request shared") }
     function offerHelp(helpId, note, useDetected) { run("offer-help", { help_id: helpId, note: note || "", use_detected: useDetected !== false }, "Offered to help") }
     function resolveHelp(helpId, status) { run("resolve-help", { help_id: helpId, status: status || "solved" }, "Help request updated") }
+    function setAvailability(mode, skills, note, minutes, status) { run("set-availability", { mode: mode || "can_help", skills: skills || [], note: note || "", available_minutes: minutes || 30, status: status || "active", use_detected: true }, "Availability shared") }
     function createSolution(title, problem, solution, environmentTags, sourceUrl) { run("create-solution", { title: title, problem: problem || "", solution: solution, environment_tags: environmentTags || [], source_url: sourceUrl || "" }, "Solution saved") }
+    function solutionFromHelp(helpId, solution, title, sourceUrl) { run("solution-from-help", { help_id: helpId, solution: solution, title: title || "", source_url: sourceUrl || "" }, "Help converted to solution") }
     function verifySolution(solutionId, result, note, useDetected) { run("verify-solution", { solution_id: solutionId, result: result || "worked", note: note || "", use_detected: useDetected !== false }, "Verification shared") }
     function ship(title, summary, artifactUrl, tags, roomId) { run("ship", { title: title, summary: summary || "", artifact_url: artifactUrl || "", tags: tags || [], build_room_id: roomId || "" }, "Ship post shared") }
     function reportUpdate(version, result, environmentTags, note, useDetected) { run("report-update", { version: version, result: result, environment_tags: environmentTags || [], note: note || "", use_detected: useDetected !== false }, "Update report shared") }
@@ -132,6 +151,10 @@ Item {
     function rsvpEvent(eventId, response, note) { run("rsvp-event", { event_id: eventId, response: response || "interested", note: note || "" }, "RSVP shared") }
     function createChallenge(title, prompt, deadlineText, rulesUrl, tags) { run("create-challenge", { title: title, prompt: prompt || "", deadline_text: deadlineText || "", rules_url: rulesUrl || "", tags: tags || [] }, "Challenge shared") }
     function joinChallenge(challengeId, teamName, repoUrl, note) { run("join-challenge", { challenge_id: challengeId, team_name: teamName || "", repo_url: repoUrl || "", note: note || "" }, "Joined challenge") }
+    function publishProjectActivity(type, title, url, roomId, repoUrl, state, reference) { run("project-activity", { activity_type: type || "discussion", title: title, url: url || "", room_id: roomId || "", repo_url: repoUrl || "", state: state || "info", reference: reference || "" }, "Project activity shared") }
+    function loadGithubSnapshot(repoUrl) { run("github-snapshot", { repo_url: repoUrl }, "GitHub activity loaded") }
+    function generateShareText(objectId) { run("share-text", { id: objectId }, "Share text ready") }
+    function registerInviteLinks() { run("register-uri", null, "Invite link handler registered") }
     function saveObject(objectId) { run("save", { id: objectId }, "Saved") }
     function hideObject(publicKey, objectId) { run("hide", { public_key: publicKey || "", id: objectId || "" }, "Hidden") }
 
