@@ -33,7 +33,8 @@ Press **?** anywhere in the deck for this cheat sheet.
   the blank chat box stares back.
 * **Focus ritual 🍅** — invite a builder to pair for 25 minutes. They join
   explicitly; both sides get a shared countdown. Pair on consecutive days
-  and you build a 🔥 focus streak together.
+  and you build a 🔥 focus streak together. Invites stay valid 3 minutes —
+  accept from the popup banner with Join.
 * **Ship-It Friday 🚀** — every Friday 18:00 UTC is the shared build hour.
   World counts you down to it; show up and say hello.
 * **Hack Circles 🛠** — temporary rooms (Ship It, Rice Club, Night Owls)

@@ -23,6 +23,7 @@ PopupCard {
     readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : null
     readonly property var profile: service && service.profile ? service.profile : ({ handle: "quiet-builder", avatar: "👾", status: "coding", status_name: "In The Zone", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({ share_global: true }) })
     readonly property var world: service && service.globalPeers ? service.globalPeers : []
+    readonly property var nearby: service && service.lanPeers ? service.lanPeers : []
     readonly property var pulse: service && service.worldPulse ? service.worldPulse : []
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
@@ -1300,6 +1301,52 @@ PopupCard {
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 horizontalAlignment: Text.AlignHCenter
+            }
+
+            Text {
+                visible: root.nearby.length > 0
+                text: "📡 Nearby on this Wi-Fi"
+                color: fg
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+                font.bold: true
+            }
+
+            Repeater {
+                model: root.nearby
+
+                Rectangle {
+                    width: parent.width
+                    height: Style.space(48)
+                    radius: Style.space(9)
+                    color: soft
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: if (root.service && modelData.code) root.service.interact(modelData.code, "hello")
+                    }
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: Style.space(10)
+                        spacing: Style.space(10)
+
+                        Text {
+                            text: modelData.avatar || "👾"
+                            font.pixelSize: Style.space(22)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Column {
+                            width: parent.width - Style.space(32)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            Text { text: modelData.handle || "Nearby builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            Text { text: (modelData.activity || "Around") + " · tap to wave"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        }
+                    }
+                }
             }
         }
 

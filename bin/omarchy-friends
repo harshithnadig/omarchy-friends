@@ -20,6 +20,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -37,7 +38,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.10.0"
+PLUGIN_VERSION = "4.11.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -3039,8 +3040,6 @@ class FriendsEngine:
             )
             if not peer:
                 return False
-            if addr:
-                peer["ip"] = trim_text(addr[0], 64)
             self.state.setdefault("lan_peers", {})[sender_code] = peer
             self.save_state()
             return True
@@ -3330,6 +3329,14 @@ class FriendsEngine:
             },
         }
 
+    def _background_global_sync(self):
+        """One relay sync on a worker thread so slow relays never stall LAN traffic."""
+        try:
+            worker = FriendsEngine(state_dir=self.state_dir)
+            worker.sync_global()
+        except Exception:
+            pass
+
     def run_daemon(self):
         """Keep local UDP presence and the global relay presence alive."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -3359,7 +3366,8 @@ class FriendsEngine:
                     current - last_global_sync >= GLOBAL_SYNC_INTERVAL_SECONDS
                     and self.state["profile"].get("privacy", {}).get("share_global", True)
                 ):
-                    self.sync_global()
+                    sync_thread = threading.Thread(target=self._background_global_sync, daemon=True)
+                    sync_thread.start()
                     last_global_sync = current
                 if (
                     current - last_broadcast >= 15
