@@ -107,6 +107,36 @@ class ReleaseHardeningTests(unittest.TestCase):
             release._previous_aggregate = original_aggregate
             release._blocked_pubkeys = original_blocked
 
+    def test_fair_cache_prevents_one_author_crowding_everyone(self):
+        noisy = "1" * 64
+        neighbor = "2" * 64
+        blocked = "3" * 64
+        objects = {}
+        stamp = 10_000
+        for index in range(release.MAX_CACHE_PER_AUTHOR + 25):
+            objects[f"{noisy}:n{index}"] = {
+                "id": f"n{index}",
+                "public_key": noisy,
+                "updated_at": stamp + index,
+            }
+        for index in range(8):
+            objects[f"{neighbor}:x{index}"] = {
+                "id": f"x{index}",
+                "public_key": neighbor,
+                "updated_at": stamp - index,
+            }
+        objects[f"{blocked}:bad"] = {
+            "id": "bad",
+            "public_key": blocked,
+            "updated_at": stamp + 999,
+        }
+        trimmed = release._trim_fair(objects, own_public_key="f" * 64, blocked={blocked})
+        noisy_count = sum(1 for item in trimmed.values() if item.get("public_key") == noisy)
+        neighbor_count = sum(1 for item in trimmed.values() if item.get("public_key") == neighbor)
+        self.assertEqual(noisy_count, release.MAX_CACHE_PER_AUTHOR)
+        self.assertEqual(neighbor_count, 8)
+        self.assertFalse(any(item.get("public_key") == blocked for item in trimmed.values()))
+
     def test_corrupt_state_is_quarantined_and_schema_migrates(self):
         original_build = release.core.BUILD_STATE
         try:
