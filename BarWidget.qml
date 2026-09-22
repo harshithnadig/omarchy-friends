@@ -79,15 +79,15 @@ BarWidget {
         service.setStatus(statuses[(idx + 1) % statuses.length])
     }
 
-    function notifyUiFallback() {
+    function notifyUiFallback(message) {
         if (root.modernUiFailed) return
         root.modernUiFailed = true
         Quickshell.execDetached([
             "omarchy-notification-send",
             "--app-name", "Omarchy Friends",
             "-u", "critical",
-            "Friends modern UI could not load",
-            "The safe legacy panel was loaded instead. Run the v4.15 real-system QML check before release."
+            "Friends UI fallback active",
+            message || "The newest Friends shell could not load. A compatibility panel was loaded instead; run the real-system QML release check."
         ])
     }
 
@@ -116,7 +116,7 @@ BarWidget {
         }
         tooltipText: {
             if (root.modernUiFailed)
-                return "Omarchy Friends · legacy fallback active\nModern v4.15 UI failed to load — run the QML release check"
+                return "Omarchy Friends · compatibility UI active\nRun the v4.15 real-system QML check"
             if (root.service && root.service.cowork && root.service.cowork.active) {
                 var s = root.service.cowork.remaining_seconds || 0
                 var bName = root.service.cowork.buddy_name || "yourself"
@@ -153,11 +153,13 @@ BarWidget {
         NumberAnimation { target: buttonItem; property: "scale"; to: 1.0; duration: 150; easing.type: Easing.OutBack }
     }
 
-    // Preferred modern shell. Panel.qml remains untouched as a safety fallback.
+    // V3 is the primary product shell. V2 remains a compatibility fallback,
+    // and Panel.qml is the final legacy safety net so a UI regression cannot
+    // brick Friends on a real Omarchy installation.
     Loader {
         id: modernPanelLoader
         active: true
-        source: Qt.resolvedUrl("FriendsPanelV2.qml")
+        source: Qt.resolvedUrl("FriendsPanelV3.qml")
         visible: false
         onLoaded: if (item) {
             root.modernUiFailed = false
@@ -166,15 +168,28 @@ BarWidget {
         }
         onStatusChanged: {
             if (status === Loader.Error) {
-                console.warn("Omarchy Friends modern panel failed; enabling legacy fallback: " + source)
-                root.notifyUiFallback()
+                console.warn("Omarchy Friends V3 panel failed; enabling V2 compatibility fallback: " + source)
+                root.notifyUiFallback("The V3 Friends shell could not load. The V2 compatibility UI was loaded instead; run the real-system QML release check.")
             }
         }
     }
 
     Loader {
-        id: fallbackPanelLoader
+        id: compatibilityPanelLoader
         active: modernPanelLoader.status === Loader.Error
+        source: Qt.resolvedUrl("FriendsPanelV2.qml")
+        visible: false
+        onLoaded: if (item) {
+            item.hostWidget = root
+            Qt.callLater(function() { if (item) item.hostWidget = root })
+        }
+        onStatusChanged: if (status === Loader.Error)
+            console.warn("Omarchy Friends V2 compatibility panel also failed: " + source)
+    }
+
+    Loader {
+        id: fallbackPanelLoader
+        active: modernPanelLoader.status === Loader.Error && compatibilityPanelLoader.status === Loader.Error
         source: Qt.resolvedUrl("Panel.qml")
         visible: false
         onLoaded: if (item) {
