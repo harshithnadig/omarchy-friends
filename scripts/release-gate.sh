@@ -42,7 +42,9 @@ pass "required release files exist"
 [[ ! -f BuildNetworkPanel.qml ]] || fail "obsolete BuildNetworkPanel.qml still exists"
 [[ ! -f BuildNetworkPanelV2.qml ]] || fail "obsolete BuildNetworkPanelV2.qml still exists"
 [[ ! -f bin/omarchy-friends-auto-update ]] || fail "silent auto-update helper still exists"
-pass "obsolete panels and silent updater are absent"
+[[ ! -f .github/workflows/request-management-patcher.yml ]] || fail "one-shot write-capable request migration workflow still exists"
+[[ ! -f scripts/_request_patch.py ]] || fail "one-shot request migration script still exists"
+pass "obsolete panels, silent updater, and one-shot migration helpers are absent"
 
 grep -q 'FriendsPanelV3.qml' BarWidget.qml || fail "bar widget is not loading Friends V3"
 grep -q 'FriendsPanelV2.qml' BarWidget.qml || fail "Friends V2 compatibility fallback is missing"
@@ -52,8 +54,14 @@ grep -q 'build_network_app_v4.py' BuildNetworkService.qml || fail "Build Network
 grep -q 'function openBuildTab' BarWidget.qml || fail "first-class Build navigation hook is missing"
 grep -q 'text: "Requests"' FriendsPanelV3.qml || fail "Friends V3 is missing the dedicated Requests view"
 grep -q 'function conversationFriends()' FriendsPanelV3.qml || fail "Friends V3 is missing conversation-only chat filtering"
+grep -q 'text: "Decline"' FriendsPanelV3.qml || fail "received requests cannot be declined"
+grep -q 'text: "Cancel"' FriendsPanelV3.qml || fail "sent requests cannot be cancelled"
+grep -q 'def decline_friend_request' bin/omarchy-friends || fail "Friends engine is missing decline request support"
+grep -q 'def cancel_friend_request' bin/omarchy-friends || fail "Friends engine is missing cancel request support"
+grep -q '"friend_decline"' bin/omarchy-friends || fail "Friends engine is missing decline synchronization"
+grep -q '"friend_cancel"' bin/omarchy-friends || fail "Friends engine is missing cancel synchronization"
 ! grep -q 'autoUpdate' ServiceModern.qml || fail "manifest service entry point still contains background update behavior"
-pass "active UI/runtime paths are final and updates are explicit"
+pass "active UI/runtime paths and request lifecycle are final; updates are explicit"
 
 python3 -m py_compile \
   bin/build_network.py \
