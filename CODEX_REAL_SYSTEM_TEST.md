@@ -1,8 +1,8 @@
-# Codex real-system validation — Omarchy Friends v4.14 RC
+# Codex real-system validation — Omarchy Friends v4.15 RC
 
 Branch: `feature/build-network`
 
-This is **not** a feature-building task. Repository-side v4.14 work is complete and feature scope is frozen. Your job is to validate and fix only issues that require the actual Omarchy machine.
+This is **not** a feature-building task. Repository-side v4.15 work is complete and feature scope is frozen. Your job is to validate and fix only issues that require the actual Omarchy machine / real relays.
 
 Do not merge into `main` unless Harshu explicitly asks.
 
@@ -27,11 +27,11 @@ bash scripts/release-gate.sh
 
 Do not continue toward release while this prints any `FAIL`. Fix only the concrete failure, rerun the gate, and keep the change minimal.
 
-The gate includes Python compilation, the complete unit suite, release-health validation, the remote-execution safety boundary, version alignment, and—on the real machine—Omarchy/QML validation when available.
-
 Also run explicitly:
 
 ```bash
+python3 -m unittest tests.test_private_messaging tests.test_private_messaging_engine -v
+
 omarchy plugin validate .
 
 qmllint -I "$OMARCHY_PATH/shell" \
@@ -72,7 +72,7 @@ Validate:
 
 Do not redesign the panel unless a real supported QML/API incompatibility forces a small fix.
 
-## 5. Core smoke test
+## 5. Core Build Network smoke test
 
 Use disposable titles prefixed `TEST —` because public objects are relay-readable.
 
@@ -106,7 +106,43 @@ python3 bin/build_network_app_v4.py inspect-environment | python3 -m json.tool
 python3 bin/build_network_app_v4.py register-uri | python3 -m json.tool
 ```
 
-## 6. Two-instance relay test
+## 6. Two-current-client private messaging test — REQUIRED
+
+Use two isolated v4.15 Friends installations/state homes, A and B. They must both appear in World with the v4.15 capability set before the DM test.
+
+Verify direct messages:
+
+1. A and B become friends.
+2. A sends a text DM to B; B receives exactly one message and popup.
+3. B replies; A receives exactly one message and popup.
+4. Repeat with one supported media URL.
+5. Confirm the relay-facing event used for the modern DM is Nostr kind `1059`.
+6. Inspect only the **outer** gift-wrap event. It must not contain the plaintext or A's true public key. The only intended routing identity in the outer event is the recipient `p` tag plus the one-time wrapper public key.
+7. Tamper with a captured ciphertext/wrapper copy in an isolated test; it must fail closed instead of producing a message.
+
+Verify private groups:
+
+1. A creates a group with B plus a third isolated current client C when available.
+2. B/C receive the group invite and can exchange messages.
+3. Inspect the outer kind-1059 wrapper: group id/name, plaintext, true sender public key, and other group-member public keys must not be visible in that outer event.
+4. A sent message must not duplicate locally when the optional sender copy returns through the relay.
+
+Do **not** replace the implementation or invent another crypto scheme. Fix only a concrete interoperability/runtime bug.
+
+## 7. Upgrade-compatibility private messaging test — REQUIRED
+
+The v4.15 code deliberately keeps the old transport only for transition compatibility.
+
+Using a pre-v4.15 checkout/fixture or by constructing a peer presence without `nip44-v2` / `nip17-dm-v1` capabilities:
+
+- v4.15 -> old peer chooses the historical Friends kind-4 transport;
+- the old peer can decrypt that message;
+- v4.15 can decrypt a captured/fixture historical `{nonce,ciphertext,mac}` Friends payload;
+- a current-to-current peer pair must prefer NIP-17/NIP-59 and must not downgrade just because the old code path still exists.
+
+Do not delete compatibility support during this RC validation. A future release can remove it only after an explicit transition decision.
+
+## 8. Build Network two-instance relay test
 
 Use two Omarchy installations or isolated state homes.
 
@@ -124,9 +160,9 @@ Verify:
 - force relay failure for a public post, confirm it is saved locally/queued, restore network, Sync, and confirm retry publishes it once.
 - block B in Friends, then confirm B's Build Network top-level/nested activity is locally filtered on A.
 
-## 7. Existing Friends regression
+## 9. Existing Friends regression
 
-Do not approve v4.14 if Build Network breaks the existing product. Test:
+Do not approve v4.15 if Build Network or the messaging migration breaks the existing product. Test:
 
 - friend request/accept;
 - direct messages;
@@ -138,12 +174,16 @@ Do not approve v4.14 if Build Network breaks the existing product. Test:
 - update banner/flow;
 - profile/privacy controls.
 
-## 8. Security/privacy regression
+## 10. Security/privacy regression
 
 Confirm:
 
+- NIP-44 official vector tests pass;
+- wrong-key/wrong-recipient/tampered private ciphertext fails closed;
+- modern outer gift wraps do not expose message text or real sender public key;
+- modern group outer gift wraps do not expose group id/name or other members;
 - invalid signatures are rejected;
-- unknown object types fail closed;
+- unknown Build object types fail closed;
 - mismatched `d`/`type` tags vs payload are rejected;
 - oversized Build event content is rejected;
 - unreasonable future timestamps are rejected;
@@ -156,7 +196,9 @@ Confirm:
 - one noisy author cannot crowd the entire local Build cache;
 - existing Friends blocks are not bypassed.
 
-## 9. Invite desktop registration
+Important wording: NIP-44/NIP-17/NIP-59 are standardized protocol choices, but **this Friends implementation itself has not been independently security-audited** and NIP-44 does not provide forward secrecy. Do not change the README to claim otherwise.
+
+## 11. Invite desktop registration
 
 Check:
 
@@ -172,7 +214,7 @@ omarchy-friends://invite/<64-hex-pubkey>
 
 Verify it reaches the installed `bin/omarchy-friends-open` handler and rejects every unsupported URL shape. Do not hard-code a developer checkout path.
 
-## 10. What NOT to build
+## 12. What NOT to build
 
 Do not:
 
@@ -181,23 +223,24 @@ Do not:
 - add remote shell execution;
 - auto-install setup cards/components;
 - upload configs/logs/files automatically;
-- migrate private-message crypto during this RC validation;
+- replace the v4.15 NIP-44/NIP-17/NIP-59 design with another private-message construction;
+- remove legacy read/fallback compatibility merely to make tests easier;
 - rebuild old V1/V2 panels.
 
-Current private messaging ships only with accurate application-specific/not-formally-audited wording. NIP-44 migration is a separate compatibility-tested release.
-
-## 11. Final report
+## 13. Final report
 
 Return:
 
 - failures found;
 - files changed to fix them;
-- exact release-gate, unit, plugin-validation and qmllint results;
+- exact release-gate, private-messaging test, unit, plugin-validation and qmllint results;
 - screenshots of all six Build Network tabs;
-- two-instance relay/offline-retry/helper-expiry/block result;
+- current-to-current NIP-17/NIP-59 DM/group result and metadata inspection;
+- v4.15-to-legacy compatibility result;
+- Build Network two-instance relay/offline-retry/helper-expiry/block result;
 - existing Friends regression result;
 - URI registration/open result;
 - security/privacy findings;
-- final answer: whether all six gates in `FINAL_RELEASE_STATUS.md` passed.
+- final answer: whether all eight gates in `FINAL_RELEASE_STATUS.md` passed.
 
 Commit/push fixes only to `feature/build-network`. Do not merge `main`.
