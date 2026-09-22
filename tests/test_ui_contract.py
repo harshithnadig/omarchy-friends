@@ -30,6 +30,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
 
     def test_requests_are_not_mixed_into_chat_list_and_are_manageable(self):
         panel = self.read("FriendsPanelV3.qml")
+        service = self.read("Service.qml")
         chats = panel.split("// CHATS:", 1)[1].split("// REQUESTS", 1)[0]
         requests = panel.split("// REQUESTS", 1)[1].split("// WORLD", 1)[0]
         self.assertNotIn("incomingFriendRequests()", chats)
@@ -42,8 +43,14 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('text: "Cancel"', requests)
         self.assertIn('function declineFriendRequest', panel)
         self.assertIn('function cancelFriendRequest', panel)
-        self.assertIn('"decline-friend"', panel)
-        self.assertIn('"cancel-friend"', panel)
+        self.assertIn('root.service.declineFriendRequest(pingId)', panel)
+        self.assertIn('root.service.cancelFriendRequest(publicKey)', panel)
+        self.assertIn('function declineFriendRequest(pingId)', service)
+        self.assertIn('function cancelFriendRequest(publicKey)', service)
+        self.assertIn('"decline-friend"', service)
+        self.assertIn('"cancel-friend"', service)
+        self.assertNotIn('[root.service.binPath, "decline-friend"', panel)
+        self.assertNotIn('[root.service.binPath, "cancel-friend"', panel)
 
     def test_chats_only_show_opened_conversations_and_have_separate_picker(self):
         panel = self.read("FriendsPanelV3.qml")
@@ -53,7 +60,23 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('text: "New chat"', panel)
         self.assertIn('text: "Create private group"', panel)
 
-    def test_world_cards_have_one_clear_connection_action(self):
+    def test_people_safety_actions_survive_the_v3_cleanup(self):
+        panel = self.read("FriendsPanelV3.qml")
+        service = self.read("Service.qml")
+        world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
+        chats = panel.split("// CHATS:", 1)[1].split("// REQUESTS", 1)[0]
+        self.assertIn("function hidePeer(peer)", panel)
+        self.assertIn("function reportPeer(peer)", panel)
+        self.assertIn("root.service.blockGlobal(peer.public_key)", panel)
+        self.assertIn("root.reportUrl", panel)
+        self.assertIn('text: "Hide builder"', world)
+        self.assertIn('text: "Report"', world)
+        self.assertIn('text: "Hide"', chats)
+        self.assertIn('text: "Report"', chats)
+        self.assertIn('text: "⋯"', world)
+        self.assertIn("function blockGlobal(publicKey)", service)
+
+    def test_world_cards_keep_one_clear_primary_connection_action(self):
         panel = self.read("FriendsPanelV3.qml")
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
         self.assertIn('return "Message"', panel)
@@ -61,6 +84,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertNotIn('text: "Wave"', world)
         self.assertNotIn('text: "Focus"', world)
         self.assertNotIn('text: "Build"', world)
+        self.assertIn('id: personAction', world)
         for filter_name in ("All", "New", "Building", "Friends"):
             self.assertIn(f'text: "{filter_name}"', world)
 
@@ -106,8 +130,13 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertFalse((ROOT / "bin" / "omarchy-friends-auto-update").exists())
 
     def test_one_shot_write_capable_migration_helpers_are_removed(self):
-        self.assertFalse((ROOT / ".github" / "workflows" / "request-management-patcher.yml").exists())
-        self.assertFalse((ROOT / "scripts" / "_request_patch.py").exists())
+        for path in (
+            ROOT / ".github" / "workflows" / "request-management-patcher.yml",
+            ROOT / "scripts" / "_request_patch.py",
+            ROOT / ".github" / "workflows" / "v3-safety-patcher.yml",
+            ROOT / "scripts" / "_v3_safety_patch.py",
+        ):
+            self.assertFalse(path.exists(), str(path))
 
     def test_shared_glass_primitives_exist(self):
         for path in (
