@@ -12,6 +12,7 @@ BarWidget {
     property bool cardOpen: false
     property bool buildCardOpen: false
     property string pendingBuildTab: "discover"
+    property string pendingFriendChatKey: ""
     property bool modernUiFailed: false
     readonly property Item button: buttonItem
     readonly property bool opened: cardOpen || buildCardOpen
@@ -66,6 +67,25 @@ BarWidget {
         buildCardOpen = true
         if (buildPanelLoader.item && buildPanelLoader.item.tab !== undefined)
             buildPanelLoader.item.tab = root.pendingBuildTab
+    }
+
+    function deliverPendingFriendChat() {
+        if (!root.pendingFriendChatKey) return false
+        if (!modernPanelLoader.item || typeof modernPanelLoader.item.openChatForPublicKey !== "function") return false
+        var key = root.pendingFriendChatKey
+        root.pendingFriendChatKey = ""
+        modernPanelLoader.item.openChatForPublicKey(key)
+        return true
+    }
+
+    function openFriendChat(publicKey) {
+        if (!publicKey) return false
+        root.pendingFriendChatKey = publicKey
+        buildCardOpen = false
+        cardOpen = true
+        if (root.deliverPendingFriendChat()) return true
+        Qt.callLater(root.deliverPendingFriendChat)
+        return true
     }
 
     function closeBuild() { buildCardOpen = false }
@@ -164,7 +184,10 @@ BarWidget {
         onLoaded: if (item) {
             root.modernUiFailed = false
             item.hostWidget = root
-            Qt.callLater(function() { if (item) item.hostWidget = root })
+            Qt.callLater(function() {
+                if (item) item.hostWidget = root
+                root.deliverPendingFriendChat()
+            })
         }
         onStatusChanged: {
             if (status === Loader.Error) {

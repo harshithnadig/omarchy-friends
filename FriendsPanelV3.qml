@@ -251,6 +251,44 @@ PopupCard {
         Qt.callLater(function() { messageInput.forceActiveFocus() })
     }
 
+    function openChatForPublicKey(publicKey) {
+        if (!publicKey) return false
+        var list = root.friendsList()
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].public_key === publicKey) {
+                root.chooseFriend(list[i])
+                return true
+            }
+        }
+        var incoming = root.requestFor(publicKey)
+        if (incoming) {
+            root.page = "requests"
+            root.requestTab = "received"
+            root.showNotice("Accept the request to start chatting")
+            return false
+        }
+        var friendship = root.friendshipFor(publicKey)
+        if (friendship && friendship.status === "pending") {
+            root.page = "requests"
+            root.requestTab = "sent"
+            root.showNotice("Friend request is still pending")
+            return false
+        }
+        root.page = "world"
+        root.showNotice("Connect with this builder before starting a private chat")
+        return false
+    }
+
+    function openSafeUrl(url) {
+        url = String(url || "").trim()
+        if (url.indexOf("https://") !== 0 && url.indexOf("http://") !== 0) {
+            root.showNotice("Only HTTP(S) links can be opened")
+            return false
+        }
+        Quickshell.execDetached(["xdg-open", url])
+        return true
+    }
+
     function ensureConversation() {
         if (root.selectedFriend() || root.selectedGroup()) return
         var fs = root.conversationFriends()
@@ -800,7 +838,22 @@ PopupCard {
                                                         anchors.centerIn: parent
                                                         spacing: Style.space(5)
                                                         Text { id: messageText; width: parent.width; text: modelData.text || ""; visible: text !== ""; color: "#f4f5ff"; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                                                        Text { id: mediaText; width: parent.width; visible: modelData.media && modelData.media.length > 0; text: visible ? "↗ " + ((modelData.media[0].url || modelData.media[0].href || "Shared link")) : ""; color: modelData.incoming ? root.cyan : "#e8e5ff"; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideMiddle }
+                                                        Text {
+                                                            id: mediaText
+                                                            width: parent.width
+                                                            visible: modelData.media && modelData.media.length > 0
+                                                            text: visible ? "↗ " + ((modelData.media[0].url || modelData.media[0].href || "Shared link")) : ""
+                                                            color: modelData.incoming ? root.cyan : "#e8e5ff"
+                                                            font.family: Style.font.family
+                                                            font.pixelSize: Style.font.caption
+                                                            elide: Text.ElideMiddle
+                                                            MouseArea {
+                                                                anchors.fill: parent
+                                                                enabled: parent.visible
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: root.openSafeUrl(modelData.media[0].url || modelData.media[0].href || "")
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }

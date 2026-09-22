@@ -85,14 +85,56 @@ PopupCard {
         noticeTimer.restart()
     }
 
+    function incomingFriendRequest(publicKey) {
+        var pings = root.friendsService && root.friendsService.globalPings ? root.friendsService.globalPings : []
+        for (var i = 0; i < pings.length; i++) {
+            if (pings[i] && pings[i].action === "friend_request" && pings[i].public_key === publicKey) return pings[i]
+        }
+        return null
+    }
+
+    function builderActionLabel(publicKey) {
+        if (!publicKey || !root.friendsService) return "Connect"
+        var friendships = root.friendsService.globalFriendships || ({})
+        var relation = friendships[publicKey]
+        if (relation && relation.status === "friends") return "Chat"
+        if (root.incomingFriendRequest(publicKey)) return "Accept"
+        if (relation && relation.status === "pending") return "Requested"
+        return "Connect"
+    }
+
     function connectBuilder(publicKey) {
         if (!publicKey || !root.friendsService) {
             root.notice = "Open Friends to connect with this builder"
             noticeTimer.restart()
             return
         }
+        var friendships = root.friendsService.globalFriendships || ({})
+        var relation = friendships[publicKey]
+        if (relation && relation.status === "friends") {
+            if (root.hostWidget && typeof root.hostWidget.openFriendChat === "function") {
+                root.hostWidget.openFriendChat(publicKey)
+                root.notice = "Opening private chat"
+            } else {
+                root.notice = "Open Friends → Chats to continue the conversation"
+            }
+            noticeTimer.restart()
+            return
+        }
+        var incoming = root.incomingFriendRequest(publicKey)
+        if (incoming) {
+            root.friendsService.acceptFriendRequest(incoming.id)
+            root.notice = "Friend request accepted — Chat will be ready after sync"
+            noticeTimer.restart()
+            return
+        }
+        if (relation && relation.status === "pending") {
+            root.notice = "Friend request already pending"
+            noticeTimer.restart()
+            return
+        }
         root.friendsService.requestFriend(publicKey)
-        root.notice = "Chat invite sent through Friends"
+        root.notice = "Friend request sent through Friends"
         noticeTimer.restart()
     }
 
@@ -409,7 +451,7 @@ PopupCard {
                                     spacing: Style.space(6)
                                     GlassPill { text: "Save"; onClicked: build.saveObject(modelData.id) }
                                     GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
-                                    GlassPill { text: modelData.mine ? "You" : "Chat"; enabled: !modelData.mine; onClicked: root.connectBuilder(modelData.public_key) }
+                                    GlassPill { text: modelData.mine ? "You" : root.builderActionLabel(modelData.public_key); enabled: !modelData.mine; onClicked: root.connectBuilder(modelData.public_key) }
                                 }
                             }
 
@@ -472,7 +514,7 @@ PopupCard {
                                 Text { text: modelData.handle || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                 Text { text: "🛠 " + (modelData.builds || 0) + "   ↗ " + (modelData.ships || 0) + "   🧪 " + (modelData.tests || 0) + "   ✦ " + (modelData.solutions || 0); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
-                            GlassPill { id: contributorButton; text: modelData.public_key === build.profile.public_key ? "You" : "Connect"; enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
+                            GlassPill { id: contributorButton; text: modelData.public_key === build.profile.public_key ? "You" : root.builderActionLabel(modelData.public_key); enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
                         }
                     }
                 }
@@ -559,7 +601,7 @@ PopupCard {
                                 GlassPill { visible: !!modelData.repo_url; text: "GitHub pulse"; onClicked: build.loadGithubSnapshot(modelData.repo_url) }
                                 GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                 GlassPill { text: "Join"; active: true; onClicked: build.joinRoom(modelData.id, "Builder", "") }
-                                GlassPill { text: modelData.mine ? "Testing" : "Chat owner"; onClicked: modelData.mine ? build.updateRoom(modelData.id, "testing", modelData.repo_url || "") : root.connectBuilder(modelData.public_key) }
+                                GlassPill { text: modelData.mine ? "Testing" : root.builderActionLabel(modelData.public_key); onClicked: modelData.mine ? build.updateRoom(modelData.id, "testing", modelData.repo_url || "") : root.connectBuilder(modelData.public_key) }
                                 GlassPill { visible: modelData.tasks && modelData.tasks.length > 0; text: "Start task"; onClicked: build.taskUpdate(modelData.id, modelData.tasks[0], "doing", "") }
                                 GlassPill { visible: modelData.tasks && modelData.tasks.length > 0; text: "Done ✓"; onClicked: build.taskUpdate(modelData.id, modelData.tasks[0], "done", "") }
                                 GlassPill { visible: modelData.mine; text: "Ship ↗"; strong: true; onClicked: build.updateRoom(modelData.id, "shipped", modelData.repo_url || "") }
@@ -654,7 +696,7 @@ PopupCard {
                                 GlassPill { visible: !!modelData.repo_url; text: "Dotfiles ↗"; onClicked: root.openUrl(modelData.repo_url) }
                                 GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                 GlassPill { visible: modelData.mine; text: "+ Component"; onClicked: root.componentSetupId = modelData.id }
-                                GlassPill { text: modelData.mine ? "You" : "Chat"; enabled: !modelData.mine; onClicked: root.connectBuilder(modelData.public_key) }
+                                GlassPill { text: modelData.mine ? "You" : root.builderActionLabel(modelData.public_key); enabled: !modelData.mine; onClicked: root.connectBuilder(modelData.public_key) }
                             }
                             Repeater {
                                 model: setupCard.setupItem.shared_components || []
@@ -860,7 +902,7 @@ PopupCard {
                                 Text { text: modelData.author || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                                 Text { width: parent.width; text: (modelData.mode || "can_help") + (modelData.skills && modelData.skills.length ? " · " + modelData.skills.join(" · ") : ""); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                             }
-                            GlassPill { id: helperChat; text: modelData.public_key === build.profile.public_key ? "You" : "Chat"; enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
+                            GlassPill { id: helperChat; text: modelData.public_key === build.profile.public_key ? "You" : root.builderActionLabel(modelData.public_key); enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
                         }
                     }
                 }
@@ -898,7 +940,7 @@ PopupCard {
                                 width: parent.width
                                 spacing: Style.space(7)
                                 GlassPill { visible: !modelData.mine; text: "I can help"; strong: true; onClicked: build.offerHelp(modelData.id, "I can take a look", true) }
-                                GlassPill { visible: !modelData.mine; text: "Chat privately"; onClicked: root.connectBuilder(modelData.public_key) }
+                                GlassPill { visible: !modelData.mine; text: root.builderActionLabel(modelData.public_key); onClicked: root.connectBuilder(modelData.public_key) }
                                 GlassPill { visible: modelData.mine && modelData.status !== "solved"; text: "Solved ✓"; strong: true; onClicked: build.resolveHelp(modelData.id, "solved") }
                                 GlassPill { visible: modelData.mine && modelData.status === "solved"; text: "Write solution"; strong: true; onClicked: root.solutionHelpId = modelData.id }
                                 GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
