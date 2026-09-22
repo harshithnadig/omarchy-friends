@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Handle omarchy-friends:// links without evaluating remote input."""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlsplit
+
+KEY_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+
+
+def result(ok, message):
+    payload = {"ok": bool(ok), "message": str(message)[:240]}
+    print(json.dumps(payload, separators=(",", ":")))
+    return 0 if ok else 1
+
+
+def main():
+    if len(sys.argv) != 2:
+        return result(False, "Expected one omarchy-friends:// URL")
+    raw = str(sys.argv[1]).strip()
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        return result(False, "Invalid Friends link")
+    if parsed.scheme != "omarchy-friends" or parsed.netloc != "invite":
+        return result(False, "Only omarchy-friends://invite links are supported")
+    public_key = parsed.path.strip("/")
+    if not KEY_RE.fullmatch(public_key):
+        return result(False, "Invite link has an invalid public key")
+
+    friends_bin = Path(__file__).resolve().with_name("omarchy-friends")
+    try:
+        proc = subprocess.run(
+            [str(friends_bin), "request-friend-direct", public_key.lower()],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return result(False, f"Could not open Friends invite: {type(exc).__name__}")
+
+    output = proc.stdout.strip()
+    try:
+        payload = json.loads(output) if output else {}
+    except ValueError:
+        payload = {}
+    ok = proc.returncode == 0 and payload.get("ok", True) is not False
+    message = payload.get("message") or ("Chat invite sent" if ok else proc.stderr.strip() or "Invite failed")
+
+    try:
+        subprocess.run(
+            ["omarchy-notification-send", "--app-name", "Omarchy Friends", "-u", "normal", "Omarchy Friends", str(message)[:180]],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return result(ok, message)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
