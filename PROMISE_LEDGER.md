@@ -131,6 +131,8 @@ Private chat is never silently summarized/published into community memory.
 - [x] Longer bounded community-memory lookback.
 - [x] Per-author cache fairness so one valid Nostr identity cannot occupy the whole local cache.
 - [x] Strict relay-event guards for oversized content, unreasonable future timestamps, and `d`/`type` tag disagreement with normalized payload.
+- [x] Minimal WebSocket transport bounds frame size, total fragmented-message bytes, fragment count and one overall receive deadline.
+- [x] Dedicated WebSocket fragmentation/deadline regression tests protect those transport bounds.
 - [x] QML action queue prevents timer status/refresh processes racing user writes.
 - [x] Release health reports schema, queued publishes, filtered blocks and relay status.
 - [x] CI compiles current Friends/Build modules, runs private-message standard + engine tests, the complete unit suite, remote-exec boundary and static release gate.
@@ -138,11 +140,21 @@ Private chat is never silently summarized/published into community memory.
 
 ## UI
 
+- [x] `FriendsPanelV3.qml` is the primary Friends shell.
+- [x] `FriendsPanelV2.qml` remains a compatibility fallback; `Panel.qml` is the final legacy safety fallback.
+- [x] Chats contains only opened/history conversations instead of every friend.
+- [x] Full friends list and private-group creation live behind New chat.
+- [x] Requests is a separate first-class surface with Received and Sent/pending states.
+- [x] Incoming requests do not clutter Chats.
+- [x] Each friend/group has an isolated selected conversation and message history.
+- [x] World uses search + All/New/Building/Friends filters and one clear relationship action per person.
+- [x] Repeated Wave/Focus/Build buttons are removed from every World person card; Focus/Build stay contextual to a conversation.
+- [x] Circles is a room-style public chat with compact header, safety note, message stream and composer.
+- [x] Me separates About, Presence and Privacy, including World/app/music/project/interests/room sharing controls.
 - [x] Liquid-glass V3 Build Network panel.
-- [x] Reusable `GlassSurface.qml` and `GlassPill.qml` primitives.
-- [x] Discover / Build / Share / Help / Community / Create surfaces.
-- [x] Existing Friends UI retained to minimize regressions.
-- [x] One active Build Network UI path; obsolete V1/V2 panels removed.
+- [x] Reusable `GlassSurface.qml`, `GlassPill.qml`, `GlassButton.qml`, `GlassField.qml`, `GlassNavItem.qml` and `GlassAvatar.qml` primitives.
+- [x] Discover / Build / Share / Help / Community / Create Build surfaces.
+- [x] One active Build Network UI path; obsolete V1/V2 Build panels removed.
 - [x] Can Help/Pair/Building controls wired.
 - [x] Helper matches wired into Help requests.
 - [x] Setup Component sharing wired.
@@ -150,7 +162,7 @@ Private chat is never silently summarized/published into community memory.
 - [x] Help -> Solution wired.
 - [x] External Share wired.
 - [x] Invite repair and release Health controls wired.
-- [x] Visible `🛠 Build` entry in normal Friends while middle-click remains the direct shortcut.
+- [x] Visible Build entry in normal Friends while middle-click remains the direct shortcut.
 
 ## Distribution / adoption
 
@@ -165,15 +177,15 @@ Private chat is never silently summarized/published into community memory.
 Repository-side v4.15 work is complete. These are the remaining gates before stable:
 
 1. [ ] `bash scripts/release-gate.sh` passes on the actual Omarchy installation with no `FAIL`.
-2. [ ] Real `omarchy plugin validate .` and `qmllint` pass against installed shell imports.
+2. [ ] Real `omarchy plugin validate .` and `qmllint` pass against installed shell imports, including Friends V3, V2 compatibility and legacy fallback.
 3. [ ] Two current v4.15 instances publish/fetch signed kind-10050 inbox lists and exchange NIP-17/NIP-59 direct/group messages only on the recipient's advertised configured inbox relays.
 4. [ ] Relay-facing kind-1059 metadata inspection passes and wrong-inner-recipient rejection is confirmed on a real instance.
 5. [ ] Restart persistence passes: modern protocol/inbox state survives and stale World presence does not downgrade the friendship.
 6. [ ] v4.15-to-legacy upgrade-compatibility test passes as specified in `FINAL_RELEASE_STATUS.md`.
 7. [ ] Build Network two-instance relay test passes: publish/receive/update/dedupe, offline retry, helper expiry and block filtering.
-8. [ ] Existing Friends regression passes: friend requests, DMs, groups, World, Circles, focus, block/report, profile/privacy and update flow.
+8. [ ] Friends V3 regression passes: separate Chats/Requests, conversation isolation/New chat, friend requests, DMs, groups, World, Circles, focus, block/report, profile/privacy, update flow and V3 -> V2 -> legacy fallback.
 9. [ ] A real `omarchy-friends://invite/...` click opens through the installed desktop handler and invalid shapes are rejected.
-10. [ ] All six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
+10. [ ] Chats, Requests, World, Circles and Me plus all six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
 
 If real public relays reject kind-10050/kind-1059 or demand authentication, record the concrete relay response before changing protocol code.
 
