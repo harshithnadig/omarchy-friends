@@ -3,7 +3,8 @@
 
 This module intentionally adds no new social product concepts. It closes
 release-quality gaps around stale availability, blocked builders, offline
-publishing, durable community memory, state migration and health diagnostics.
+publishing, cache fairness, durable community memory, state migration and
+health diagnostics.
 
 The existing v3 implementation remains the source of truth for product actions.
 """
@@ -23,10 +24,11 @@ APP_VERSION = "4.14.0"
 STATE_SCHEMA = 2
 MAX_PENDING = 64
 MAX_RETRY_PER_SYNC = 4
+MAX_CACHE_PER_AUTHOR = 60
+MAX_OWN_CACHE = 160
 
 _previous_aggregate = app.aggregate_v3
 _previous_store_and_publish = core._store_and_publish
-_previous_refresh_network = core.refresh_network
 
 
 def _blocked_pubkeys():
@@ -70,6 +72,31 @@ def _filtered(values, blocked):
     return [item for item in values or [] if _not_blocked(item, blocked)]
 
 
+def _trim_fair(objects, own_public_key, blocked=None):
+    """Keep a noisy signed identity from crowding the whole local cache."""
+    blocked = blocked or set()
+    ordered = sorted(
+        ((key, value) for key, value in (objects or {}).items() if isinstance(value, dict)),
+        key=lambda item: int(item[1].get("updated_at", item[1].get("created_at", 0)) or 0),
+        reverse=True,
+    )
+    counts = {}
+    kept = []
+    for key, payload in ordered:
+        public_key = str(payload.get("public_key", "")).lower()
+        if public_key in blocked:
+            continue
+        limit = MAX_OWN_CACHE if public_key == own_public_key else MAX_CACHE_PER_AUTHOR
+        current = counts.get(public_key, 0)
+        if current >= limit:
+            continue
+        counts[public_key] = current + 1
+        kept.append((key, payload))
+        if len(kept) >= core.MAX_CACHE:
+            break
+    return dict(kept)
+
+
 def _recompute_derived(result, blocked):
     """Blocked authors should not remain visible indirectly through counters/nested data."""
     help_offers = result.get("help_offers", [])
@@ -111,8 +138,6 @@ def _recompute_derived(result, blocked):
     for item in result.get("challenges", []):
         item["join_count"] = challenge_counts.get(item.get("id", ""), 0)
 
-    # V2/V3 attach children before the release block filter. Filter those nested
-    # lists too so a blocked builder cannot remain visible inside another card.
     allowed_tasks = result.get("task_updates", [])
     tasks_by_room = {}
     for item in allowed_tasks:
@@ -134,8 +159,6 @@ def _recompute_derived(result, blocked):
     for setup in result.get("setups", []):
         setup["shared_components"] = components_by_setup.get(setup.get("id", ""), [])[:24]
 
-    # A blocked author's update report should not continue affecting a local
-    # aggregate after the user has chosen to block them.
     environment = result.get("environment", {}) if isinstance(result.get("environment"), dict) else {}
     local_tags = {str(item).casefold() for item in environment.get("tags", []) if item}
     pulse = {}
@@ -195,7 +218,6 @@ def aggregate_release(state=None):
 
     _recompute_derived(result, blocked)
 
-    # Recompute matches only after blocked/stale helper availability is gone.
     for request in result.get("help_requests", []):
         request["helper_matches"] = app._match_helpers(request, helpers)
 
@@ -231,7 +253,6 @@ def aggregate_release(state=None):
     return result
 
 
-# Existing v2/v3 commands use these names dynamically when returning status.
 app.aggregate_v3 = aggregate_release
 app.base._aggregate_status = aggregate_release
 
@@ -346,10 +367,48 @@ def _retry_pending():
     }
 
 
+def _refresh_network_fair():
+    """Refresh verified events while enforcing local block and per-author fairness."""
+    state = core._build_state()
+    objects = state.setdefault("objects", {})
+    blocked = _blocked_pubkeys()
+    seen_events = set()
+    relay_ok = 0
+    errors = []
+
+    for relay_url in core.RELAYS:
+        try:
+            items = core._fetch_relay(relay_url)
+            relay_ok += 1
+        except (OSError, EOFError, ValueError) as exc:
+            errors.append(f"{relay_url}: {type(exc).__name__}")
+            continue
+        for payload in items:
+            public_key = str(payload.get("public_key", "")).lower()
+            if public_key in blocked:
+                continue
+            event_id = payload.get("event_id")
+            if event_id in seen_events:
+                continue
+            seen_events.add(event_id)
+            key = f"{public_key}:{payload.get('id','')}"
+            old = objects.get(key, {})
+            if int(payload.get("updated_at", 0) or 0) >= int(old.get("updated_at", 0) or 0):
+                objects[key] = payload
+
+    own_key = core._identity(state)["public_key"]
+    state["objects"] = _trim_fair(objects, own_key, blocked)
+    state["last_refresh"] = int(time.time())
+    state["relay_ok"] = relay_ok
+    state["last_errors"] = errors[:8]
+    core._write_json(core.BUILD_STATE, state)
+    return state
+
+
 def refresh_release():
     retry = _retry_pending()
-    _previous_refresh_network()
-    result = aggregate_release(core._build_state())
+    state = _refresh_network_fair()
+    result = aggregate_release(state)
     result["retry"] = retry
     return result
 
@@ -373,6 +432,7 @@ def health_payload():
         "objects": len(state.get("objects", {})) if isinstance(state.get("objects"), dict) else 0,
         "pending_publish": len(state.get("pending_publish", [])) if isinstance(state.get("pending_publish"), list) else 0,
         "retry_batch_size": MAX_RETRY_PER_SYNC,
+        "max_cache_per_author": MAX_CACHE_PER_AUTHOR,
         "blocked_filtered": len(_blocked_pubkeys()),
         "active_helpers": len(status.get("helpers", [])),
         "relay_ok": status.get("relay_ok", 0),
