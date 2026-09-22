@@ -1,0 +1,34 @@
+name: Build Network
+
+on:
+  push:
+    branches:
+      - feature/build-network
+  pull_request:
+    paths:
+      - 'bin/build_network*.py'
+      - 'BuildNetwork*.qml'
+      - 'BarWidget.qml'
+      - 'tests/test_build_network.py'
+      - 'manifest.json'
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Build Network modules
+        run: |
+          python -m py_compile \
+            bin/build_network.py \
+            bin/build_network_social.py \
+            bin/build_network_runtime.py \
+            bin/build_network_app.py
+      - name: Run complete unit suite
+        run: python -m unittest discover -s tests -v
