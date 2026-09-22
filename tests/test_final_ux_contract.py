@@ -60,6 +60,16 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('text: "Pending"', friends)
         self.assertIn('text: "Cancel"', friends)
 
+    def test_private_groups_remain_visible_before_first_message(self):
+        friends = read("FriendsPanelV3.qml")
+        start = friends.index("function conversationGroups()")
+        end = friends.index("function selectedFriend()", start)
+        body = friends[start:end]
+        self.assertIn("root.groupsList()", body)
+        self.assertIn("out.push(group)", body)
+        self.assertNotIn("groupHasHistory(group.id)", body)
+        self.assertNotIn("if (!active) continue", body)
+
     def test_no_one_shot_write_patchers_remain(self):
         forbidden = (
             ".github/workflows/request-management-patcher.yml",
@@ -70,6 +80,8 @@ class FinalUxContractTests(unittest.TestCase):
             "scripts/_final_ux_patch.py",
             ".github/workflows/request-layout-fixer.yml",
             "scripts/_request_layout_fix.py",
+            ".github/workflows/group-visibility-fixer.yml",
+            "scripts/_group_visibility_fix.py",
         )
         for path in forbidden:
             self.assertFalse((ROOT / path).exists(), path)
