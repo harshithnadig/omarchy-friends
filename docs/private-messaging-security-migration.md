@@ -1,48 +1,71 @@
-# Private messaging security migration gate
+# Private messaging security migration — v4.15 implementation record
 
-Omarchy Friends currently has a working private-message path. The Build Network branch intentionally does **not** silently replace that cryptography while simultaneously changing the product surface.
+The migration from the historical Friends private-message construction to a standardized Nostr private-message stack is implemented on `feature/build-network` for v4.15.
 
-## Goal
+This document records what changed, what compatibility remains, and what still requires real-system validation. It is **not** a claim that the Omarchy Friends implementation has received an independent security audit.
 
-Move private DMs/groups toward a standard, well-reviewed Nostr-compatible private-message design rather than maintaining a custom encryption construction.
+## Current-to-current transport
 
-Candidates to evaluate:
+When both Friends peers advertise the v4.15 private-message capabilities, private messages use:
 
-- NIP-44 v2 for private-message encryption;
-- NIP-17 for private direct-message structure;
-- NIP-59 gift wrapping for stronger metadata privacy where interoperable.
+- **NIP-44 v2** authenticated encryption;
+- **NIP-17 kind-14 rumors** as the private-message structure;
+- **NIP-59 kind-13 seals and kind-1059 gift wraps** for relay-facing metadata protection.
 
-## Why this is a separate migration
+Implementation: `bin/omarchy_friends_private.py`.
 
-A cryptographic migration must preserve all of these at once:
+For direct messages, the relay-facing gift wrap is signed by a one-time wrapper key and carries the recipient `p` tag. The true sender and plaintext exist only inside the encrypted seal/rumor.
 
-- existing users must not lose access to current conversations;
-- old/new clients need a defined compatibility period;
-- no downgrade ambiguity;
-- malformed ciphertext must fail closed;
-- relays must never learn plaintext;
-- groups need an explicit design rather than assuming a DM primitive automatically makes group messaging safe;
-- migration must be validated between two real independent installations.
+For small Friends groups, one shared NIP-17 rumor is individually gift-wrapped for each current recipient. Group id, group name and the other group members stay inside the encrypted rumor rather than in the public outer event.
 
-Changing crypto casually during a large UI/collaboration release would increase risk, not reduce it.
+Friends continues to use its configured relay set for delivery. This migration does not claim generic cross-client Nostr messenger interoperability or recipient relay-list discovery.
 
-## Required implementation gates
+## Upgrade compatibility
 
-1. Write protocol-versioned fixtures for current encrypted DMs.
-2. Add NIP-44 reference vectors from the authoritative specification/test vectors.
-3. Implement the standard algorithm exactly; do not invent another construction.
-4. Add cross-client encrypt/decrypt tests.
-5. Define dual-read behavior during migration.
-6. Decide whether dual-write is required and bound the transition period.
-7. Test corrupted MAC/ciphertext, replay, wrong-key and malformed-envelope cases.
-8. Test relay metadata exposure.
-9. Define group-message migration separately.
-10. Run two-machine interoperability before changing the default capability advertised by Friends.
+The old format is retained only as a transition path:
 
-## Marketing rule
+- v4.15 can **read** historical Friends `{nonce,ciphertext,mac}` payloads;
+- if a friend's current World presence does not advertise `nip44-v2` + `nip17-dm-v1`, v4.15 sends that friend the historical tagged kind-4 Friends DM/group envelope;
+- when the peer advertises the modern capabilities, v4.15 prefers NIP-17/NIP-59 and does not choose the legacy path merely because it still exists.
 
-Until this migration/audit is complete, describe private messages conservatively and do not imply a security audit that has not happened.
+This prevents one-sided upgrades from breaking established friendships/groups.
 
-## Non-goal
+## Implemented validation
 
-This document is not permission for an agent to “improve” crypto by replacing primitives from memory. The migration should be driven by the current Nostr specifications and their official test vectors at implementation time.
+CI covers:
+
+1. the official NIP-44 v2 conversation-key/ciphertext reference vector;
+2. NIP-44 round-trip encryption and MAC/ciphertext tamper rejection;
+3. legacy read compatibility plus confirmation that the new compatibility API writes NIP-44 v2;
+4. NIP-17/NIP-59 gift-wrap round-trip;
+5. wrong-recipient gift-wrap rejection;
+6. group metadata absence from the public outer gift wrap;
+7. actual `FriendsEngine.send_dm()` choosing kind-1059 for a capable peer and decrypting at the receiver;
+8. actual FriendsEngine fallback to historical kind-4 for a peer without modern capabilities;
+9. actual group-invite gift wrapping keeping the sender/group/member graph out of the outer event;
+10. the complete existing Friends/Build Network unit suite and two-user simulated relay journey.
+
+The release gate also compiles `bin/omarchy_friends_private.py` and the live Friends engine.
+
+## Real-system gates still required
+
+Before calling v4.15 stable:
+
+- run two isolated current Friends installations through real configured relays;
+- verify direct and group kind-1059 delivery;
+- inspect captured outer gift wraps for metadata exposure;
+- verify no duplicate local message when a best-effort sender copy returns;
+- run the documented v4.15-to-legacy compatibility test;
+- run the normal Friends regression suite on the actual Omarchy shell.
+
+See `CODEX_REAL_SYSTEM_TEST.md` for the exact procedure.
+
+## Security limitations / wording
+
+Do not say “Omarchy Friends is audited” or imply that this Python implementation itself has been independently reviewed. Standardized protocol selection and reference-vector conformance are materially better than an ad-hoc construction, but they are not a substitute for an implementation audit.
+
+NIP-44 does not provide forward secrecy or post-compromise security. Friends should therefore not be positioned as a high-assurance messenger for highly sensitive secrets.
+
+## Removal of the legacy path
+
+Do **not** delete legacy read/send fallback as part of v4.15 cleanup. Remove it only in a future release after there is an explicit transition decision and evidence that the compatibility window can close without stranding active users.
