@@ -180,8 +180,8 @@ PopupCard {
         var list = root.groupsList()
         for (var i = 0; i < list.length; i++) {
             var group = list[i]
-            var active = root.groupHasHistory(group.id) || root.selectedGroupId === group.id
-            if (!active) continue
+            // A private group is itself a conversation. Keep joined/created
+            // groups visible even before anyone sends the first message.
             if (!q || (group.name || "Private group").toLowerCase().indexOf(q) >= 0) out.push(group)
         }
         out.sort(function(a, b) { return root.lastMessageIndexForGroup(b.id) - root.lastMessageIndexForGroup(a.id) })
