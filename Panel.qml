@@ -30,7 +30,7 @@ PopupCard {
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, last_error: "" })
 
-    property string tab: "world"
+    property string tab: "chats"
     property string worldQuery: ""
     property int selectedPeer: 0
     property bool ideaOpen: false
@@ -62,7 +62,7 @@ PopupCard {
     contentHeight: root.fittedContentHeight(deck.implicitHeight)
 
     function tabList() {
-        return ["world", "friends", "messages", "community", "profile"]
+        return ["chats", "world", "community", "profile"]
     }
 
     function moveTab(delta) {
@@ -168,6 +168,17 @@ PopupCard {
         return result.slice(Math.max(0, result.length - 16))
     }
 
+    function lastMessagePreview(publicKey) {
+        for (var i = root.messages.length - 1; i >= 0; i--) {
+            var message = root.messages[i]
+            if (message && message.public_key === publicKey) {
+                var text = message.text || (message.media && message.media.length > 0 ? "Shared a " + (message.media[0].kind || "file") : "")
+                return (message.incoming ? "" : "You: ") + (text || "Say hello")
+            }
+        }
+        return "Say hello"
+    }
+
     function communityMessages() {
         return root.community.slice ? root.community.slice(Math.max(0, root.community.length - 40)) : []
     }
@@ -218,9 +229,9 @@ PopupCard {
         var friendship = root.friendshipFor(peer && peer.public_key)
         if (friendship && friendship.status === "friends") return "Chat"
         if (root.requestFor(peer && peer.public_key)) return "Accept"
-        if (friendship && friendship.status === "pending") return "Chat requested"
+        if (friendship && friendship.status === "pending") return "Requested"
         if (peer && peer.can_chat === false) return "Invite update"
-        return "Invite to chat"
+        return "Add"
     }
 
     function activateFriend(peer) {
@@ -228,7 +239,7 @@ PopupCard {
         var friendship = root.friendshipFor(peer.public_key)
         if (friendship && friendship.status === "friends") {
             root.chooseFriend(peer)
-            root.tab = "messages"
+            root.tab = "chats"
             return
         }
         var request = root.requestFor(peer.public_key)
@@ -264,7 +275,7 @@ PopupCard {
     }
 
     onTabChanged: {
-        if (root.tab === "messages") Qt.callLater(root.markMessagesRead)
+        if (root.tab === "chats") Qt.callLater(root.markMessagesRead)
     }
 
     function showNotice(message) {
@@ -387,26 +398,21 @@ PopupCard {
             return
         }
         if (event.key === Qt.Key_1) {
-            root.tab = "world"
+            root.tab = "chats"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_2) {
-            root.tab = "friends"
+            root.tab = "world"
             event.accepted = true
             return
         }
         if (event.key === Qt.Key_3) {
-            root.tab = "messages"
-            event.accepted = true
-            return
-        }
-        if (event.key === Qt.Key_4) {
             root.tab = "community"
             event.accepted = true
             return
         }
-        if (event.key === Qt.Key_5) {
+        if (event.key === Qt.Key_4) {
             openProfile()
             event.accepted = true
             return
@@ -761,25 +767,22 @@ PopupCard {
 
             Repeater {
                 model: [
+                    { id: "chats", label: "Chats", icon: "💬" },
                     { id: "world", label: "World", icon: "🌍" },
-                    { id: "friends", label: "Friends", icon: "👥" },
-                    { id: "messages", label: "Messages", icon: "💬" },
-                    { id: "community", label: "Community", icon: "🫂" },
-                    { id: "profile", label: "Profile", icon: "👤" }
+                    { id: "community", label: "Circles", icon: "🫂" },
+                    { id: "profile", label: "Me", icon: "👤" }
                 ]
 
                 Item {
-                    width: parent.width / 5
+                    width: parent.width / 4
                     height: parent.height
 
                     Text {
                         anchors.centerIn: parent
                         z: 1
-                        text: modelData.icon + " " + (modelData.id === "friends" && root.incomingFriendRequests().length > 0
-                            ? modelData.label + " (" + root.incomingFriendRequests().length + ")"
-                            : modelData.id === "messages" && root.unreadMessageCount() > 0
-                                ? modelData.label + " (" + root.unreadMessageCount() + ")"
-                                : modelData.label)
+                        text: modelData.icon + " " + (modelData.id === "chats" && (root.incomingFriendRequests().length + root.unreadMessageCount()) > 0
+                            ? modelData.label + " (" + (root.incomingFriendRequests().length + root.unreadMessageCount()) + ")"
+                            : modelData.label)
                         color: root.tab === modelData.id ? accent : muted
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
@@ -1231,13 +1234,13 @@ PopupCard {
 
         Column {
             id: friendsPanel
-            visible: root.tab === "friends"
+            visible: root.tab === "chats"
             width: parent.width
             height: visible ? implicitHeight : 0
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(18) }
-            Text { text: "Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            Text { text: "Accept chat invites here, then open a private conversation in Messages."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Text { text: "Chats"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+            Text { text: "Tap a chat to open it. New here? Find people and say hello."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             Text { visible: root.incomingFriendRequests().length > 0; text: "Pending requests"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Repeater {
                 model: root.incomingFriendRequests()
@@ -1303,6 +1306,7 @@ PopupCard {
                     color: root.selectedFriendKey === modelData.public_key ? Qt.rgba(accent.r, accent.g, accent.b, 0.12) : soft
                     border.width: root.selectedFriendKey === modelData.public_key ? 1 : 0
                     border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
                     Row {
                         anchors.fill: parent
                         anchors.margins: Style.space(10)
@@ -1313,7 +1317,7 @@ PopupCard {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
                             Text { text: modelData.handle || "Omarchy friend"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                            Text { text: "Private chat available"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            Text { text: root.lastMessagePreview(modelData.public_key); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                         }
                         Rectangle {
                             id: messageFriendButton
@@ -1322,8 +1326,8 @@ PopupCard {
                             radius: height / 2
                             color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
                             anchors.verticalCenter: parent.verticalCenter
-                            Text { id: messageFriendText; anchors.centerIn: parent; text: "Message"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.chooseFriend(modelData); root.tab = "messages" } }
+                            Text { id: messageFriendText; anchors.centerIn: parent; text: "Open"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
                         }
                     }
                 }
@@ -1386,8 +1390,8 @@ PopupCard {
                 Column {
                     width: parent.width - communityInfoButton.width - Style.space(8)
                     spacing: Style.space(2)
-                    Text { text: "Omarchy Community"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                    Text { text: (root.world.length + 1) + " members · open group"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    Text { text: "Circles"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                    Text { text: (root.world.length + 1) + " builders · one shared room"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                 }
                 Rectangle {
                     id: communityInfoButton
@@ -1400,7 +1404,7 @@ PopupCard {
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.communityInfoOpen = !root.communityInfoOpen }
                 }
             }
-            Text { text: "Everyone on the updated plugin is added automatically. Say hello here before starting a DM."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            Text { text: "Everyone on the updated plugin is here automatically. Say hello in the room before starting a DM."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
             Rectangle {
                 visible: root.communityInfoOpen
@@ -1491,59 +1495,11 @@ PopupCard {
 
         Column {
             id: messagesPanel
-            visible: root.tab === "messages"
+            visible: root.tab === "chats" && root.friendsList().length > 0
             width: parent.width
             height: visible ? implicitHeight : 0
             spacing: Style.space(12)
-            Item { width: 1; height: Style.space(18) }
-            Text { text: "Messages"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            Text { text: "Private, encrypted conversations with your Omarchy friends."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-            Flow {
-                width: parent.width
-                spacing: Style.space(6)
-                Repeater {
-                    model: root.friendsList()
-                    Rectangle {
-                        width: Math.min(friendChipText.implicitWidth + Style.space(22), parent.width)
-                        height: Style.space(30)
-                        radius: height / 2
-                        color: root.selectedFriendKey === modelData.public_key ? Qt.rgba(accent.r, accent.g, accent.b, 0.2) : soft
-                        border.width: root.selectedFriendKey === modelData.public_key ? 1 : 0
-                        border.color: accent
-                        Text { id: friendChipText; width: parent.width - Style.space(22); anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
-                    }
-                }
-            }
-            Rectangle {
-                visible: root.friendsList().length === 0
-                width: parent.width
-                height: messagesEmptyColumn.implicitHeight + Style.space(28)
-                radius: Style.space(12)
-                color: soft
-                border.width: 1
-                border.color: line
-
-                Column {
-                    id: messagesEmptyColumn
-                    anchors.centerIn: parent
-                    width: parent.width - Style.space(34)
-                    spacing: Style.space(8)
-
-                    Text { width: parent.width; text: "Your inbox is ready."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }
-                    Text { width: parent.width; text: "Accept a chat invite first. Then every conversation will stay in this one private inbox."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
-
-                    Rectangle {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: messagesDiscoverText.implicitWidth + Style.space(22)
-                        height: Style.space(30)
-                        radius: height / 2
-                        color: accent
-                        Text { id: messagesDiscoverText; anchors.centerIn: parent; text: "Open World"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.tab = "world" }
-                    }
-                }
-            }
+            Item { width: 1; height: Style.space(6) }
             Text { visible: root.selectedFriend() !== null; text: root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Rectangle {
                 visible: root.selectedFriend() !== null

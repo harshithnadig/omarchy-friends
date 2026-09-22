@@ -43,10 +43,15 @@ available when people are nearby.
 * **🛠 Hack Circles:** Join a lightweight shared room such as Ship It, Open
   Source, Rice Club, or Night Owls. It uses the existing opt-in room signal,
   so people can find a temporary tribe without creating a chat server.
-* **⌨️ Friends Deck:** Press `?` for help, `h/l` to move between tabs, `j/k` to
-  select a person, `Enter` to say hello, `s` to send the World Spark, and `f`
-  to offer a focus ritual. The tab shortcuts are `1` World, `2` Friends,
-  `3` Messages, `4` Community, and `5` Profile.
+* **💬 Chats:** WhatsApp-easy by design — open Friends and your conversations
+  are right there with the latest line, unread counts, and one-tap entry.
+  Tap any chat to read and reply; invites waiting for you sit at the top.
+* **⌨️ Friends Deck:** Press `h/l` to move between tabs, `j/k` to select a
+  person, `Enter` to say hello, and `r` to refresh the World. The tab
+  shortcuts are `1` Chats, `2` World, `3` Circles, and `4` Me.
+* **⚡ Instant delivery:** A live relay listener keeps one subscription open,
+  so DMs, waves, and Circle notes arrive in about a second with a desktop
+  popup — no refresh needed. The periodic World sync remains as backup.
 * **✨ Shared ground:** Optional interests, status, project beacon, room, app,
   and music fields help people discover an honest conversation starter.
 * **↺ Conversation memory:** Returning builders feel familiar with a tiny
@@ -57,8 +62,8 @@ available when people are nearby.
 * **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
   signals, or keep using only the local radar. Friend Codes remain an
   optional private shortcut for people who already know each other.
-* **🧭 Friendly first-run path:** Empty Friends and Messages screens now have
-  one-click actions to discover builders, copy your invite, or return to World.
+* **🧭 Friendly first-run path:** The empty Chats screen has one-click
+  actions to discover builders, copy your invite, or return to World.
 * **💡 Suggest, feedback, and bug reports:** Write a note in Profile, copy it
   with context, and optionally open the matching GitHub form. Nothing is
   submitted automatically.

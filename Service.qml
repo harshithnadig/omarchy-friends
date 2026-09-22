@@ -469,6 +469,21 @@ Item {
         onTriggered: daemonProc.running = true
     }
 
+    // Persistent relay listener: DMs, waves, and community notes arrive instantly
+    Process {
+        id: listenProc
+        command: [root.binPath, "listen-global"]
+        running: true
+        onExited: listenRestartTimer.restart()
+    }
+
+    Timer {
+        id: listenRestartTimer
+        interval: 15000
+        repeat: false
+        onTriggered: listenProc.running = true
+    }
+
     // Status refresh timer (every 4 seconds)
     Timer {
         interval: 4000

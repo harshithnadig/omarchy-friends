@@ -175,6 +175,57 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertTrue(friends_module.verify_event(event))
         self.assertEqual(self.engine.state["global"]["community"][0]["text"], "Hello Omarchy builders")
 
+    def test_incoming_community_message_raises_popup_event(self):
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        try:
+            published = []
+            with patch.object(
+                remote,
+                "_publish_global_event",
+                side_effect=lambda event: published.append(event) or (True, {}),
+            ):
+                ok, _ = remote.send_community_message("Hello from a fellow builder")
+            self.assertTrue(ok)
+            relay_result = {"published": True, "presence": [], "pings": [], "messages": [], "community": published}
+            with patch.object(self.engine, "_global_relay_sync", return_value=relay_result):
+                ok, _ = self.engine.sync_global()
+            self.assertTrue(ok)
+            community = self.engine.state["global"]["community"]
+            self.assertEqual(len(community), 1)
+            self.assertEqual(community[0]["text"], "Hello from a fellow builder")
+            events = self.engine.pop_events()
+            popup = [event for event in events if event.get("action") == "community"]
+            self.assertEqual(len(popup), 1)
+            self.assertIn("Hello from a fellow builder", popup[0]["message"])
+        finally:
+            shutil.rmtree(remote_dir, ignore_errors=True)
+
+    def test_incoming_dm_raises_popup_notification_event(self):
+        receiver_dir = tempfile.mkdtemp()
+        receiver = friends_module.FriendsEngine(state_dir=receiver_dir)
+        try:
+            receiver_key = receiver.state["global_identity"]["public_key"]
+            sender_key = self.engine.state["global_identity"]["public_key"]
+            self.engine.state["global"]["friendships"][receiver_key] = {"status": "friends", "handle": "Receiver", "avatar": "🦊"}
+            receiver.state["global"]["friendships"][sender_key] = {"status": "friends", "handle": "Sender", "avatar": "👾"}
+            sent = []
+            with patch.object(
+                self.engine, "_publish_global_event", side_effect=lambda event: sent.append(event) or (True, {})
+            ):
+                ok, _ = self.engine.send_dm(receiver_key, "hey, check this out", "")
+            self.assertTrue(ok)
+            relay_result = {"published": True, "presence": [], "pings": [], "messages": sent, "community": []}
+            with patch.object(receiver, "_global_relay_sync", return_value=relay_result):
+                ok, _ = receiver.sync_global()
+            self.assertTrue(ok)
+            self.assertEqual(receiver.state["global"]["messages"][0]["text"], "hey, check this out")
+            popup = [event for event in receiver.pop_events() if event.get("action") == "dm"]
+            self.assertEqual(len(popup), 1)
+            self.assertIn("Sender", popup[0]["message"])
+        finally:
+            shutil.rmtree(receiver_dir, ignore_errors=True)
+
     def test_global_directory_merges_a_real_signed_installer(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)
@@ -318,7 +369,12 @@ class TestFriendsEngine(unittest.TestCase):
             self.assertEqual(len(self.engine.get_full_status()["global_peers"]), 1)
             self.assertEqual(len(self.engine.get_full_status()["global_pings"]), 1)
             self.assertEqual(len(self.engine.pop_events()), 1)
-            self.engine.sync_global()
+            with patch.object(
+                self.engine,
+                "_global_relay_sync",
+                return_value={"published": True, "presence": [], "pings": [], "messages": [], "community": []},
+            ):
+                self.engine.sync_global()
             self.assertEqual(len(self.engine.pop_events()), 0)
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)

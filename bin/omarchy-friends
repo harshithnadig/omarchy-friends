@@ -36,7 +36,7 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.5.0"
+PLUGIN_VERSION = "4.6.0"
 GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -61,7 +61,7 @@ GLOBAL_PING_TAG = "omarchy-friends-ping"
 GLOBAL_DM_TAG = "omarchy-friends-dm"
 GLOBAL_COMMUNITY_TAG = "omarchy-friends-community"
 GLOBAL_PEER_TTL_SECONDS = 150
-GLOBAL_SYNC_INTERVAL_SECONDS = 45
+GLOBAL_SYNC_INTERVAL_SECONDS = 20
 GLOBAL_MAX_PEERS = 120
 GLOBAL_MAX_PINGS = 24
 GLOBAL_MAX_SENT_PINGS = 64
@@ -1938,6 +1938,115 @@ class FriendsEngine:
                 relay_status[relay_url] = {"online": False, "error": trim_text(error, 120)}
         return published > 0, relay_status
 
+    def _ingest_global_dm(self, event):
+        """Store one raw relay DM event and raise its popup. Returns True when stored."""
+        global_state = self.state.setdefault("global", {})
+        processed_ids = global_state.setdefault("processed_event_ids", [])
+        message = self._global_dm_from_event(event)
+        if not message or message["id"] in processed_ids:
+            return False
+        global_state.setdefault("messages", []).append(message)
+        global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
+        processed_ids.append(message["id"])
+        global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+        self._remember_memory_signal(message["public_key"], "dm", "received", message.get("handle", ""), "")
+        self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
+        return True
+
+    def _ingest_global_community(self, event):
+        """Store one raw relay community event and raise its popup. Returns True when stored."""
+        global_state = self.state.setdefault("global", {})
+        processed_ids = global_state.setdefault("processed_event_ids", [])
+        message = self._global_community_from_event(event)
+        if not message or message["id"] in processed_ids:
+            return False
+        community = global_state.setdefault("community", [])
+        community.append(message)
+        global_state["community"] = community[-MAX_COMMUNITY_MESSAGES:]
+        processed_ids.append(message["id"])
+        global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+        if message.get("public_key") != self._global_identity()["public_key"]:
+            preview = trim_text(message.get("text", ""), 120)
+            self._append_event(
+                "community", "🫂", message.get("handle", "A builder"),
+                message.get("avatar", "👾"),
+                f"{message.get('handle', 'A builder')}: {preview}",
+                message["id"],
+            )
+        return True
+
+    def _ingest_global_ping(self, event):
+        """Store one raw relay ping event and raise its popup. Returns True when stored."""
+        global_state = self.state.setdefault("global", {})
+        processed_ids = global_state.setdefault("processed_event_ids", [])
+        ping = self._global_ping_from_event(event)
+        if not ping:
+            return False
+        if ping["id"] in processed_ids or any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
+            return False
+        if ping["public_key"] in global_state.get("blocked_pubkeys", []):
+            return False
+        if not self._allow_global_signal(ping["public_key"]):
+            return False
+        if ping.get("action") in ("focus_accept", "focus_cancel"):
+            self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
+            self._handle_global_focus_reply(ping)
+            processed_ids.append(ping["id"])
+            global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+            return True
+        if ping.get("action") == "friend_accept":
+            friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
+            if friendship.get("status") == "pending" and (
+                not ping.get("session_id")
+                or not friendship.get("request_id")
+                or friendship.get("request_id") == ping.get("session_id")
+            ):
+                global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
+                self.state["stats"]["friends_made"] += 1
+                self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
+                self._remember_memory_signal(ping["public_key"], "friend_accept", "received", ping.get("handle", ""), ping.get("avatar", ""))
+                self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now friends.", ping["id"])
+            processed_ids.append(ping["id"])
+            global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+            return True
+        if ping.get("action") == "friend_request":
+            friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
+            if friendship.get("status") == "pending":
+                global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
+                self.state["stats"]["friends_made"] += 1
+                self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
+                self._remember_memory_signal(ping["public_key"], "friend_request", "received", ping.get("handle", ""), ping.get("avatar", ""))
+                self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now mutual friends.", ping["id"])
+                self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"), allow_offline=True)
+                processed_ids.append(ping["id"])
+                global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+                return True
+        global_state.setdefault("pings", []).append(ping)
+        self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
+        peer = global_state.get("peers", {}).get(ping["public_key"], ping)
+        icon, label = GLOBAL_ACTION_META[ping["action"]]
+        text = f"{ping['handle']} sent you {label}."
+        if ping.get("prompt"):
+            text += f" {ping['prompt']}"
+        self._append_event(ping["action"], icon, ping["handle"], ping["avatar"], text, ping["id"])
+        self._append_pulse(peer, ping["action"], text, remote=True)
+        global_state["pings"] = global_state["pings"][-GLOBAL_MAX_PINGS:]
+        return True
+
+    def _ingest_global_presence(self, event):
+        """Merge one raw relay presence event into the lobby. Returns True when merged."""
+        peer = self._global_peer_from_event(event)
+        if not peer:
+            return False
+        global_state = self.state.setdefault("global", {})
+        key = peer["public_key"]
+        if safe_int(peer.get("last_seen")) >= safe_int(global_state.get("peers", {}).get(key, {}).get("last_seen", 0)):
+            is_new = key not in global_state.get("peers", {})
+            global_state.setdefault("peers", {})[key] = peer
+            self._touch_memory(key, peer.get("handle", ""), peer.get("avatar", ""), encounter=is_new)
+            return True
+        return False
+
     def sync_global(self):
         """Publish the current presence and refresh the public lobby."""
         global_state = self.state.setdefault("global", {})
@@ -1973,9 +2082,7 @@ class FriendsEngine:
                         peers[key] = peer
                     relay_counts.setdefault(key, set()).add(relay_url)
                 for event in result.get("pings", []):
-                    ping = self._global_ping_from_event(event)
-                    if ping:
-                        pings.append(ping)
+                    pings.append(event)
                 messages.extend(result.get("messages", []))
                 community_events.extend(result.get("community", []))
             except (OSError, ValueError, ssl.SSLError, EOFError) as error:
@@ -1989,72 +2096,15 @@ class FriendsEngine:
             global_state["peers"].update(peers)
             for key, peer in peers.items():
                 self._touch_memory(key, peer.get("handle", ""), peer.get("avatar", ""), encounter=True)
-        processed_ids = global_state.setdefault("processed_event_ids", [])
         for event in messages:
-            message = self._global_dm_from_event(event)
-            if message and message["id"] not in processed_ids:
-                global_state.setdefault("messages", []).append(message)
-                processed_ids.append(message["id"])
-                self._remember_memory_signal(message["public_key"], "dm", "received", message.get("handle", ""), "")
-                self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
+            self._ingest_global_dm(event)
         global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
-        community = global_state.setdefault("community", [])
         for event in community_events:
-            message = self._global_community_from_event(event)
-            if message and message["id"] not in processed_ids:
-                community.append(message)
-                processed_ids.append(message["id"])
-        global_state["community"] = community[-MAX_COMMUNITY_MESSAGES:]
-        for ping in pings:
-            if ping["id"] in processed_ids or any(item.get("id") == ping["id"] for item in global_state.get("pings", [])):
-                continue
-            if ping["public_key"] in global_state.get("blocked_pubkeys", []):
-                continue
-            if not self._allow_global_signal(ping["public_key"]):
-                continue
-            if ping.get("action") in ("focus_accept", "focus_cancel"):
-                self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
-                self._handle_global_focus_reply(ping)
-                processed_ids.append(ping["id"])
-                global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
-                continue
-            if ping.get("action") == "friend_accept":
-                friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
-                if friendship.get("status") == "pending" and (
-                    not ping.get("session_id")
-                    or not friendship.get("request_id")
-                    or friendship.get("request_id") == ping.get("session_id")
-                ):
-                    global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
-                    self.state["stats"]["friends_made"] += 1
-                    self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
-                    self._remember_memory_signal(ping["public_key"], "friend_accept", "received", ping.get("handle", ""), ping.get("avatar", ""))
-                    self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now friends.", ping["id"])
-                processed_ids.append(ping["id"])
-                global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
-                continue
-            if ping.get("action") == "friend_request":
-                friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
-                if friendship.get("status") == "pending":
-                    global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
-                    self.state["stats"]["friends_made"] += 1
-                    self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
-                    self._remember_memory_signal(ping["public_key"], "friend_request", "received", ping.get("handle", ""), ping.get("avatar", ""))
-                    self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now mutual friends.", ping["id"])
-                    self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"), allow_offline=True)
-                    processed_ids.append(ping["id"])
-                    global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
-                    continue
-            global_state.setdefault("pings", []).append(ping)
-            self._remember_memory_signal(ping["public_key"], ping.get("action"), "received", ping.get("handle", ""), ping.get("avatar", ""))
-            peer = global_state.get("peers", {}).get(ping["public_key"], ping)
-            icon, label = GLOBAL_ACTION_META[ping["action"]]
-            message = f"{ping['handle']} sent you {label}."
-            if ping.get("prompt"):
-                message += f" {ping['prompt']}"
-            self._append_event(ping["action"], icon, ping["handle"], ping["avatar"], message, ping["id"])
-            self._append_pulse(peer, ping["action"], message, remote=True)
-            global_state["pings"] = global_state["pings"][-GLOBAL_MAX_PINGS:]
+            self._ingest_global_community(event)
+        global_state["community"] = global_state.get("community", [])[-MAX_COMMUNITY_MESSAGES:]
+        for event in pings:
+            self._ingest_global_ping(event)
+        global_state["pings"] = global_state.get("pings", [])[-GLOBAL_MAX_PINGS:]
 
         if successes:
             global_state["last_sync"] = now_seconds()
@@ -2070,6 +2120,106 @@ class FriendsEngine:
         if successes:
             return True, "World refreshed; presence is waiting for relay acceptance"
         return False, "World is offline; local radar still works"
+
+    def listen_global(self):
+        """Hold one relay subscription open so DMs, waves, and community notes arrive instantly.
+
+        Publishes presence on connect (and refreshes it while listening), then
+        processes addressed pings, DMs, and community events the moment the relay
+        delivers them. Exits when global visibility is turned off or the connection
+        drops; the shell service restarts this command automatically.
+        """
+        relay_index = 0
+        last_reload = 0
+        while True:
+            current = time.time()
+            if current - last_reload >= 2:
+                self.state = self.load_state()
+                last_reload = current
+            if not self.state["profile"].get("privacy", {}).get("share_global", True):
+                self.save_state()
+                return
+            relay_url = GLOBAL_RELAYS[relay_index % len(GLOBAL_RELAYS)]
+            relay_index += 1
+            try:
+                self._listen_on_relay(relay_url)
+            except (OSError, ValueError, ssl.SSLError, EOFError):
+                continue
+
+    def _listen_on_relay(self, relay_url):
+        global_state = self.state.setdefault("global", {})
+        identity = self._global_identity()
+        presence_event = self._global_presence_event()
+        ping_sub = "ofl" + uuid.uuid4().hex[:12]
+        community_sub = "ofcl" + uuid.uuid4().hex[:12]
+        started_at = now_seconds()
+        with WebSocketClient(relay_url, timeout=5.0) as relay:
+            relay.send_json(["EVENT", presence_event])
+            relay.send_json([
+                "REQ", ping_sub,
+                {
+                    "kinds": [GLOBAL_PING_KIND, GLOBAL_DM_KIND],
+                    "#t": [GLOBAL_PING_TAG, GLOBAL_DM_TAG],
+                    "#p": [identity["public_key"]],
+                    "since": max(0, started_at - 60),
+                    "limit": GLOBAL_MAX_PINGS,
+                },
+            ])
+            relay.send_json([
+                "REQ", community_sub,
+                {
+                    "kinds": [GLOBAL_COMMUNITY_KIND],
+                    "#t": [GLOBAL_COMMUNITY_TAG],
+                    "since": max(0, started_at - 300),
+                    "limit": 20,
+                },
+            ])
+            global_state["relays"][relay_url] = {"online": True, "accepted": True}
+            global_state["last_sync"] = now_seconds()
+            global_state["last_publish"] = now_seconds()
+            global_state["last_error"] = ""
+            self.save_state()
+            last_presence = time.monotonic()
+            last_reload = time.monotonic()
+            while True:
+                if time.monotonic() - last_reload >= 2:
+                    self.state = self.load_state()
+                    global_state = self.state.setdefault("global", {})
+                    last_reload = time.monotonic()
+                    if not self.state["profile"].get("privacy", {}).get("share_global", True):
+                        self.save_state()
+                        return
+                if time.monotonic() - last_presence >= 50:
+                    relay.send_json(["EVENT", self._global_presence_event()])
+                    global_state["last_publish"] = now_seconds()
+                    global_state["last_sync"] = now_seconds()
+                    self.save_state()
+                    last_presence = time.monotonic()
+                message = relay.recv_json(timeout=5.0)
+                if message is None:
+                    continue
+                if not isinstance(message, list) or not message:
+                    continue
+                if message[0] == "CLOSED":
+                    raise OSError("relay closed listen subscription")
+                if message[0] != "EVENT" or len(message) < 3:
+                    continue
+                sub_id = message[1] if len(message) > 1 else ""
+                event = message[2]
+                stored = False
+                if sub_id == ping_sub:
+                    if GLOBAL_DM_TAG in self._event_tag_values(event, "t"):
+                        stored = self._ingest_global_dm(event)
+                    else:
+                        stored = self._ingest_global_ping(event)
+                elif sub_id == community_sub:
+                    stored = self._ingest_global_community(event)
+                else:
+                    continue
+                if stored:
+                    global_state["last_sync"] = now_seconds()
+                    self._cleanup_global_peers()
+                    self.save_state()
 
     def global_ping(self, public_key, action="hello", prompt="", session_id="", minutes=GLOBAL_FOCUS_DEFAULT_MINUTES, allow_offline=False):
         public_key = trim_text(public_key, 64).lower()
@@ -3175,6 +3325,8 @@ def main():
         print(json.dumps({"events": engine.pop_events()}))
     elif command == "daemon":
         engine.run_daemon()
+    elif command == "listen-global":
+        engine.listen_global()
     else:
         print(f"Unknown command: {command}", file=sys.stderr)
         sys.exit(1)
