@@ -16,6 +16,7 @@ on:
       - 'BarWidget.qml'
       - 'Panel.qml'
       - 'Service.qml'
+      - 'ServiceModern.qml'
       - 'tests/test_*.py'
       - 'scripts/release-gate.sh'
       - 'manifest.json'
@@ -53,6 +54,6 @@ jobs:
       - name: Enforce remote-execution safety boundary
         run: |
           ! grep -R -nE 'eval\(|exec\(|os\.system\(|shell=True' \
-            bin/build_network*.py bin/omarchy-friends-open
+            bin/build_network*.py bin/omarchy_friends_*.py bin/omarchy-friends bin/omarchy-friends-open
       - name: Static release gate
         run: bash scripts/release-gate.sh --ci
