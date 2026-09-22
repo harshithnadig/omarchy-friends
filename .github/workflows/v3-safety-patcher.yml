@@ -1,5 +1,6 @@
 name: One-shot V3 safety patcher
 
+# Temporary migration runner; remove immediately after the patch lands.
 on:
   push:
     branches:
