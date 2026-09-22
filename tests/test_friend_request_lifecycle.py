@@ -123,7 +123,7 @@ class FriendRequestLifecycleTests(unittest.TestCase):
         self.assertNotIn(bob_key, self.alice.state["global"]["friendships"])
         self.assertIn(ping["id"], self.alice.state["global"]["processed_event_ids"])
         self.assertTrue(
-            any(event.get("type") == "friend_decline" for event in self.alice.state.get("events", []))
+            any(event.get("action") == "friend_decline" for event in self.alice.state.get("events", []))
         )
 
     def test_stale_decline_does_not_clear_a_newer_request(self):
