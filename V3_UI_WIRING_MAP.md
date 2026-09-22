@@ -1,77 +1,78 @@
-# V3 UI wiring map — zero invention required
+# Build Network V3 wiring map — completed v4.15 reference
 
-The backend and `BuildNetworkService.qml` already expose every action below. If the real-system pass chooses to surface these inside `BuildNetworkPanelV3.qml`, do **not** design new backend behavior. Add controls in the listed existing tabs and call exactly these methods.
+The v4.15 Build Network UI is already wired. This file is a maintenance reference for the existing backend/UI paths; it is **not** a backlog asking a future agent to add duplicate controls.
 
-## Help tab — Can Help / Pair
+## Active path
 
-Place near the Help heading or before help requests.
+```text
+BuildNetworkPanelV3.qml
+  -> BuildNetworkService.qml
+  -> bin/build_network_app_v4.py
+```
+
+`BuildNetworkService.qml` exposes the supported user actions. Keep using these methods rather than creating competing backend paths.
+
+## Help — Can Help / Pair / Building
+
+Existing actions:
 
 ```qml
-build.setAvailability("can_help", root.csv(skillsDraft), noteDraft, 30, "active")
-build.setAvailability("pair", root.csv(skillsDraft), noteDraft, 60, "active")
+build.setAvailability("can_help", skills, note, 30, "active")
+build.setAvailability("pair", skills, note, 60, "active")
+build.setAvailability("building", skills, note, 60, "active")
 build.setAvailability("can_help", [], "", 30, "closed")
 ```
 
-Data already exposed:
+Existing data:
 
 ```qml
 build.helpers
 build.pairing
-modelData.helper_matches   // on each help request after status/refresh
+modelData.helper_matches
 ```
 
-For a helper match, route private follow-up through the existing Friends chat using the same `root.connectBuilder(modelData.public_key)` helper already used elsewhere.
+Private follow-up must route through the existing Friends chat handoff; do not create a second private messaging system.
 
-## Share/Test tab — share one setup component
+## Share — setup components
 
-Place immediately below Setup Cards.
+Existing action:
 
 ```qml
 build.shareComponent(
-    "plugin",            // theme/plugin/bar/wallpaper/font/terminal/editor/shell/keybindings/other
+    componentType,
     componentName,
     sourceUrl,
     setupId,
-    root.csv(tagsDraft),
-    notesDraft
+    tags,
+    notes
 )
 ```
 
-Data:
+Existing data:
 
 ```qml
 build.setupComponents
-modelData.shared_components  // attached to Setup Cards after refresh
+modelData.shared_components
 ```
 
-Do not add an Install button. Allowed actions are Save / Copy / Open HTTP(S) source / Chat.
+There is intentionally no automatic Install/Apply action. Allowed workflows are review, compare, save/copy and open a safe HTTP(S) source.
 
-## Build tab — public GitHub pulse
+## Build — public GitHub activity
 
-A Build Room already has `repo_url`. Add a user-triggered refresh action, never background credential scraping:
+Existing explicit public-repository snapshot action:
 
 ```qml
 build.loadGithubSnapshot(modelData.repo_url)
 ```
 
-Returned local-only data:
+Local result:
 
 ```qml
 build.githubSnapshot.repo_url
 build.githubSnapshot.items
 ```
 
-Each item contains:
-
-```text
-activity_type: commit | pull_request | issue
-state
-reference
-url
-title
-```
-
-Allow the room owner/user to explicitly publish a selected item:
+Existing explicit publish action:
 
 ```qml
 build.publishProjectActivity(
@@ -85,18 +86,11 @@ build.publishProjectActivity(
 )
 ```
 
-Published data:
+GitHub remains the source of truth. Friends never requests a GitHub token for this public snapshot helper.
 
-```qml
-build.projectActivity
-room.project_activity
-```
+## Help -> Solution
 
-Do not request GitHub tokens. V3 snapshot is public-repository metadata only.
-
-## Help tab — turn solved help into community memory
-
-On a help request owned by the current user after a solution is known:
+Existing action:
 
 ```qml
 build.solutionFromHelp(
@@ -107,65 +101,47 @@ build.solutionFromHelp(
 )
 ```
 
-This reuses the original problem/environment instead of making the user retype it.
+This reuses the original public problem/environment context. Never auto-publish or summarize a private DM transcript.
 
-Never auto-publish a private DM transcript.
+## External sharing
 
-## Discover / card overflow — external share text
-
-For any public Build Network object:
+Existing public-card share action:
 
 ```qml
 build.generateShareText(modelData.id)
 ```
 
-Listen for:
+The service emits `shareTextReady(text)` and the UI copies the generated text explicitly.
 
-```qml
-Connections {
-    target: build
-    function onShareTextReady(text) {
-        root.copyText(text, "Share text copied")
-    }
-}
-```
+## Invite/health maintenance
 
-This produces a compact Idea/Build/Setup/Help/Solution/Ship/Event/Challenge/Project Activity share block with an external URL when one exists.
-
-## Me / startup diagnostics — invite URI handler
-
-Normally V3 status performs idempotent local registration automatically. Optional explicit repair button:
+Existing actions include:
 
 ```qml
 build.registerInviteLinks()
+build.health()
 ```
 
-Validate on the machine:
+Desktop registration must use the actual installed `bin/omarchy-friends-open` path; never hard-code a developer checkout.
 
-```bash
-xdg-mime query default x-scheme-handler/omarchy-friends
-```
-
-Do not hard-code the checkout path; the V3 runtime builds the `.desktop` entry from the actual installed `bin/omarchy-friends-open` path.
-
-## Existing functions that must NOT be duplicated
-
-Use the existing methods rather than creating competing UI/backend paths:
+## Core methods that must not be duplicated
 
 ```text
 createIdea / markInterested / buildIdea
 createRoom / joinRoom / taskUpdate / updateRoom
-createSetup / compareSetup
+createSetup / compareSetup / shareComponent
 createTest / submitTestResult
-createHelp / offerHelp / resolveHelp
+createHelp / offerHelp / resolveHelp / solutionFromHelp
 createSolution / verifySolution
 ship
 reportUpdate
 createEvent / rsvpEvent
 createChallenge / joinChallenge
 saveObject / hideObject
+loadGithubSnapshot / publishProjectActivity
+generateShareText / registerInviteLinks / health
 ```
 
 ## Visual rule
 
-Use the existing `GlassSurface.qml` and `GlassPill.qml` families. Do not introduce a new visual system or another panel generation. The only acceptable real-system work is placing these already-implemented actions into the most natural V3 section and fixing QML/runtime issues.
+Build Network uses the same product palette and shared Glass primitives as Friends V3. Real-system work may fix concrete QML/render/input bugs, but must not introduce another Build panel generation or duplicate the existing action paths.
