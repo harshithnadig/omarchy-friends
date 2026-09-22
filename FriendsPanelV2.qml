@@ -296,10 +296,15 @@ PopupCard {
         Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
     }
 
-    Connections {
-        target: root.service
-        function onActionResult(ok, message) { root.showNotice(message || (ok ? "Done" : "Something went wrong")) }
-        function onEventReceived(event) { if (event && event.message) root.showNotice(event.message) }
+    Item {
+        width: 0
+        height: 0
+        visible: false
+        Connections {
+            target: root.service
+            function onActionResult(ok, message) { root.showNotice(message || (ok ? "Done" : "Something went wrong")) }
+            function onEventReceived(event) { if (event && event.message) root.showNotice(event.message) }
+        }
     }
 
     onOpenChanged: if (root.open) Qt.callLater(root.ensureConversation)
