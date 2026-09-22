@@ -41,6 +41,7 @@ Item {
     property var globalPings: []
     property var globalFriendships: ({})
     property var globalMessages: []
+    property var globalGroups: []
     property var globalCommunity: []
     property var globalMemory: ({})
     property var updateInfo: ({ available: false, current: "", latest: "" })
@@ -299,6 +300,16 @@ Item {
         runAction([root.binPath, "send-dm", publicKey, payload], function(output) { root.reportResult(output, "Private message sent"); root.refresh() })
     }
 
+    function createGroup(name, members) {
+        var payload = JSON.stringify({ name: name || "", members: members || [] })
+        runAction([root.binPath, "create-group", payload], function(output) { root.reportResult(output, "Group could not be created"); root.refresh() })
+    }
+
+    function sendGroupMessage(groupId, text, mediaUrl) {
+        var payload = JSON.stringify({ text: text || "", media_url: mediaUrl || "" })
+        runAction([root.binPath, "send-group", groupId, payload], function(output) { root.reportResult(output, "Group message could not be sent"); root.refresh() })
+    }
+
     function sendCommunity(text) {
         runAction([root.binPath, "send-community", text || ""], function(output) { root.reportResult(output, "Community message sent"); root.refresh() })
     }
@@ -417,6 +428,7 @@ Item {
                     if (data.global_pings) root.globalPings = data.global_pings
                     if (data.global_friendships) root.globalFriendships = data.global_friendships
                     if (data.global_messages) root.globalMessages = data.global_messages
+                    if (data.global_groups) root.globalGroups = data.global_groups
                     if (data.global_community) root.globalCommunity = data.global_community
                     if (data.global_memory) root.globalMemory = data.global_memory
                     if (data.update) root.updateInfo = data.update

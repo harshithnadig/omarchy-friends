@@ -28,6 +28,7 @@ PopupCard {
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
     readonly property var messages: service && service.globalMessages ? service.globalMessages : []
+    readonly property var groups: service && service.globalGroups ? service.globalGroups : []
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, last_error: "" })
 
@@ -56,6 +57,10 @@ PopupCard {
     property bool communityInfoOpen: false
     property string inviteDraft: ""
     property string selectedFriendKey: ""
+    property string selectedGroupId: ""
+    property bool groupCreateOpen: false
+    property string groupNameDraft: ""
+    property var groupMemberKeys: []
     property string lastReadMessageId: ""
 
     readonly property string issueUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
@@ -111,6 +116,43 @@ PopupCard {
         return result
     }
 
+    function groupsList() {
+        return root.groups || []
+    }
+
+    function selectedGroup() {
+        var list = root.groupsList()
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].id === root.selectedGroupId) return list[i]
+        }
+        return null
+    }
+
+    function chooseGroup(group) {
+        root.selectedGroupId = group && group.id ? group.id : ""
+        root.selectedFriendKey = ""
+        root.groupCreateOpen = false
+    }
+
+    function toggleGroupMember(publicKey) {
+        var next = (root.groupMemberKeys || []).slice()
+        var index = next.indexOf(publicKey)
+        if (index >= 0) next.splice(index, 1)
+        else if (next.length < 11) next.push(publicKey)
+        else { root.showNotice("Groups can have up to twelve people"); return }
+        root.groupMemberKeys = next
+    }
+
+    function createGroup() {
+        var name = root.groupNameDraft.trim()
+        if (!name) { root.showNotice("Give the group a name first"); return }
+        if (root.groupMemberKeys.length < 2) { root.showNotice("Choose at least two friends"); return }
+        if (root.service) root.service.createGroup(name, root.groupMemberKeys)
+        root.groupNameDraft = ""
+        root.groupMemberKeys = []
+        root.groupCreateOpen = false
+    }
+
     function pendingFriendsList() {
         var result = []
         for (var key in root.friendships) {
@@ -154,6 +196,7 @@ PopupCard {
     }
 
     function selectedFriend() {
+        if (root.selectedGroupId !== "") return null
         var list = root.friendsList()
         for (var i = 0; i < list.length; i++) {
             if (list[i].public_key === root.selectedFriendKey) return list[i]
@@ -163,11 +206,14 @@ PopupCard {
 
     function conversationMessages() {
         var friend = root.selectedFriend()
-        if (!friend) return []
+        var group = root.selectedGroup()
+        if (!friend && !group) return []
         var result = []
         for (var i = 0; i < root.messages.length; i++) {
             var message = root.messages[i]
-            if (message && message.public_key === friend.public_key) result.push(message)
+            if (!message) continue
+            if (group && message.group_id === group.id) result.push(message)
+            else if (friend && !message.group_id && message.public_key === friend.public_key) result.push(message)
         }
         return result.slice(Math.max(0, result.length - 16))
     }
@@ -234,6 +280,7 @@ PopupCard {
     function chooseFriend(peer) {
         if (!peer || !peer.public_key) return
         root.selectedFriendKey = peer.public_key
+        root.selectedGroupId = ""
     }
 
     function friendActionLabel(peer) {
@@ -272,9 +319,10 @@ PopupCard {
 
     function sendMessage() {
         var friend = root.selectedFriend()
+        var group = root.selectedGroup()
         var text = root.messageDraft.trim()
         var media = root.mediaDraft.trim()
-        if (!friend || !root.service) {
+        if ((!friend && !group) || !root.service) {
             root.showNotice("Accept a friend request before messaging")
             return
         }
@@ -282,7 +330,8 @@ PopupCard {
             root.showNotice("Write a message or paste a media link")
             return
         }
-        root.service.sendDm(friend.public_key, text, media)
+        if (group) root.service.sendGroupMessage(group.id, text, media)
+        else root.service.sendDm(friend.public_key, text, media)
         root.messageDraft = ""
         root.mediaDraft = ""
     }
@@ -376,6 +425,14 @@ PopupCard {
         Quickshell.execDetached(["xdg-open", root.bugUrl])
         root.bugOpen = false
         showNotice("Copied bug report and opened GitHub")
+    }
+
+    function reportPeer(peer) {
+        if (!peer || !peer.public_key) return
+        var payload = "Omarchy Friends report\n\nHandle: " + (peer.handle || "Unknown") + "\nPublic key: " + peer.public_key + "\n\nWhat happened?\n"
+        Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(payload) + " | wl-copy"])
+        Quickshell.execDetached(["xdg-open", root.bugUrl])
+        root.showNotice("Copied a private report template and opened GitHub")
     }
 
     function copyInviteLink() {
@@ -1252,6 +1309,18 @@ PopupCard {
                                         onClicked: if (root.service) root.service.blockGlobal(modelData.public_key)
                                     }
                                 }
+
+                                Text {
+                                    text: "Report"
+                                    color: muted
+                                    font.family: Style.font.family
+                                    font.pixelSize: Style.font.caption
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.reportPeer(modelData)
+                                    }
+                                }
                             }
 
                             Text {
@@ -1424,6 +1493,80 @@ PopupCard {
                         anchors.verticalCenter: parent.verticalCenter
                         Text { id: inviteNudgeLaterText; anchors.centerIn: parent; text: "Later"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.dismissNudge() }
+                    }
+                }
+            }
+            Row {
+                width: parent.width
+                spacing: Style.space(8)
+                Text { width: parent.width - newGroupButton.width - Style.space(8); text: root.groupsList().length > 0 ? "Private groups" : "Start a private group"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                Rectangle {
+                    id: newGroupButton
+                    width: newGroupButtonText.implicitWidth + Style.space(16)
+                    height: Style.space(28)
+                    radius: height / 2
+                    color: root.groupCreateOpen ? Qt.rgba(accent.r, accent.g, accent.b, 0.18) : soft
+                    Text { id: newGroupButtonText; anchors.centerIn: parent; text: root.groupCreateOpen ? "Close" : "+ Group"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.groupCreateOpen = !root.groupCreateOpen }
+                }
+            }
+            Rectangle {
+                visible: root.groupCreateOpen
+                width: parent.width
+                height: groupCreateColumn.implicitHeight + Style.space(18)
+                radius: Style.space(9)
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.08)
+                Column {
+                    id: groupCreateColumn
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(7)
+                    Text { text: "Invite friends into one private chat"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    Rectangle {
+                        width: parent.width
+                        height: Style.space(34)
+                        radius: Style.space(7)
+                        color: soft
+                        TextInput { anchors.fill: parent; anchors.margins: Style.space(9); text: root.groupNameDraft; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; onTextChanged: root.groupNameDraft = text }
+                        Text { visible: root.groupNameDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(9); anchors.verticalCenter: parent.verticalCenter; text: "Group name"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                    }
+                    Repeater {
+                        model: root.friendsList()
+                        Rectangle {
+                            width: parent.width
+                            height: Style.space(32)
+                            radius: height / 2
+                            color: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? Qt.rgba(accent.r, accent.g, accent.b, 0.18) : soft
+                            Text { anchors.centerIn: parent; text: (root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓ " : "") + (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.toggleGroupMember(modelData.public_key) }
+                        }
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: Style.space(32)
+                        radius: height / 2
+                        color: accent
+                        Text { anchors.centerIn: parent; text: "Create private group"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.createGroup() }
+                    }
+                }
+            }
+            Repeater {
+                model: root.groupsList()
+                Rectangle {
+                    width: parent.width
+                    height: Style.space(52)
+                    radius: Style.space(9)
+                    color: root.selectedGroupId === modelData.id ? Qt.rgba(accent.r, accent.g, accent.b, 0.12) : soft
+                    border.width: root.selectedGroupId === modelData.id ? 1 : 0
+                    border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseGroup(modelData) }
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: Style.space(10)
+                        spacing: Style.space(9)
+                        Text { text: "🫂"; font.pixelSize: Style.space(21); anchors.verticalCenter: parent.verticalCenter }
+                        Column { anchors.verticalCenter: parent.verticalCenter; spacing: Style.space(2); Text { text: modelData.name || "Private group"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }; Text { text: Object.keys(modelData.members || {}).length + " members"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
                     }
                 }
             }
@@ -1700,12 +1843,12 @@ PopupCard {
 
         Column {
             id: messagesPanel
-            visible: root.tab === "chats" && root.friendsList().length > 0
+            visible: root.tab === "chats" && (root.friendsList().length > 0 || root.groupsList().length > 0)
             width: parent.width
             height: visible ? implicitHeight : 0
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(6) }
-            Text { visible: root.selectedFriend() !== null; text: root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            Text { visible: root.selectedFriend() !== null || root.selectedGroup() !== null; text: root.selectedGroup() ? "Group · " + root.selectedGroup().name : (root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
             Row {
                 visible: root.selectedFriend() !== null
                 width: parent.width
@@ -1722,7 +1865,7 @@ PopupCard {
                 }
             }
             Rectangle {
-                visible: root.selectedFriend() !== null
+                visible: root.selectedFriend() !== null || root.selectedGroup() !== null
                 width: parent.width
                 height: Math.max(Style.space(72), chatHistory.implicitHeight + Style.space(18))
                 radius: Style.space(9)
@@ -1774,7 +1917,7 @@ PopupCard {
                 }
             }
             Rectangle {
-                visible: root.selectedFriend() !== null
+                visible: root.selectedFriend() !== null || root.selectedGroup() !== null
                 width: parent.width
                 height: Style.space(38)
                 radius: Style.space(8)
@@ -1792,7 +1935,7 @@ PopupCard {
                 Text { visible: root.messageDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Write a message…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
             }
             Rectangle {
-                visible: root.selectedFriend() !== null
+                visible: root.selectedFriend() !== null || root.selectedGroup() !== null
                 width: parent.width
                 height: Style.space(38)
                 radius: Style.space(8)
@@ -1810,7 +1953,7 @@ PopupCard {
                 Text { visible: root.mediaDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an image, video, audio, or file link (optional)"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false; elide: Text.ElideRight; width: parent.width - Style.space(20) }
             }
             Row {
-                visible: root.selectedFriend() !== null
+                visible: root.selectedFriend() !== null || root.selectedGroup() !== null
                 width: parent.width
                 spacing: Style.space(8)
                 Text { width: parent.width - sendMessageButton.width - Style.space(8); text: "Links are shared inside the encrypted message; Friends never uploads a file without your permission."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; anchors.verticalCenter: parent.verticalCenter }

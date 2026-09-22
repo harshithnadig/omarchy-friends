@@ -37,6 +37,9 @@ or press **?** inside the deck.
   delivery; relays carry only signed ciphertext. Paste an image, video, audio,
   or file URL to share media without uploading a file to a third party.
   Requests, blocks, and visibility remain under the recipient's control.
+* **🫂 Private groups:** Create a small encrypted group from accepted friends.
+  Each member receives an individually encrypted invite and message copy; the
+  group name and membership stay local to the invited people.
 * **✨ World Spark:** Get a daily bounded opener and send it to the best live
   match, so meeting someone starts with an actual question instead of a
   blank chat box.
@@ -66,7 +69,7 @@ or press **?** inside the deck.
   your machine, never published, and cleared when you block someone.
 * **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for
   people on the local radar or saved as private shortcuts.
-* **🛡️ Human controls:** Hide from the world, block a profile, rate-limit
+* **🛡️ Human controls:** Hide or report a profile, block a profile, rate-limit
   signals, or keep using only the local radar. Friend Codes remain an
   optional private shortcut for people who already know each other.
 * **🧭 Friendly first-run path:** The empty Chats screen has one-click

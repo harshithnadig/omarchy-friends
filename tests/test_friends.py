@@ -226,6 +226,46 @@ class TestFriendsEngine(unittest.TestCase):
         finally:
             shutil.rmtree(receiver_dir, ignore_errors=True)
 
+    def test_private_group_invites_and_messages_are_encrypted_per_member(self):
+        first_dir = tempfile.mkdtemp()
+        second_dir = tempfile.mkdtemp()
+        first = friends_module.FriendsEngine(state_dir=first_dir)
+        second = friends_module.FriendsEngine(state_dir=second_dir)
+        try:
+            first_key = first.state["global_identity"]["public_key"]
+            second_key = second.state["global_identity"]["public_key"]
+            sender_key = self.engine.state["global_identity"]["public_key"]
+            for engine, other_key, other_name in (
+                (self.engine, first_key, "First"),
+                (self.engine, second_key, "Second"),
+            ):
+                engine.state["global"]["friendships"][other_key] = {"status": "friends", "handle": other_name, "avatar": "🦊"}
+            first.state["global"]["friendships"][sender_key] = {"status": "friends", "handle": "Sender", "avatar": "👾"}
+            second.state["global"]["friendships"][sender_key] = {"status": "friends", "handle": "Sender", "avatar": "👾"}
+            published = []
+            with patch.object(self.engine, "_publish_global_event", side_effect=lambda event: published.append(event) or (True, {})):
+                ok, message = self.engine.create_group("Ship Crew", [first_key, second_key])
+            self.assertTrue(ok, message)
+            self.assertEqual(len(published), 2)
+            group_id = next(iter(self.engine.state["global"]["groups"]))
+            invite = first._global_dm_from_event(published[0])
+            self.assertEqual(invite["message_type"], "group_invite")
+            self.assertEqual(invite["group_id"], group_id)
+            self.assertTrue(first._ingest_global_dm(published[0]))
+            self.assertIn(group_id, first.state["global"]["groups"])
+            group_messages = []
+            with patch.object(self.engine, "_publish_global_event", side_effect=lambda event: group_messages.append(event) or (True, {})):
+                ok, message = self.engine.send_group_message(group_id, "Ship it", "")
+            self.assertTrue(ok, message)
+            self.assertEqual(len(group_messages), 2)
+            message = first._global_dm_from_event(group_messages[0])
+            self.assertEqual(message["message_type"], "group_message")
+            self.assertEqual(message["group_id"], group_id)
+            self.assertEqual(message["text"], "Ship it")
+        finally:
+            shutil.rmtree(first_dir, ignore_errors=True)
+            shutil.rmtree(second_dir, ignore_errors=True)
+
     def test_global_directory_merges_a_real_signed_installer(self):
         remote_dir = tempfile.mkdtemp()
         remote = friends_module.FriendsEngine(state_dir=remote_dir)

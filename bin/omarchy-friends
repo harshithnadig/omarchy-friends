@@ -38,8 +38,8 @@ from omarchy_friends_global import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.11.0"
-GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "media-links-v1", "community-chat-v1")
+PLUGIN_VERSION = "4.12.0"
+GLOBAL_CAPABILITIES = ("friend-requests-v1", "encrypted-dm-v1", "group-dm-v1", "media-links-v1", "community-chat-v1")
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
 MAX_EVENTS = 48
@@ -51,6 +51,9 @@ MAX_INCOMING_SIGNALS_PER_MINUTE = 12
 MAX_SIGNAL_RECEIPTS = 96
 MAX_MESSAGES = 80
 MAX_COMMUNITY_MESSAGES = 120
+MAX_GROUPS = 24
+MAX_GROUP_MEMBERS = 12
+MAX_GROUP_NAME_LENGTH = 32
 MAX_MEDIA_ITEMS = 4
 MAX_MEDIA_URL_LENGTH = 500
 MAX_MEMORY_PEERS = 60
@@ -562,6 +565,7 @@ class FriendsEngine:
                 "incoming_receipts": [],
                 "friendships": {},
                 "messages": [],
+                "groups": {},
                 "community": [],
                 "sent_pings": [],
                 "processed_event_ids": [],
@@ -747,6 +751,12 @@ class FriendsEngine:
                 for item in old_global.get("messages", [])
                 if (normalized := self._normalize_global_message(item))
             ][-MAX_MESSAGES:]
+            global_state["groups"] = {}
+            for group_id, group in (old_global.get("groups") or {}).items():
+                normalized_group = self._normalize_group(group_id, group)
+                if normalized_group:
+                    global_state["groups"][normalized_group["id"]] = normalized_group
+            global_state["groups"] = dict(list(global_state["groups"].items())[-MAX_GROUPS:])
             global_state["community"] = self._unique_messages([
                 normalized
                 for item in old_global.get("community", [])
@@ -993,10 +1003,56 @@ class FriendsEngine:
             "id": message_id,
             "public_key": public_key,
             "handle": trim_text(item.get("handle"), 24) or "A friend",
+            "group_id": trim_text(item.get("group_id"), 40),
+            "group_name": trim_text(item.get("group_name"), MAX_GROUP_NAME_LENGTH),
+            "message_type": trim_text(item.get("message_type"), 24) or "direct",
             "text": text,
             "media": media,
             "timestamp": safe_int(item.get("timestamp"), now_seconds()),
             "incoming": bool(item.get("incoming", False)),
+        }
+
+    def _normalize_group(self, group_id, item):
+        if not isinstance(item, dict):
+            return None
+        group_id = trim_text(group_id or item.get("id"), 40).lower()
+        name = " ".join(trim_text(item.get("name"), MAX_GROUP_NAME_LENGTH).split())
+        if not group_id or not name:
+            return None
+        members = {}
+        raw_members = item.get("members", {})
+        if isinstance(raw_members, list):
+            raw_members = {member.get("public_key"): member for member in raw_members if isinstance(member, dict)}
+        if not isinstance(raw_members, dict):
+            return None
+        for public_key, member in raw_members.items():
+            public_key = trim_text(public_key, 64).lower()
+            if not is_valid_public_key(public_key) or not isinstance(member, dict):
+                continue
+            members[public_key] = {
+                "public_key": public_key,
+                "handle": trim_text(member.get("handle"), 24) or generate_global_handle(public_key),
+                "avatar": member.get("avatar") if member.get("avatar") in AVAILABLE_AVATARS else "👾",
+            }
+            if len(members) >= MAX_GROUP_MEMBERS:
+                break
+        current_state = getattr(self, "state", {})
+        own_key = trim_text((current_state.get("global_identity") or {}).get("public_key"), 64).lower()
+        if own_key and is_valid_public_key(own_key) and own_key not in members:
+            members[own_key] = {
+                "public_key": own_key,
+                "handle": trim_text(current_state.get("profile", {}).get("handle"), 24) or "You",
+                "avatar": current_state.get("profile", {}).get("avatar") if current_state.get("profile", {}).get("avatar") in AVAILABLE_AVATARS else "👾",
+            }
+        if len(members) < 2:
+            return None
+        created_by = trim_text(item.get("created_by"), 64).lower()
+        return {
+            "id": group_id,
+            "name": name,
+            "members": members,
+            "created_by": created_by if is_valid_public_key(created_by) else own_key,
+            "created_at": safe_int(item.get("created_at"), now_seconds()),
         }
 
     def _normalize_community_message(self, item):
@@ -1327,6 +1383,10 @@ class FriendsEngine:
             return None
         text = decrypted
         media = []
+        group_id = ""
+        group_name = ""
+        message_type = "direct"
+        group_payload = None
         try:
             envelope = json.loads(decrypted)
         except (TypeError, ValueError):
@@ -1334,13 +1394,36 @@ class FriendsEngine:
         if isinstance(envelope, dict) and envelope.get("v") == 1:
             text = envelope.get("text", "")
             media = normalize_media_items(envelope.get("media"))
+        elif isinstance(envelope, dict) and envelope.get("v") == 2:
+            message_type = trim_text(envelope.get("type"), 24)
+            group_id = trim_text(envelope.get("group_id"), 40).lower()
+            group_payload = envelope.get("group") if isinstance(envelope.get("group"), dict) else None
+            if message_type == "group_invite":
+                normalized_group = self._normalize_group(group_id, group_payload or {})
+                if not normalized_group or sender not in normalized_group["members"]:
+                    return None
+                group_name = normalized_group["name"]
+                text = f"You were invited to {group_name}"
+            elif message_type == "group_message":
+                group = self.state.get("global", {}).get("groups", {}).get(group_id)
+                if not group or sender not in group.get("members", {}):
+                    return None
+                group_name = group.get("name", "Group")
+                text = envelope.get("text", "")
+                media = normalize_media_items(envelope.get("media"))
+            else:
+                return None
         text = trim_text(text, 2000)
-        if not text and not media:
+        if not text and not media and message_type == "direct":
             return None
         return {
             "id": event.get("id"),
             "public_key": sender,
             "handle": friendship.get("handle", "A friend"),
+            "group_id": group_id,
+            "group_name": group_name,
+            "message_type": message_type,
+            "group": group_payload,
             "text": text,
             "media": media,
             "timestamp": safe_int(event.get("created_at")),
@@ -1723,6 +1806,129 @@ class FriendsEngine:
         self.save_state()
         return True, "Private message sent"
 
+    def create_group(self, name, member_keys):
+        """Create a private group and send an encrypted invite to each friend."""
+        name = " ".join(trim_text(name, MAX_GROUP_NAME_LENGTH).split())
+        if not name:
+            return False, "Give the group a name first"
+        keys = []
+        friendships = self.state.setdefault("global", {}).setdefault("friendships", {})
+        for public_key in member_keys or []:
+            public_key = trim_text(public_key, 64).lower()
+            if not is_valid_public_key(public_key) or public_key in keys:
+                continue
+            if friendships.get(public_key, {}).get("status") != "friends":
+                continue
+            keys.append(public_key)
+        if len(keys) < 2:
+            return False, "Choose at least two friends for a group"
+        if len(keys) > MAX_GROUP_MEMBERS - 1:
+            keys = keys[: MAX_GROUP_MEMBERS - 1]
+        identity = self._global_identity()
+        own_key = identity["public_key"]
+        members = {
+            own_key: {
+                "public_key": own_key,
+                "handle": trim_text(self.state["profile"].get("handle"), 24) or "You",
+                "avatar": self.state["profile"].get("avatar") if self.state["profile"].get("avatar") in AVAILABLE_AVATARS else "👾",
+            }
+        }
+        for public_key in keys:
+            friend = friendships[public_key]
+            members[public_key] = {
+                "public_key": public_key,
+                "handle": trim_text(friend.get("handle"), 24) or generate_global_handle(public_key),
+                "avatar": friend.get("avatar") if friend.get("avatar") in AVAILABLE_AVATARS else "👾",
+            }
+        group = {
+            "id": uuid.uuid4().hex[:24],
+            "name": name,
+            "members": members,
+            "created_by": own_key,
+            "created_at": now_seconds(),
+        }
+        published = 0
+        for public_key in keys:
+            try:
+                encrypted = encrypt_private_text(
+                    identity["secret_key"],
+                    public_key,
+                    json.dumps({"v": 2, "type": "group_invite", "group_id": group["id"], "group": group}, separators=(",", ":")),
+                )
+            except (TypeError, ValueError):
+                continue
+            event = build_event(
+                identity["secret_key"],
+                GLOBAL_DM_KIND,
+                [["p", public_key], ["t", GLOBAL_DM_TAG], ["g", group["id"]], ["alt", "Omarchy Friends private group invite"]],
+                json.dumps(encrypted, separators=(",", ":")),
+            )
+            ok, relay_status = self._publish_global_event(event)
+            self.state["global"]["relays"].update(relay_status)
+            published += int(ok)
+        if not published:
+            self.save_state()
+            return False, "Could not reach the group invite relay"
+        self.state["global"].setdefault("groups", {})[group["id"]] = group
+        self.state["global"]["groups"] = dict(list(self.state["global"]["groups"].items())[-MAX_GROUPS:])
+        self.save_state()
+        return True, f"Group {name} created"
+
+    def send_group_message(self, group_id, text, media_url=""):
+        group_id = trim_text(group_id, 40).lower()
+        group = self.state.setdefault("global", {}).setdefault("groups", {}).get(group_id)
+        text = trim_text(text, 2000)
+        media = normalize_media_items(media_url)
+        if not group:
+            return False, "That group is no longer available"
+        if not text and not media:
+            return False, "Write a message or add a media link first"
+        identity = self._global_identity()
+        published = 0
+        first_event_id = ""
+        for public_key, member in group.get("members", {}).items():
+            if public_key == identity["public_key"]:
+                continue
+            if self.state["global"].get("friendships", {}).get(public_key, {}).get("status") != "friends":
+                continue
+            try:
+                encrypted = encrypt_private_text(
+                    identity["secret_key"],
+                    public_key,
+                    json.dumps({"v": 2, "type": "group_message", "group_id": group_id, "text": text, "media": media}, separators=(",", ":")),
+                )
+            except (TypeError, ValueError):
+                continue
+            event = build_event(
+                identity["secret_key"],
+                GLOBAL_DM_KIND,
+                [["p", public_key], ["t", GLOBAL_DM_TAG], ["g", group_id], ["alt", "Omarchy Friends private group message"]],
+                json.dumps(encrypted, separators=(",", ":")),
+            )
+            ok, relay_status = self._publish_global_event(event)
+            self.state["global"]["relays"].update(relay_status)
+            if ok:
+                published += 1
+                first_event_id = first_event_id or event["id"]
+        if not published:
+            self.save_state()
+            return False, "Could not reach any group member"
+        self.state["global"].setdefault("messages", []).append({
+            "id": first_event_id,
+            "public_key": identity["public_key"],
+            "handle": self.state["profile"].get("handle", "You"),
+            "group_id": group_id,
+            "group_name": group.get("name", "Group"),
+            "message_type": "group_message",
+            "text": text,
+            "media": media,
+            "timestamp": now_seconds(),
+            "incoming": False,
+        })
+        self.state["global"]["messages"] = self.state["global"]["messages"][-MAX_MESSAGES:]
+        self.save_state()
+        return True, f"Sent to {group.get('name', 'group')}"
+
     def send_community_message(self, text):
         """Publish a short, signed message to the public Omarchy community room."""
         text = trim_text(text, 500)
@@ -2060,12 +2266,19 @@ class FriendsEngine:
             return False
         if not self._allow_global_signal(message["public_key"]):
             return False
+        if message.get("message_type") == "group_invite":
+            group = self._normalize_group(message.get("group_id"), message.get("group") or {})
+            if not group:
+                return False
+            global_state.setdefault("groups", {})[group["id"]] = group
+            global_state["groups"] = dict(list(global_state["groups"].items())[-MAX_GROUPS:])
         global_state.setdefault("messages", []).append(message)
         global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
         processed_ids.append(message["id"])
         global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
         self._remember_memory_signal(message["public_key"], "dm", "received", message.get("handle", ""), "")
-        self._append_event("dm", "💬", message["handle"], "💬", f"New private message from {message['handle']}.", message["id"])
+        label = f"New message in {message['group_name']}." if message.get("group_id") else f"New private message from {message['handle']}."
+        self._append_event("dm", "💬", message["handle"], "💬", label, message["id"])
         return True
 
     def _ingest_global_community(self, event):
@@ -3304,6 +3517,7 @@ class FriendsEngine:
             "global_pings": global_pings,
             "global_friendships": global_state.get("friendships", {}),
             "global_messages": global_state.get("messages", []),
+            "global_groups": list(global_state.get("groups", {}).values()),
             "global_community": global_state.get("community", []),
             "global_memory": global_state.get("memory", {}),
             "update": {
@@ -3537,6 +3751,29 @@ def main():
                 message_text = message_payload.get("text", "")
                 media_url = message_payload.get("media_url", message_payload.get("media", ""))
         ok, message = engine.send_dm(sys.argv[2], message_text, media_url)
+        print_result(ok, message)
+    elif command == "create-group" and len(sys.argv) >= 3:
+        try:
+            payload = json.loads(" ".join(sys.argv[2:]))
+        except (TypeError, ValueError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        ok, message = engine.create_group(payload.get("name", ""), payload.get("members", []))
+        print_result(ok, message)
+    elif command == "send-group" and len(sys.argv) >= 4:
+        raw_message = " ".join(sys.argv[3:])
+        message_text = raw_message
+        media_url = ""
+        if len(sys.argv) == 4:
+            try:
+                message_payload = json.loads(sys.argv[3])
+            except (TypeError, ValueError):
+                message_payload = None
+            if isinstance(message_payload, dict):
+                message_text = message_payload.get("text", "")
+                media_url = message_payload.get("media_url", message_payload.get("media", ""))
+        ok, message = engine.send_group_message(sys.argv[2], message_text, media_url)
         print_result(ok, message)
     elif command == "send-community" and len(sys.argv) >= 3:
         ok, message = engine.send_community_message(" ".join(sys.argv[2:]))
