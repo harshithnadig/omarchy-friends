@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
   "name": "Omarchy Friends",
-  "version": "4.13.0",
+  "version": "4.14.0",
   "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "A calm, pseudonymous Omarchy World with messaging plus a federated Build Network for ideas, collaboration, setup sharing, testing, help, solutions, shipping, events, challenges, and opt-in update pulse reports.",
+  "description": "An Omarchy-native social and collaboration layer with private messaging, live builders, liquid-glass Build Network, setup sharing, testing, human help, community memory, events and challenges.",
   "homepage": "https://github.com/harshithnadig/omarchy-friends",
   "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
@@ -18,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "Friends",
-    "description": "Omarchy-native messaging, live builders, Build Network, setup sharing, testing, help and community collaboration",
+    "description": "Omarchy-native messaging, World presence, Build Network, setup sharing, testing, help and collaboration",
     "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right"
