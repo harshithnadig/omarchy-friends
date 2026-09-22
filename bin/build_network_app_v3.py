@@ -225,7 +225,7 @@ def solution_from_help(data):
     if not solution:
         return {"ok": False, "message": "Write the solution before publishing it"}
     model = SolutionCard(
-        title=data.get("title", help_item.get("title", "Solved Omarchy issue")),
+        title=(str(data.get("title", "")).strip() or help_item.get("title", "Solved Omarchy issue")),
         problem=help_item.get("problem", ""),
         solution=solution,
         environment_tags=help_item.get("environment_tags", []),

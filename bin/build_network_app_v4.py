@@ -29,6 +29,51 @@ MAX_OWN_CACHE = 160
 
 _previous_aggregate = app.aggregate_v3
 _previous_store_and_publish = core._store_and_publish
+_previous_event_payload = core._event_payload
+
+# v4.14-final: strict relay event envelope guard
+MAX_EVENT_CONTENT_BYTES = 32 * 1024
+MAX_FUTURE_SECONDS = 10 * 60
+
+
+def _event_metadata_precheck(event, now=None):
+    if not isinstance(event, dict):
+        return False
+    now = int(time.time()) if now is None else int(now)
+    content = event.get("content", "")
+    if not isinstance(content, str) or len(content.encode("utf-8", errors="ignore")) > MAX_EVENT_CONTENT_BYTES:
+        return False
+    try:
+        created_at = int(event.get("created_at", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return created_at > 0 and created_at <= now + MAX_FUTURE_SECONDS
+
+
+def _event_tags_match_payload(event, payload):
+    if not isinstance(payload, dict):
+        return False
+    tags = event.get("tags", []) if isinstance(event, dict) else []
+    d_values = [tag[1] for tag in tags if isinstance(tag, list) and len(tag) > 1 and tag[0] == "d"]
+    type_values = [tag[1] for tag in tags if isinstance(tag, list) and len(tag) > 1 and tag[0] == "type"]
+    return (
+        len(d_values) == 1
+        and len(type_values) == 1
+        and str(d_values[0]) == str(payload.get("id", ""))
+        and str(type_values[0]) == str(payload.get("type", ""))
+    )
+
+
+def _release_event_payload(event):
+    if not _event_metadata_precheck(event):
+        return None
+    payload = _previous_event_payload(event)
+    if payload is None or not _event_tags_match_payload(event, payload):
+        return None
+    return payload
+
+
+core._event_payload = _release_event_payload
 
 
 def _blocked_pubkeys():

@@ -33,6 +33,18 @@ PopupCard {
     property string notice: ""
     property bool useDetectedEnvironment: true
 
+    // v4.14-final: promise-complete UI wiring
+    property string componentSetupId: ""
+    property string componentTypeDraft: "plugin"
+    property string componentNameDraft: ""
+    property string componentUrlDraft: ""
+    property string availabilityMode: "can_help"
+    property string availabilitySkillsDraft: ""
+    property string availabilityNoteDraft: ""
+    property int availabilityMinutes: 30
+    property string solutionHelpId: ""
+    property string solutionDraft: ""
+
     contentWidth: root.fittedContentWidth(Style.space(620))
     contentHeight: root.fittedContentHeight(contentColumn.implicitHeight)
 
@@ -41,6 +53,9 @@ PopupCard {
         onActionResult: function(ok, message) {
             root.notice = message || (ok ? "Done" : "Build Network action failed")
             noticeTimer.restart()
+        }
+        onShareTextReady: function(text) {
+            root.copyText(text, "Share text copied")
         }
     }
 
@@ -390,6 +405,7 @@ PopupCard {
                                     id: discoverActions
                                     spacing: Style.space(6)
                                     GlassPill { text: "Save"; onClicked: build.saveObject(modelData.id) }
+                                    GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                     GlassPill { text: modelData.mine ? "You" : "Chat"; enabled: !modelData.mine; onClicked: root.connectBuilder(modelData.public_key) }
                                 }
                             }
@@ -507,6 +523,8 @@ PopupCard {
                 Repeater {
                     model: build.buildRooms
                     GlassSurface {
+                        id: roomCard
+                        property var roomItem: modelData
                         width: parent.width
                         height: roomColumn.implicitHeight + Style.space(24)
                         radius: Style.space(18)
@@ -535,11 +553,58 @@ PopupCard {
                                 GlassPill { visible: !!modelData.repo_url; text: "Repo ↗"; onClicked: root.openUrl(modelData.repo_url) }
                                 GlassPill { visible: !!root.repoIssues(modelData.repo_url); text: "Issues"; onClicked: root.openUrl(root.repoIssues(modelData.repo_url)) }
                                 GlassPill { visible: !!root.repoPulls(modelData.repo_url); text: "PRs"; onClicked: root.openUrl(root.repoPulls(modelData.repo_url)) }
+                                GlassPill { visible: !!modelData.repo_url; text: "GitHub pulse"; onClicked: build.loadGithubSnapshot(modelData.repo_url) }
+                                GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                 GlassPill { text: "Join"; active: true; onClicked: build.joinRoom(modelData.id, "Builder", "") }
                                 GlassPill { text: modelData.mine ? "Testing" : "Chat owner"; onClicked: modelData.mine ? build.updateRoom(modelData.id, "testing", modelData.repo_url || "") : root.connectBuilder(modelData.public_key) }
                                 GlassPill { visible: modelData.tasks && modelData.tasks.length > 0; text: "Start task"; onClicked: build.taskUpdate(modelData.id, modelData.tasks[0], "doing", "") }
                                 GlassPill { visible: modelData.tasks && modelData.tasks.length > 0; text: "Done ✓"; onClicked: build.taskUpdate(modelData.id, modelData.tasks[0], "done", "") }
                                 GlassPill { visible: modelData.mine; text: "Ship ↗"; strong: true; onClicked: build.updateRoom(modelData.id, "shipped", modelData.repo_url || "") }
+                            }
+
+                            Column {
+                                visible: !!roomCard.roomItem.repo_url && build.githubSnapshot && build.githubSnapshot.repo_url === roomCard.roomItem.repo_url && build.githubSnapshot.items && build.githubSnapshot.items.length > 0
+                                width: parent.width
+                                spacing: Style.space(5)
+                                Text { text: "Public GitHub pulse"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                Repeater {
+                                    model: build.githubSnapshot && build.githubSnapshot.items ? build.githubSnapshot.items.slice(0, 6) : []
+                                    Row {
+                                        width: parent.width
+                                        spacing: Style.space(7)
+                                        Text {
+                                            width: parent.width - githubPublish.width - Style.space(8)
+                                            text: (modelData.reference ? modelData.reference + " · " : "") + (modelData.title || "GitHub activity")
+                                            color: muted
+                                            font.family: Style.font.family
+                                            font.pixelSize: Style.font.caption
+                                            elide: Text.ElideRight
+                                        }
+                                        GlassPill {
+                                            id: githubPublish
+                                            text: "Publish"
+                                            onClicked: build.publishProjectActivity(modelData.activity_type, modelData.title, modelData.url, roomCard.roomItem.id, roomCard.roomItem.repo_url, modelData.state, modelData.reference)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Column {
+                                visible: roomCard.roomItem.project_activity && roomCard.roomItem.project_activity.length > 0
+                                width: parent.width
+                                spacing: Style.space(3)
+                                Text { text: "Shared project activity"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                Repeater {
+                                    model: roomCard.roomItem.project_activity ? roomCard.roomItem.project_activity.slice(0, 5) : []
+                                    Text {
+                                        width: parent.width
+                                        text: (modelData.reference ? modelData.reference + " · " : "") + (modelData.title || "Project activity")
+                                        color: Qt.rgba(fg.r, fg.g, fg.b, 0.68)
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                        elide: Text.ElideRight
+                                    }
+                                }
                             }
                         }
                     }
@@ -558,6 +623,8 @@ PopupCard {
                 Repeater {
                     model: build.setups
                     GlassSurface {
+                        id: setupCard
+                        property var setupItem: modelData
                         width: parent.width
                         height: setupColumn.implicitHeight + Style.space(24)
                         radius: Style.space(18)
@@ -582,9 +649,75 @@ PopupCard {
                                 GlassPill { text: "Compare with mine"; strong: true; onClicked: build.compareSetup(modelData.id) }
                                 GlassPill { text: "Copy recipe"; onClicked: root.copyText(root.setupRecipe(modelData), "Setup recipe copied") }
                                 GlassPill { visible: !!modelData.repo_url; text: "Dotfiles ↗"; onClicked: root.openUrl(modelData.repo_url) }
+                                GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
+                                GlassPill { visible: modelData.mine; text: "+ Component"; onClicked: root.componentSetupId = modelData.id }
                                 GlassPill { text: modelData.mine ? "You" : "Chat"; enabled: !modelData.mine; onClicked: root.connectBuilder(modelData.public_key) }
                             }
+                            Repeater {
+                                model: setupCard.setupItem.shared_components || []
+                                Row {
+                                    width: parent.width
+                                    spacing: Style.space(7)
+                                    Text {
+                                        width: parent.width - componentOpen.width - Style.space(8)
+                                        text: (modelData.component_type || "component") + " · " + (modelData.name || "Shared component")
+                                        color: muted
+                                        font.family: Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                        elide: Text.ElideRight
+                                    }
+                                    GlassPill { id: componentOpen; visible: !!modelData.source_url; text: "Open ↗"; onClicked: root.openUrl(modelData.source_url) }
+                                }
+                            }
                         }
+                    }
+                }
+
+                GlassSurface {
+                    visible: root.componentSetupId !== ""
+                    width: parent.width
+                    height: componentComposer.implicitHeight + Style.space(24)
+                    radius: Style.space(18)
+                    fillOpacity: 0.66
+                    selected: true
+                    Column {
+                        id: componentComposer
+                        anchors.fill: parent
+                        anchors.margins: Style.space(12)
+                        spacing: Style.space(7)
+                        Text { text: "Share one piece of this setup"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        Flow {
+                            width: parent.width
+                            spacing: Style.space(6)
+                            Repeater {
+                                model: ["plugin", "theme", "bar", "wallpaper", "font", "keybindings"]
+                                GlassPill { text: modelData; active: root.componentTypeDraft === modelData; onClicked: root.componentTypeDraft = modelData }
+                            }
+                        }
+                        GlassSurface {
+                            width: parent.width; height: Style.space(42); radius: Style.space(13); fillOpacity: 0.48
+                            TextInput { anchors.fill: parent; anchors.margins: Style.space(11); text: root.componentNameDraft; onTextChanged: root.componentNameDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
+                        }
+                        GlassSurface {
+                            width: parent.width; height: Style.space(42); radius: Style.space(13); fillOpacity: 0.48
+                            TextInput { anchors.fill: parent; anchors.margins: Style.space(11); text: root.componentUrlDraft; onTextChanged: root.componentUrlDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: Style.space(7)
+                            GlassPill {
+                                text: "Share component"
+                                strong: true
+                                onClicked: {
+                                    var name = root.componentNameDraft.trim()
+                                    if (!name) { root.notice = "Give the component a name"; noticeTimer.restart(); return }
+                                    build.shareComponent(root.componentTypeDraft, name, root.componentUrlDraft.trim(), root.componentSetupId, [], "")
+                                    root.componentSetupId = ""; root.componentNameDraft = ""; root.componentUrlDraft = ""
+                                }
+                            }
+                            GlassPill { text: "Cancel"; onClicked: { root.componentSetupId = ""; root.componentNameDraft = ""; root.componentUrlDraft = "" } }
+                        }
+                        Text { text: "Metadata/link only — Friends never installs it automatically."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
@@ -665,6 +798,70 @@ PopupCard {
                     }
                 }
 
+                GlassSurface {
+                    width: parent.width
+                    height: availabilityColumn.implicitHeight + Style.space(22)
+                    radius: Style.space(18)
+                    fillOpacity: 0.60
+                    Column {
+                        id: availabilityColumn
+                        anchors.fill: parent
+                        anchors.margins: Style.space(11)
+                        spacing: Style.space(7)
+                        Text { text: "Be available to another builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        Flow {
+                            width: parent.width
+                            spacing: Style.space(6)
+                            Repeater {
+                                model: [ { id: "can_help", label: "Can help" }, { id: "pair", label: "Pair" }, { id: "building", label: "Build with me" } ]
+                                GlassPill { text: modelData.label; active: root.availabilityMode === modelData.id; onClicked: root.availabilityMode = modelData.id }
+                            }
+                        }
+                        GlassSurface {
+                            width: parent.width; height: Style.space(42); radius: Style.space(13); fillOpacity: 0.48
+                            TextInput { anchors.fill: parent; anchors.margins: Style.space(11); text: root.availabilitySkillsDraft; onTextChanged: root.availabilitySkillsDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
+                        }
+                        GlassSurface {
+                            width: parent.width; height: Style.space(42); radius: Style.space(13); fillOpacity: 0.48
+                            TextInput { anchors.fill: parent; anchors.margins: Style.space(11); text: root.availabilityNoteDraft; onTextChanged: root.availabilityNoteDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
+                        }
+                        Flow {
+                            width: parent.width
+                            spacing: Style.space(6)
+                            Repeater {
+                                model: [30, 60, 120]
+                                GlassPill { text: modelData + "m"; active: root.availabilityMinutes === modelData; onClicked: root.availabilityMinutes = modelData }
+                            }
+                            GlassPill { text: "Go live"; strong: true; onClicked: build.setAvailability(root.availabilityMode, root.csv(root.availabilitySkillsDraft), root.availabilityNoteDraft, root.availabilityMinutes, "active") }
+                            GlassPill { text: "Stop"; onClicked: build.setAvailability(root.availabilityMode, root.csv(root.availabilitySkillsDraft), root.availabilityNoteDraft, root.availabilityMinutes, "closed") }
+                        }
+                        Text { text: "Availability expires automatically."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    }
+                }
+
+                Text { visible: build.helpers.length > 0; text: "Builders available now"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                Repeater {
+                    model: build.helpers.slice ? build.helpers.slice(0, 8) : []
+                    GlassSurface {
+                        width: parent.width
+                        height: Style.space(58)
+                        radius: Style.space(16)
+                        fillOpacity: 0.52
+                        Row {
+                            anchors.fill: parent
+                            anchors.margins: Style.space(10)
+                            spacing: Style.space(8)
+                            Column {
+                                width: parent.width - helperChat.width - Style.space(8)
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text { text: modelData.author || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                Text { width: parent.width; text: (modelData.mode || "can_help") + (modelData.skills && modelData.skills.length ? " · " + modelData.skills.join(" · ") : ""); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                            }
+                            GlassPill { id: helperChat; text: modelData.public_key === build.profile.public_key ? "You" : "Chat"; enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
+                        }
+                    }
+                }
+
                 Repeater {
                     model: build.helpRequests
                     GlassSurface {
@@ -686,13 +883,59 @@ PopupCard {
                             Text { visible: !!modelData.tried; width: parent.width; text: "Already tried · " + modelData.tried; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                             Text { visible: modelData.environment_tags && modelData.environment_tags.length > 0; width: parent.width; text: modelData.environment_tags.join("   ·   "); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                             Flow {
+                                visible: modelData.helper_matches && modelData.helper_matches.length > 0
+                                width: parent.width
+                                spacing: Style.space(6)
+                                Repeater {
+                                    model: modelData.helper_matches ? modelData.helper_matches.slice(0, 4) : []
+                                    GlassPill { text: "Ask " + (modelData.handle || "builder"); active: true; onClicked: root.connectBuilder(modelData.public_key) }
+                                }
+                            }
+                            Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
                                 GlassPill { visible: !modelData.mine; text: "I can help"; strong: true; onClicked: build.offerHelp(modelData.id, "I can take a look", true) }
                                 GlassPill { visible: !modelData.mine; text: "Chat privately"; onClicked: root.connectBuilder(modelData.public_key) }
                                 GlassPill { visible: modelData.mine && modelData.status !== "solved"; text: "Solved ✓"; strong: true; onClicked: build.resolveHelp(modelData.id, "solved") }
+                                GlassPill { visible: modelData.mine && modelData.status === "solved"; text: "Write solution"; strong: true; onClicked: root.solutionHelpId = modelData.id }
+                                GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                             }
                         }
+                    }
+                }
+
+                GlassSurface {
+                    visible: root.solutionHelpId !== ""
+                    width: parent.width
+                    height: helpSolutionColumn.implicitHeight + Style.space(22)
+                    radius: Style.space(18)
+                    fillOpacity: 0.66
+                    selected: true
+                    Column {
+                        id: helpSolutionColumn
+                        anchors.fill: parent
+                        anchors.margins: Style.space(11)
+                        spacing: Style.space(7)
+                        Text { text: "Turn this fix into community memory"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        GlassSurface {
+                            width: parent.width; height: Style.space(92); radius: Style.space(13); fillOpacity: 0.48
+                            TextArea { anchors.fill: parent; anchors.margins: Style.space(8); text: root.solutionDraft; onTextChanged: root.solutionDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: TextEdit.Wrap; background: Item {} ; placeholderText: "What fixed it?" }
+                        }
+                        Flow {
+                            spacing: Style.space(7)
+                            GlassPill {
+                                text: "Publish solution"
+                                strong: true
+                                onClicked: {
+                                    var fix = root.solutionDraft.trim()
+                                    if (!fix) { root.notice = "Write the fix first"; noticeTimer.restart(); return }
+                                    build.solutionFromHelp(root.solutionHelpId, fix, "", "")
+                                    root.solutionHelpId = ""; root.solutionDraft = ""
+                                }
+                            }
+                            GlassPill { text: "Cancel"; onClicked: { root.solutionHelpId = ""; root.solutionDraft = "" } }
+                        }
+                        Text { text: "Only publish what you are comfortable making public."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
@@ -721,6 +964,7 @@ PopupCard {
                                 GlassPill { text: "Worked ✓"; strong: true; onClicked: build.verifySolution(modelData.id, "worked", "", true) }
                                 GlassPill { text: "Partly"; onClicked: build.verifySolution(modelData.id, "partial", "", true) }
                                 GlassPill { text: "Copy"; onClicked: root.copyText(modelData.solution || "", "Solution copied") }
+                                GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                 GlassPill { visible: !!modelData.source_url; text: "Source ↗"; onClicked: root.openUrl(modelData.source_url) }
                             }
                         }
@@ -786,6 +1030,7 @@ PopupCard {
                                 spacing: Style.space(7)
                                 GlassPill { text: "Going"; strong: true; onClicked: build.rsvpEvent(modelData.id, "going", "") }
                                 GlassPill { text: "Interested"; onClicked: build.rsvpEvent(modelData.id, "interested", "") }
+                                GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                 GlassPill { visible: !!modelData.event_url; text: "Open ↗"; onClicked: root.openUrl(modelData.event_url) }
                             }
                         }
@@ -816,6 +1061,7 @@ PopupCard {
                                 spacing: Style.space(7)
                                 GlassPill { text: "Join"; strong: true; onClicked: build.joinChallenge(modelData.id, "", "", "") }
                                 GlassPill { text: "Start a team"; onClicked: build.createRoom(modelData.title, modelData.prompt, "", modelData.tags || [], [], "") }
+                                GlassPill { text: "Share"; onClicked: build.generateShareText(modelData.id) }
                                 GlassPill { visible: !!modelData.rules_url; text: "Rules ↗"; onClicked: root.openUrl(modelData.rules_url) }
                             }
                         }
@@ -935,6 +1181,26 @@ PopupCard {
                         }
                         GlassPill { id: publishButton; text: build.busy ? "Publishing…" : "Publish ↗"; strong: true; enabled: !build.busy; onClicked: root.submitCreate() }
                     }
+                }
+            }
+
+            GlassSurface {
+                width: parent.width
+                height: Style.space(56)
+                radius: Style.space(17)
+                fillOpacity: 0.46
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: Style.space(9)
+                    spacing: Style.space(7)
+                    Column {
+                        width: parent.width - repairInvite.width - releaseHealth.width - Style.space(16)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text { text: "Release diagnostics"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        Text { text: "Queued: " + (build.releaseInfo.pending_publish || 0) + " · blocked filtered: " + (build.releaseInfo.blocked_filtered || 0); color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    }
+                    GlassPill { id: repairInvite; text: "Repair invites"; onClicked: build.registerInviteLinks() }
+                    GlassPill { id: releaseHealth; text: "Health"; onClicked: build.health() }
                 }
             }
 

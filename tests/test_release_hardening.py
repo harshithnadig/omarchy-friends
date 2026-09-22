@@ -137,6 +137,23 @@ class ReleaseHardeningTests(unittest.TestCase):
         self.assertEqual(neighbor_count, 8)
         self.assertFalse(any(item.get("public_key") == blocked for item in trimmed.values()))
 
+    def test_relay_event_envelope_guard(self):
+        now = 2_000_000
+        base = {
+            "created_at": now,
+            "content": "{}",
+            "tags": [["d", "idea_123"], ["type", "idea"]],
+        }
+        self.assertTrue(release._event_metadata_precheck(base, now))
+        future = dict(base, created_at=now + release.MAX_FUTURE_SECONDS + 1)
+        self.assertFalse(release._event_metadata_precheck(future, now))
+        huge = dict(base, content="x" * (release.MAX_EVENT_CONTENT_BYTES + 1))
+        self.assertFalse(release._event_metadata_precheck(huge, now))
+        self.assertTrue(release._event_tags_match_payload(base, {"id": "idea_123", "type": "idea"}))
+        self.assertFalse(release._event_tags_match_payload(base, {"id": "idea_999", "type": "idea"}))
+        duplicate_d = dict(base, tags=[["d", "idea_123"], ["d", "idea_123"], ["type", "idea"]])
+        self.assertFalse(release._event_tags_match_payload(duplicate_d, {"id": "idea_123", "type": "idea"}))
+
     def test_corrupt_state_is_quarantined_and_schema_migrates(self):
         original_build = release.core.BUILD_STATE
         try:
