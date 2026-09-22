@@ -6,7 +6,8 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 
 - Product architecture: complete for the planned v4.15 scope.
 - Build Network backend: complete.
-- Unified liquid-glass UI: `FriendsPanelV2.qml` is the preferred Friends shell and `BuildNetworkPanelV3.qml` is the matching Build workspace; the old `Panel.qml` remains only as automatic load-failure fallback.
+- Unified liquid-glass UI: `FriendsPanelV3.qml` is the preferred Friends shell, `FriendsPanelV2.qml` is the compatibility fallback, and `Panel.qml` remains the final automatic safety fallback. `BuildNetworkPanelV3.qml` is the matching Build workspace.
+- Friends V3 fixes the information architecture exposed by real screenshots: Chats contains opened conversations only; Requests has separate Received/Sent states; the full friends list is behind New chat; World uses one clear relationship action per person instead of repeated Wave/Focus/Build controls; Circles is a room-style public chat; Me separates About, Presence and Privacy.
 - Release runtime: `bin/build_network_app_v4.py`.
 - `manifest.json` and the live Friends engine both advertise `4.15.0`.
 - Build Network is visibly reachable from the normal Friends panel and remains available by middle-click.
@@ -29,23 +30,24 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 - durable community knowledge has a longer bounded lookback;
 - one Nostr identity cannot crowd the whole local cache because of per-author fairness limits;
 - malformed relay events are rejected for bad metadata/tag agreement, oversized content and unreasonable future timestamps;
+- the minimal WebSocket transport bounds per-frame bytes, total fragmented-message bytes, fragment count and one overall receive deadline; dedicated regression tests protect those limits;
 - Build Network QML work is serialized so timer refresh/status operations do not race user writes;
 - health diagnostics and `scripts/release-gate.sh` are included;
-- CI compiles active Friends + Build modules, runs the NIP-44/NIP-17/NIP-59/inbox-routing tests, runs the complete unit suite, enforces the remote-execution safety boundary and runs the static release gate;
+- CI compiles active Friends + Build modules, runs the NIP-44/NIP-17/NIP-59/inbox-routing tests, runs the complete unit suite, protects the Friends V3 information architecture, enforces the remote-execution safety boundary and runs the static release gate;
 - one-shot write-capable migration workflows/scripts are removed after applying the changes; normal release CI is read-only.
 
 ## Remaining gates — real Omarchy only
 
 1. Run `bash scripts/release-gate.sh` on the actual Omarchy installation and require no `FAIL`.
-2. Pass real `omarchy plugin validate .` and `qmllint -I "$OMARCHY_PATH/shell" ...` against the installed shell imports.
+2. Pass real `omarchy plugin validate .` and `qmllint -I "$OMARCHY_PATH/shell" ...` against the installed shell imports, including `FriendsPanelV3.qml` and both fallbacks.
 3. Run two isolated current v4.15 instances over real configured relays. Verify each publishes/fetches signed kind-10050 inbox metadata; direct DMs and private groups deliver as kind-1059 only through the recipient's advertised configured inbox relays; and the receiving listener sees them there.
 4. Inspect captured relay-facing kind-1059 events and confirm plaintext, true sender, group id/name and other group members are not exposed. Confirm a gift wrap whose decrypted kind-14 rumor does not address the receiving client is rejected.
 5. Restart both current instances and confirm the modern protocol marker/inbox cache persists and the friendship does not downgrade merely because World presence is stale.
 6. Run an upgrade-compatibility test with one v4.15 instance and one pre-v4.15/legacy fixture: a never-upgraded peer receives a legacy kind-4 DM, while v4.15 can still decrypt legacy ciphertext. Do not remove compatibility code until the transition policy is deliberately changed in a future release.
 7. Run the Build Network two-instance relay test: replacement/dedupe, offline publish retry, helper expiry and block filtering.
-8. Regression-test existing Friends friend requests, DMs, private groups, World, Circles, focus, blocks/reporting and update flow.
+8. Regression-test Friends V3 end to end: separate Chats/Requests behavior, conversation isolation/New chat picker, friend requests, DMs, private groups, World, Circles, focus, blocks/reporting, profile/privacy, update flow, plus V3 -> V2 -> legacy fallback behavior.
 9. Open a real `omarchy-friends://invite/<public-key>` URI through the desktop handler installed from the actual plugin path.
-10. Visually inspect all six Build Network tabs at normal laptop scale for clipping, scroll/input usability and obvious action reachability.
+10. Visually inspect Chats, Requests, World, Circles and Me plus all six Build Network tabs at normal laptop scale for clipping, scroll/input usability and obvious action reachability.
 
 If the selected public relays reject kind-10050/kind-1059 or require relay authentication, record the exact relay response and fix only the demonstrated interoperability issue; do not add speculative protocol code.
 
