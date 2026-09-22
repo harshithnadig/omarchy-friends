@@ -53,4 +53,4 @@ These ten items require the real Omarchy environment, actual public-relay behavi
 
 ## Stop condition
 
-When those ten real-system gates pass, cut v4.15 stable. Do not reopen feature brainstorming for this release.
+When those ten real-system gates pass, cut v4.15 stable. Do not reopen feature brainstorming for this release. Do not merge `main` until Harshu explicitly asks.
