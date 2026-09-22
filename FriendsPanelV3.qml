@@ -993,12 +993,13 @@ PopupCard {
                                                 spacing: Style.space(10)
                                                 GlassAvatar { size: Style.space(40); emoji: modelData.avatar || "👾"; online: modelData.online === true }
                                                 Column {
-                                                    width: parent.width - Style.space(58)
+                                                    width: Math.max(Style.space(80), parent.width - sentRequestActions.width - Style.space(60))
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     Text { width: parent.width; text: modelData.handle || "Omarchy builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                                     Text { width: parent.width; text: modelData.online ? "Request sent · online now" : "Request sent · waiting for a reply"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                 }
                                                 Row {
+                                                    id: sentRequestActions
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     spacing: Style.space(6)
                                                     GlassPill { text: "Pending"; active: true; accentColor: root.warning }
