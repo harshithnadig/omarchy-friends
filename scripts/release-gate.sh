@@ -49,6 +49,7 @@ python3 -m py_compile \
   bin/build_network_app_v2.py \
   bin/build_network_app_v3.py \
   bin/build_network_app_v4.py \
+  bin/omarchy_friends_private.py \
   bin/omarchy-friends-open
 pass "Python modules compile"
 
