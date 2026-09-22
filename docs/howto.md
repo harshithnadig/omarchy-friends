@@ -1,65 +1,121 @@
-# How to use Omarchy Friends
+# How to use Omarchy Friends v4.15
 
-Friends is the human layer of Omarchy: real builders, live on your desktop.
-No accounts, no servers to join — open the deck and you are already here.
+Friends is the human layer of Omarchy: real builders, private conversations, a public community room and a Build Network for collaborating on useful things.
+
+There are no hosted Friends accounts and no fake users. Public discovery is pseudonymous; private conversation state stays local unless you send something.
 
 ## The 60-second tour
 
-1. **Open the deck** — click the 👥 pill in your bar. It opens on **Chats**.
-2. **Find people** — go to **World 🌍**. Everyone listed is a real Omarchy
-   install that was online in the last couple of minutes. Tap **Add**.
-3. **Get accepted** — your invite appears in their Chats. The moment they
-   accept, you are friends and a private chat opens.
-4. **Talk** — type in Chats and hit Send. Messages are encrypted end to end
-   between friends and arrive in about a second with a desktop popup.
-5. **Meet everyone** — **Circles 🫂** is the public room. Say what you are
-   building there before sliding into DMs.
+1. **Open Friends** — left-click the 👥 pill in your bar. It opens on **Chats**.
+2. **Meet someone** — open **World**. Search or use `All / New / Building / Friends`, then choose the person's one relationship action: **Connect**, **Accept**, or **Message**.
+3. **Handle requests separately** — **Requests** has **Received** and **Sent**. Requests never clutter your Chats list.
+4. **Talk privately** — after you are friends, open **New chat** and choose them. That conversation gets its own message history and stays separate from every other person/group.
+5. **Meet the community** — **Circles** opens the public Omarchy Circle room.
+6. **Build together** — use the visible **Build** entry or middle-click the bar pill to open Build Network.
 
-Press **?** anywhere in the deck for this cheat sheet.
+## Main navigation
 
-## The four tabs
+| View | What it is |
+|---|---|
+| **Chats** | Opened private/group conversations only. |
+| **Requests** | Received connection requests and Sent/pending requests. |
+| **World** | Live Omarchy people, projects, interests and relationship state. |
+| **Circles** | Public Omarchy community room. |
+| **Build** | Collaboration workspace: ideas, builds, setups, tests, help, solutions and community work. |
+| **Me** | Your pseudonymous profile, presence and privacy controls. |
 
-| Tab | What it is | WhatsApp equivalent |
-|-----|------------|---------------------|
-| 💬 Chats | Private conversations + pending invites. Unread counts on the tab. | Chats |
-| 🌍 World | Live builders right now. Search, Add, Chat, Accept. | New chat |
-| 🫂 Circles | One public room for every builder. Great first hello. | Group |
-| 👤 Me | Your beacon: name, avatar, status, project, interests, invite link. | Profile |
+## Chats
 
-## Everyday rituals
+Chats intentionally does **not** show every friend.
 
-* **Wave 👋** — one tap on any World profile. No invite needed, just a hello.
-* **World Spark ✨** — a daily opener matched to a live builder. For when
-  the blank chat box stares back.
-* **Focus ritual 🍅** — invite a builder to pair for 25 minutes. They join
-  explicitly; both sides get a shared countdown. Pair on consecutive days
-  and you build a 🔥 focus streak together. Invites stay valid 3 minutes —
-  accept from the popup banner with Join.
-* **Ship-It Friday 🚀** — every Friday 18:00 UTC is the shared build hour.
-  World counts you down to it; show up and say hello.
-* **Hack Circles 🛠** — temporary rooms (Ship It, Rice Club, Night Owls)
-  inside the room field. Same tribe, zero setup.
-* **Invite link 🔗** — Me → Copy invite gives you an
-  `omarchy-friends://invite/...` link. Send it anywhere; the other person
-  pastes it into Me → Connect. Needs a relay connection on both sides, but
-  no shared World presence — the invite finds them directly.
+- Use **New chat** to choose from your complete friends list.
+- Once you open a person, that private conversation appears in the conversation rail.
+- Messages for one friend never get mixed into another friend's conversation.
+- Private groups have their own conversation too.
+- Search filters your existing conversations.
+- The main composer is for text. Use **Link** only when you want to attach an optional HTTP(S) link.
+- **Focus** and **Build** are contextual actions for the selected conversation.
 
-## Keyboard first
+## Requests
 
-`1–4` tabs · `h/l` switch tab · in World: `j/k` pick a person · `Enter` wave ·
-`r` refresh World · `?` help · `Esc` close.
+Requests has two states:
 
-## Privacy in one minute
+- **Received** — another builder wants to connect. Accepting establishes the friendship and lets you start a private chat.
+- **Sent** — requests you sent from World or a direct invite that are still waiting for the other person.
 
-* You appear as a random handle (e.g. PixelComet-4252), never your real name.
-* Hide instantly with the 🌍 World chip in Me.
-* Block anyone from their World row — they vanish, and your local memory
-  of them is wiped too.
-* LAN radar packets are plaintext; the global layer is signed but public.
-  Never post secrets in Circles.
+This state is deliberately separate from Chats so a busy request list cannot bury the person you actually want to talk to.
+
+## World
+
+World is a discovery surface, not a social-media feed.
+
+- **All** — everyone currently visible.
+- **New** — people you have not already connected with.
+- **Building** — people sharing a current project.
+- **Friends** — your friends who are currently visible.
+
+Each person has one clear action based on relationship state:
+
+- **Connect** — send a connection request;
+- **Accept** — accept their request;
+- **Requested** — your request is pending;
+- **Needs update** — their current client is too old for the modern chat flow;
+- **Message** — open their private conversation.
+
+World cards show useful project/status/common-ground context without repeating Wave/Focus/Build buttons everywhere.
+
+## Circles
+
+**Omarchy Circle** is public and relay-readable. Use it for questions, discoveries, small wins and finding people to continue with privately.
+
+Do not post passwords, private links, personal addresses, credentials or sensitive logs there.
+
+## Me
+
+Me is split into three ideas:
+
+- **About you** — display name and optional project information.
+- **Presence** — avatar, status and up to four interests.
+- **Privacy** — control whether your public beacon shares World visibility, active app, music, project, interests and room.
+
+**Copy invite** creates:
+
+```text
+omarchy-friends://invite/<public-key>
+```
+
+A compatible installed Friends client can use that link to start the connection flow without depending on both people appearing in World at the same moment.
+
+## Build Network
+
+Open it from the visible **Build** entry or middle-click the Friends bar pill.
+
+The six workspaces are:
+
+- **Discover** — useful community work;
+- **Build** — Build Rooms, roles, tasks and public GitHub activity;
+- **Share** — Setup Cards/components and Test Network;
+- **Help** — Human Help, Can Help/Pair/Building availability and helper matching;
+- **Community** — solutions, shipping, update reports, events and challenges;
+- **Create** — publish a new supported public object.
+
+Setup sharing is review-first. Friends does not automatically install another person's setup or execute remote shell commands.
+
+## Privacy and security
+
+- Your global identity is pseudonymous and locally generated.
+- Public World/Circles/Build Network objects are relay-readable.
+- You can hide from World from **Me → Privacy**.
+- Current-to-current private messages use the v4.15 NIP-44/NIP-17/NIP-59 path with recipient inbox relays.
+- The implementation is not independently security-audited and NIP-44 does not provide forward secrecy, so Friends is not a place for highly sensitive secrets.
+- LAN radar, when enabled, has a different local-network trust boundary; do not confuse it with private internet messaging.
 
 ## Staying updated
 
-Every install broadcasts its version. The moment a newer Friends appears in
-your World, you get a banner and one popup — tap **Update** and you are
-current. Updating is always your tap, never silent.
+Friends may show that a newer version is available, but v4.15 does **not** silently update itself in the background.
+
+Use the visible **Update** action when you choose to update. The active service no longer contains a timer-driven updater.
+
+## If something looks wrong
+
+For the v4.15 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility and invite handling.

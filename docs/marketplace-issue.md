@@ -12,30 +12,23 @@ bar, quickshell, system
 
 ### Suggest a missing tag
 
-_No response_
+social, collaboration
 
 ### Maintainer notes
 
-Omarchy Friends 3.4.0 now has a federated global lobby as well as its local radar:
-each running install gets a generated pseudonymous secp256k1 identity, publishes
-signed presence to public Nostr relays, and can receive bounded one-click waves
-without exchanging a Friend Code. World Spark provides a bounded daily opener,
-and an explicit accept-to-join 25-minute global focus ritual helps a wave become
-a real shared activity. It never publishes an IP address, real name,
-or account credential. The deck also includes a local-first suggestion box
-with an explicit copy/open-GitHub handoff; it never submits an issue silently.
-Global visibility is explicit in the UI and can be
-hidden instantly; public relays can still observe the signed pseudonymous
-events they carry. The 3.4 visual pass gives the first-open view a compact
-identity header, text-first navigation, fewer peer actions, and collapsed
-secondary Friend Code tools. Hack Circles make the existing opt-in room signal useful with
-one-click temporary rooms, and the keyboard-first Friends Deck provides `?`,
-`h/l`, `j/k`, Enter, `s`, `f`, and `r` shortcuts. The local radar, gathering
-rooms, bounded interests, real signals, and co-work invites remain available.
-The repository contains the
-manifest, installation and removal instructions, license, tests, and
-Quickshell validation commands.
-The click-to-open Friends Deck repair is included in the current `main` head.
+Omarchy Friends v4.15 is an Omarchy-native social and collaboration layer with two connected surfaces.
+
+**Friends V3** provides pseudonymous live World discovery, separate Received/Sent connection requests, private one-to-one and small-group chats, a public Omarchy Circle room, focus rituals, direct invite links, and explicit profile/presence/privacy controls. Chats contains only conversations the user has actually opened; the full friends list lives behind New chat so requests and unused contacts do not bury active conversations.
+
+**Build Network** provides Ideas -> Build Rooms, roles/tasks/lifecycle, explicit public-GitHub activity cards, Setup Cards/components with review-first comparison, a Test Network, Human Help, short-lived Can Help/Pair/Building availability, helper matching, Solution Cards/community verification, Ship Log, voluntary Update Pulse, events and challenges.
+
+Public discovery/collaboration uses signed bounded Nostr events with a locally generated pseudonymous secp256k1 identity. World presence expires quickly; the plugin does not invent fake online users. Public World/Circles/Build data is relay-readable. Safe environment sharing is limited to coarse explicit labels and excludes hostname, username, IP address, serials and file contents.
+
+Current-to-current private messages use NIP-44 v2 + NIP-17 kind-14 + NIP-59 seals/gift wraps and signed kind-10050 inbox relay lists. Remote inbox-relay metadata cannot create arbitrary outbound destinations because Friends follows only bounded overlap with locally configured relays. Legacy read/send compatibility remains for never-upgraded peers. The implementation has not received an independent security audit and NIP-44 does not provide forward secrecy, so the project does not claim high-assurance secure messaging.
+
+The plugin does not remotely execute commands, silently upload logs/configs/files, or automatically install another person's setup. v4.15 also uses explicit user-triggered updates rather than a timer-driven background updater.
+
+The repository includes the manifest, MIT license, install/removal instructions, unit/e2e/protocol tests, WebSocket resource-limit regression tests, static release gate, strict invite URI handler, V3 -> V2 -> legacy UI fallback chain, and a real-Omarchy validation checklist. Stable release still requires the documented installed-plugin/QML/render/relay tests.
 
 ### Submission checklist
 

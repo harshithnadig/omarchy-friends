@@ -597,9 +597,41 @@ PopupCard {
             }
 
             Item {
-                width: parent.width - titleText.width - settingsButton.width
+                width: parent.width - titleText.width - buildNetworkButton.width - settingsButton.width - Style.space(6)
                 height: 1
             }
+
+            // v4.14-final: visible Build Network entry
+            Rectangle {
+                id: buildNetworkButton
+                width: buildNetworkButtonText.implicitWidth + Style.space(18)
+                height: Style.space(30)
+                radius: height / 2
+                color: Qt.rgba(accent.r, accent.g, accent.b, 0.12)
+                border.width: 1
+                border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.22)
+
+                Text {
+                    id: buildNetworkButtonText
+                    anchors.centerIn: parent
+                    text: "🛠 Build"
+                    color: accent
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.hostWidget && typeof root.hostWidget.openBuild === "function")
+                            root.hostWidget.openBuild()
+                    }
+                }
+            }
+
+            Item { width: Style.space(6); height: 1 }
 
             Rectangle {
                 id: settingsButton

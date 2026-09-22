@@ -1,189 +1,186 @@
 # Omarchy Friends 👥
 
-**Omarchy World: find real people who are building on Omarchy right now.**
+**The live human layer for Omarchy — meet builders, chat, share setups, build together, test things on real machines, and preserve what the community learns.**
 
-Friends is a small human layer in the bar. A fresh install creates a memorable
-pseudonymous identity, appears in the World tab while it is running, and can
-receive a friendly wave without anyone having to copy a code. The experience
-is global and federated, with the original LAN radar and co-work tools still
-available when people are nearby.
+Omarchy Friends is built specifically for Omarchy. It combines a lightweight social/messaging layer with the **Build Network**, a collaboration surface for ideas, projects, setups, testing, human help, solutions, events and community shipping.
 
-New here? Read **[How to use Friends](docs/howto.md)** — the 60-second tour,
-or press **?** inside the deck.
+There are no hosted Friends accounts and no fake users. Public discovery is pseudonymous and federated over Nostr relays; private social state stays local unless a user explicitly sends or publishes something.
 
-## The experience
+## Two surfaces, one product
 
-* **🌍 Omarchy World:** See recently active, real plugin installations across
-  the internet. Presence expires after 150 seconds, so the list is a live
-  lobby, not a fake social feed.
-* **✦ Showcase:** Browse the projects, plugins, and custom-rice setup beacons
-  that builders choose to share, then say hello when something catches your
-  eye. Add your own from Profile so your setup can become someone else’s
-  starting point.
-* **👋 One-click connection:** Wave, offer coffee, or send kudos from any
-  world profile. Incoming waves appear in the deck and as a desktop
-  notification. No Friend Code is required.
-* **🤝 Chat invites:** Invite a builder from World, accept chat invites
-  explicitly, and keep accepted people in Chats. The action is named
-  **Invite to chat** so it is clear that accepting unlocks messaging.
-  You can also open Profile, copy your personal `omarchy-friends://invite/...`
-  link, and send it anywhere. The recipient pastes it into **Connect** to send
-  a request even when you are not currently visible in their World list.
-* **💬 Community room:** Post short public messages in Circles so
-  builders can meet in one shared room before becoming private friends. Public
-  room messages are signed and relay-readable; never share private information.
-* **🔒 Private DMs:** Accepted friends can send short encrypted one-to-one
-  messages from the Chats conversation. Messages are stored locally after
-  delivery; relays carry only signed ciphertext. Paste an image, video, audio,
-  or file URL to share media without uploading a file to a third party.
-  Requests, blocks, and visibility remain under the recipient's control.
-* **🫂 Private groups:** Create a small encrypted group from accepted friends.
-  Each member receives an individually encrypted invite and message copy; the
-  group name and membership stay local to the invited people.
-* **✨ World Spark:** Get a daily bounded opener and send it to the best live
-  match, so meeting someone starts with an actual question instead of a
-  blank chat box.
-* **🍅 Focus ritual:** Invite a real builder to pair for 25 minutes. The
-  invite expires, the other person explicitly joins, and both sides get a
-  shared local countdown without opening another social app.
-* **🛠 Hack Circles:** Join a lightweight shared room such as Ship It, Open
-  Source, Rice Club, or Night Owls. It uses the existing opt-in room signal,
-  so people can find a temporary tribe without creating a chat server.
-* **💬 Chats:** WhatsApp-easy by design — open Friends and your conversations
-  are right there with the latest line, unread counts, and one-tap entry.
-  Tap any chat to read and reply; invites waiting for you sit at the top.
-* **⌨️ Friends Deck:** Press `h/l` to move between tabs; in World, `j/k` to
-  select a person, `Enter` to wave, and `r` to refresh. The tab
-  shortcuts are `1` Chats, `2` World, `3` Circles, and `4` Me.
-* **⚡ Instant delivery:** A live relay listener keeps one subscription open,
-  so DMs, waves, and Circle notes arrive in about a second with a desktop
-  popup — no refresh needed. The periodic World sync remains as backup.
-* **✨ Shared ground:** Optional interests, status, project beacon, room, app,
-  and music fields help people discover an honest conversation starter.
-* **↻ Fast updates:** Every install advertises its version, so the moment a
-  newer Friends appears in your World you get a banner and one popup —
-  one tap updates. Silent auto-update is a non-goal: updating code always
-  stays your explicit choice.
-* **↺ Conversation memory:** Returning builders feel familiar with a tiny
-  local-only note — exchanges, last signal, and friends-since — kept on
-  your machine, never published, and cleared when you block someone.
-* **🍅 Co-work:** Keep the explicit 25-minute focus sessions and invites for
-  people on the local radar or saved as private shortcuts.
-* **🛡️ Human controls:** Hide or report a profile, block a profile, rate-limit
-  signals, or keep using only the local radar. Friend Codes remain an
-  optional private shortcut for people who already know each other.
-* **🧭 Friendly first-run path:** The empty Chats screen has one-click
-  actions to discover builders, copy your invite, or return to World.
-* **💡 Suggest, feedback, and bug reports:** Write a note in Profile, copy it
-  with context, and optionally open the matching GitHub form. Nothing is
-  submitted automatically.
+### Friends Deck — left click
 
-## How global discovery works
+Friends V3 is focused on people and conversation without dumping every social state into one screen:
 
-The plugin uses the open Nostr relay protocol. Every installation generates a
-local secp256k1 keypair and publishes a small BIP-340-signed presence event to
-several public WebSocket relays. The public key is the machine's pseudonymous
-identity; the private key stays in the local state file. A ping is a small
-signed event addressed to the recipient's public key and tagged for Omarchy
-Friends.
+- **Chats** — only conversations you have actually opened or used. Each friend/group has its own private conversation; the full friends list stays behind **New chat** instead of cluttering the rail.
+- **Requests** — separate **Received** and **Sent/pending** connection requests. Incoming requests do not appear inside Chats.
+- **World** — recently active real Omarchy installations with search and All/New/Building/Friends filters. Each person gets one clear relationship action instead of a row of repeated micro-buttons.
+- **Circles** — one public community room with a normal message stream and composer.
+- **Me** — pseudonymous profile plus About, Presence and explicit Privacy controls.
+- **Focus** — bounded 25-minute co-working/focus rituals from an active private conversation.
+- **Local Radar** — optional LAN discovery for nearby opted-in Omarchy users.
 
-The default relay set is:
+The preferred shell is `FriendsPanelV3.qml`. `FriendsPanelV2.qml` remains as a compatibility fallback and `Panel.qml` is the final legacy safety fallback if both modern shells fail to load.
 
-    wss://relay.primal.net
-    wss://nos.lol
-    wss://purplerelay.com
-    wss://nostr.mom
-    wss://relay.damus.io
+### Build Network — middle click or visible Build button
 
-If one relay is unavailable, the others are tried. Advanced users can provide
-a comma-separated set with `OMARCHY_FRIENDS_RELAYS`. The client is dependency
-free: it includes a small standard-library WebSocket and secp256k1
-implementation, so normal installs do not need `pip` or a hosted Omarchy
-Friends account.
+The Build Network is the workshop layer:
 
-The generated profile is visible by default because automatic discovery is the
-point of the plugin. The **🌍 World** privacy chip hides it immediately. Do not
-put a real name, email, location, or private project URL in a public profile.
-Public relays can observe the pseudonymous signed events they carry; this is
-not end-to-end private chat. World Spark questions and focus invitations are
-bounded signed signals, not a freeform public inbox. A focus invitation expires
-after three minutes unless the recipient explicitly joins.
-
-### Updating older installs
-
-Chat invites and encrypted DMs require the current plugin capabilities. If a
-World profile shows **Invite update**, clicking it sends the person a visible
-update prompt with this exact command:
-
-    omarchy plugin update community.omarchy-friends --yes
-
-After updating, reopen Friends or run `omarchy-shell shell rescanPlugins` if
-the new Chats tab does not appear immediately. Older installations remain
-visible in World, but cannot accept chat invites until they update.
-
-### Direct invite links
-
-Open **Profile → Invite someone directly → Copy invite**. Share the copied
-`omarchy-friends://invite/<public-key>` text in any chat or community. A
-recipient opens Friends, pastes it into the same Profile card, and presses
-**Connect**. This creates a normal mutual friend request; both people still
-choose whether to accept before messages become available.
-
-## Local radar and privacy
-
-* **📡 Local Radar:** Discovers opted-in peers through UDP broadcast on port
-  42424. Local presence expires after 90 seconds.
-* **🚀 Project Beacons:** Share a short project name, description, and URL only
-  when the corresponding privacy chip is enabled.
-* **🪩 Gathering Rooms:** Enter a meetup-sized room nickname manually. No
-  country, city, or precise location is inferred.
-* **✦ Local Pulse:** Shows only signals generated by this installation or
-  received from a real peer. There are no invented users or auto-replies.
-
-LAN packets are plaintext and unauthenticated, so treat them as discoverable by
-anyone on the same broadcast network. The global layer authenticates event
-authorship with signatures, but public visibility is still public visibility.
+- **Discover** — recent useful community work rather than a generic engagement feed.
+- **Ideas → Build Rooms** — show interest, form a team, declare roles, track tasks, move from building → testing → shipped.
+- **GitHub links/activity** — keep GitHub as the code source of truth while Friends coordinates the humans around it.
+- **Setup Cards** — share shallow setup metadata, compare it with your machine, and share individual components such as themes, plugins, bars, fonts, wallpapers and keybindings.
+- **Test Network** — request hardware/environment testers and collect signed pass/issue results.
+- **Human Help** — post what is broken plus a short summary of what you or your AI already tried.
+- **Can Help / Pair** — builders can advertise short-lived availability; matching uses skills/environment overlap rather than follower counts.
+- **Community Memory** — turn solved help into reusable Solution Cards and let other users verify whether a fix worked for them.
+- **Ship Log** — share completed work.
+- **Update Pulse** — explicit opt-in reports for working / minor issue / rolled back, including similar-environment aggregates.
+- **Events and Challenges** — meetups, online sessions, build challenges, RSVPs and team paths.
+- **Contribution context** — builds, tests, solutions, help and shipping are visible without turning Friends into a follower-count contest.
 
 ## Bar controls
 
-* **Left-click:** Open the Friends Deck.
-* **Right-click:** Cycle your status.
-* **Middle-click:** Copy the optional Friend Code.
-* **Bar pill:** Shows the number of current global and local peers, or the
-  remaining time for an active focus session.
+- **Left-click:** Friends Deck.
+- **Middle-click:** Build Network.
+- **Right-click:** Cycle your Friends status.
+- **Bar pill:** Shows live peer count or an active focus timer.
+
+## Privacy and safety model
+
+Public World / Circles / Build Network data is intentionally public and relay-readable. Do not put passwords, private URLs, secrets, personal addresses or sensitive logs into public cards.
+
+Friends deliberately applies several hard boundaries:
+
+- shared URLs must be HTTP(S);
+- remote community data is treated as metadata/text, never shell code;
+- Setup Cards and components **never auto-install or overwrite dotfiles**;
+- safe environment sharing is limited to coarse labels such as Omarchy version, architecture, GPU vendor and kernel version;
+- hostname, username, IP address, serial numbers and file contents are not part of Build Network environment sharing;
+- existing Friends blocks are honored by the release-hardened Build Network status layer;
+- failed Build Network publishes are kept locally and retried on a later sync;
+- `Can Help / Pair` availability expires instead of creating stale forever-online helpers;
+- Me exposes explicit controls for World visibility, active app, music, project, interests and room sharing.
+
+### Private messaging security — v4.15
+
+For two current Friends peers, private DMs and small-group messages use the standardized Nostr private-message stack implemented in `bin/omarchy_friends_private.py` and integrated by `bin/omarchy-friends`:
+
+- **NIP-44 v2** for authenticated private-message encryption;
+- **NIP-17 kind-14 rumors** for private-message structure;
+- **NIP-59 kind-13 seals and kind-1059 gift wraps** so the relay-facing event does not expose the real sender, plaintext, group id/name or the other group members;
+- **NIP-17 kind-10050 DM inbox relay lists** so current clients route gift wraps to the recipient's advertised inbox relays.
+
+Friends publishes a signed inbox-relay list and listens on those inbox relays. A remote kind-10050 event is followed only for relay URLs that are also present in the local configured Friends relay set; the cached selection is bounded. This prevents an untrusted remote profile from causing arbitrary WebSocket egress, but it means current interoperability requires an overlap in configured relay sets.
+
+During the upgrade window, a current client can still **read the historical Friends ciphertext format** and can send the historical kind-4 format to a friend that has never advertised the complete modern capability set. Once a friendship has advertised the modern protocol, that upgrade is remembered across stale presence and restarts rather than silently downgrading later.
+
+Friends deliberately caps a NIP-44 plaintext at **65,535 bytes** as an application resource/DoS bound. That is a Friends limit, not the NIP-44 protocol maximum; normal chat envelopes are far smaller.
+
+The dependency-free WebSocket transport also bounds individual frame size, cumulative fragmented-message size, fragment count and one overall receive deadline so a relay cannot keep a client busy indefinitely with tiny continuation frames. Those limits have dedicated regression tests.
+
+CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey, WebSocket fragmentation limits, Friends V3 information-architecture contracts and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
+
+The compatibility/design record is in `docs/private-messaging-security-migration.md`.
+
+## Global discovery
+
+World presence uses signed Nostr events with a locally generated secp256k1 identity. Presence expires quickly so World behaves like a live lobby rather than a permanent fake-online list.
+
+Default relays:
+
+```text
+wss://relay.primal.net
+wss://nos.lol
+wss://purplerelay.com
+wss://nostr.mom
+wss://relay.damus.io
+```
+
+Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
+
+The generated pseudonym is visible globally by default because discovery is the point of the plugin. You can disable global visibility immediately from **Me → Privacy**.
+
+## Direct invites
+
+Friends produces links like:
+
+```text
+omarchy-friends://invite/<public-key>
+```
+
+The current release includes a strict URI parser and best-effort user-local desktop registration. The real installed path must still be validated on the target Omarchy machine before release.
+
+Direct invite links can start the connection flow even when World has not cached the peer yet.
 
 ## Install
 
-    omarchy plugin add https://github.com/harshithnadig/omarchy-friends.git --enable
+```bash
+omarchy plugin add https://github.com/harshithnadig/omarchy-friends.git --enable
+```
 
-To place the widget explicitly, add it to the right side of
-`~/.config/omarchy/shell.json`:
+Explicit bar placement can be configured in `~/.config/omarchy/shell.json`:
 
-    {
-      "right": [
-        { "id": "community.omarchy-friends" }
-      ]
-    }
+```json
+{
+  "right": [
+    { "id": "community.omarchy-friends" }
+  ]
+}
+```
 
-Remove it with:
+Remove with:
 
-    omarchy plugin remove community.omarchy-friends
+```bash
+omarchy plugin remove community.omarchy-friends
+```
 
-State, including the local private signing key, is stored at
-`~/.local/state/omarchy-friends/friends_state.json` (or under
-`$XDG_STATE_HOME`). The file is created with user-only permissions by the
-plugin's normal state workflow.
+Local state lives under:
 
-## Development and verification
+```text
+~/.local/state/omarchy-friends/
+```
 
-Run the engine and global protocol tests:
+State files containing private signing material are intended to remain user-only.
 
-    python3 -m unittest discover -s tests -v
+## Development
 
-Run the Omarchy checks from the repository root:
+Run the normal unit suite:
 
-    omarchy plugin validate .
-    qmllint -I "$OMARCHY_PATH/shell" BarWidget.qml Panel.qml Service.qml
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Run the private-message standard/engine gates explicitly:
+
+```bash
+python3 -m unittest tests.test_private_messaging tests.test_private_messaging_engine -v
+```
+
+Run the final static/release gate:
+
+```bash
+bash scripts/release-gate.sh
+```
+
+On a real Omarchy machine also run:
+
+```bash
+omarchy plugin validate .
+qmllint -I "$OMARCHY_PATH/shell" \
+  BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml Service.qml \
+  BuildNetworkPanelV3.qml BuildNetworkService.qml \
+  GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
+  GlassNavItem.qml GlassAvatar.qml
+```
+
+`CODEX_REAL_SYSTEM_TEST.md` is the final real-machine validation checklist. It explicitly checks Chats, Requests, World, Circles, Me, the fallback chain, all six Build Network tabs, actual relay behavior and rendered UI. `PROMISE_LEDGER.md` records the complete product-scope promise audit so future agents do not invent duplicate systems.
+
+## Release rule
+
+Do **not** merge the feature branch solely because CI is green. A release requires the real Omarchy plugin/QML pass, Friends V3 visual/interaction pass, two-instance relay synchronization including signed kind-10050 inbox routing and NIP-17/NIP-59 messaging, current-to-legacy compatibility, restart/anti-downgrade validation, existing Friends regression tests, URI opening validation, and version consistency between `manifest.json` and the live Friends engine.
+
+Repository-side scope is frozen. From this point, code changes should be limited to small fixes for failures demonstrated by the real-system checklist. Do not merge `main` until Harshu explicitly asks.
 
 ## License
 

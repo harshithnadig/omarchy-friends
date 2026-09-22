@@ -1,0 +1,59 @@
+name: Build Network
+
+on:
+  push:
+    branches:
+      - feature/build-network
+  pull_request:
+    paths:
+      - 'bin/build_network*.py'
+      - 'bin/omarchy-friends'
+      - 'bin/omarchy_friends_*.py'
+      - 'bin/omarchy-friends-open'
+      - 'BuildNetwork*.qml'
+      - 'FriendsPanel*.qml'
+      - 'Glass*.qml'
+      - 'BarWidget.qml'
+      - 'Panel.qml'
+      - 'Service.qml'
+      - 'ServiceModern.qml'
+      - 'tests/test_*.py'
+      - 'scripts/release-gate.sh'
+      - 'manifest.json'
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile active Python modules
+        run: |
+          python -m py_compile \
+            bin/build_network.py \
+            bin/build_network_social.py \
+            bin/build_network_v2.py \
+            bin/build_network_v3.py \
+            bin/build_network_runtime.py \
+            bin/build_network_app_v2.py \
+            bin/build_network_app_v3.py \
+            bin/build_network_app_v4.py \
+            bin/omarchy_friends_global.py \
+            bin/omarchy_friends_private.py \
+            bin/omarchy-friends \
+            bin/omarchy-friends-open
+      - name: Run private messaging standards vectors
+        run: python -m unittest tests.test_private_messaging tests.test_private_messaging_engine -v
+      - name: Run complete unit suite
+        run: python -m unittest discover -s tests -v
+      - name: Enforce remote-execution safety boundary
+        run: |
+          ! grep -R -nE 'eval\(|exec\(|os\.system\(|shell=True' \
+            bin/build_network*.py bin/omarchy_friends_*.py bin/omarchy-friends bin/omarchy-friends-open
+      - name: Static release gate
+        run: bash scripts/release-gate.sh --ci

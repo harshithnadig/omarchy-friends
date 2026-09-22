@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "community.omarchy-friends",
   "name": "Omarchy Friends",
-  "version": "4.12.2",
+  "version": "4.15.0",
   "author": "Omarchy Community Contributors",
   "license": "MIT",
-  "description": "A calm, pseudonymous Omarchy World with public community chat, mutual friends, encrypted messaging, media links, and lightweight human connection tools.",
+  "description": "An Omarchy-native social and collaboration layer with NIP-44/NIP-17 private messaging, live builders, liquid-glass Build Network, setup sharing, testing, human help, community memory, events and challenges.",
   "homepage": "https://github.com/harshithnadig/omarchy-friends",
   "repository": "https://github.com/harshithnadig/omarchy-friends",
   "kinds": [
@@ -13,12 +13,12 @@
     "bar-widget"
   ],
   "entryPoints": {
-    "service": "Service.qml",
+    "service": "ServiceModern.qml",
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
     "displayName": "Friends",
-    "description": "Omarchy World with friend requests, encrypted messages, media links, Hack Circles, and daily sparks",
+    "description": "Omarchy-native messaging, World presence, Build Network, setup sharing, testing, help and collaboration",
     "category": "Developer Tools",
     "allowMultiple": false,
     "defaultSection": "right"
