@@ -1,48 +1,40 @@
-# Build Network status — v4.14
+# Omarchy Friends v4.15 RC — implementation status
 
-## Implemented on `feature/build-network`
+This file used to track the v4.14 Build Network build. It is retained only as a short status pointer so older links do not lead future contributors to obsolete instructions.
 
-- [x] Bounded collaboration state models and fail-closed validation
-- [x] Signed Nostr relay encode/decode and de-duplication
-- [x] Ideas + interest signals
-- [x] Ideas → Build Rooms
-- [x] Build Room joins, roles, GitHub links and lifecycle states
-- [x] Build task progress updates
-- [x] Setup Cards with shallow safe local inspection
-- [x] Safe setup comparison/diff before any manual application
-- [x] Test requests + pass/issue results with environment labels
-- [x] Human-help requests + offers + solved/closed lifecycle
-- [x] Safe non-identifying environment context for help/update/test flows
-- [x] Solution Cards + community verification counts
-- [x] Ship Log / Discover feed
-- [x] Opt-in Omarchy Update Pulse + similar-environment aggregates
-- [x] Community events + Going/Interested RSVP
-- [x] Build challenges + join/team signal
-- [x] Contribution-oriented reputation; no follower-count ranking
-- [x] Save/hide local community objects
-- [x] Existing Friends chat handoff for private follow-up
-- [x] Modern liquid-glass Build Network V3 UI
-- [x] Reusable GlassSurface / GlassPill visual components
-- [x] Safe `omarchy-friends://invite/<pubkey>` handler implementation
-- [x] Unit tests for bounded payloads, malicious types and unsafe URLs
-- [x] GitHub Actions Python compile + complete unit suite + remote-exec grep gate
-- [x] Existing Friends deck kept separate and intact for regression safety
+**Current sources of truth:**
 
-## Intentionally NOT implemented
+1. `PROMISE_LEDGER.md` — complete shipped/not-shipped promise audit.
+2. `FINAL_RELEASE_STATUS.md` — release-candidate status and remaining real-system gates.
+3. `CODEX_REAL_SYSTEM_TEST.md` — exact validation procedure for the actual Omarchy machine.
+4. `docs/ui-design-v415.md` — Friends V3 + Build Network UI contract.
 
-- [ ] Auto-install/apply another person's setup. This is intentionally prohibited until a future reviewed installer can produce an exact local diff and explicit user confirmation.
-- [ ] Remote shell/code execution. This is intentionally prohibited.
-- [ ] Automatic upload of logs, configs, secrets or private files. This is intentionally prohibited.
-- [ ] Private-message crypto migration. Existing messaging crypto is unchanged in this branch; any NIP-44/NIP-17 migration deserves its own audited change.
+## Repository-side v4.15 scope
 
-## Real Omarchy validation still required
+Implemented on `feature/build-network`:
 
-- [ ] `omarchy plugin validate .`
-- [ ] `qmllint` against the real Omarchy/Quickshell imports
-- [ ] Reload shell and visually inspect the V3 liquid-glass deck
-- [ ] Exercise every tab and action on the real machine
-- [ ] Two-instance relay sync test
-- [ ] Existing DM/group/World/Circle/focus regression pass
-- [ ] Verify custom URI desktop registration strategy for the installed plugin path
+- Friends V3 with conversation-only Chats, separate Received/Sent Requests, New chat picker, simplified World, room-style Circles and explicit Profile privacy controls;
+- V3 -> V2 -> legacy UI fallback chain;
+- Ideas -> Build Rooms, roles/tasks/lifecycle and public GitHub activity;
+- Setup Cards/components with review/compare workflows;
+- Test Network, Human Help, Can Help/Pair/Building availability and helper matching;
+- Solution Cards/community verification, Ship Log, Update Pulse, events and challenges;
+- signed bounded Nostr federation, retry/dedupe/cache hardening and Friends block reuse;
+- NIP-44 v2 + NIP-17/NIP-59 current-peer private messaging with kind-10050 inbox routing and bounded legacy compatibility;
+- strict invite URI handling;
+- explicit user-triggered updates only — no silent background updater;
+- CI for protocol vectors, unit/e2e behavior, WebSocket fragmentation limits, Friends V3 information architecture, remote-exec boundary and release gate.
 
-Those remaining items require the real Omarchy runtime; they are validation/integration work, not missing product design.
+## Intentionally not implemented
+
+- automatic install/apply of another person's setup;
+- arbitrary remote shell/code execution;
+- automatic upload of logs, configs, secrets or private files;
+- claims of an independent cryptographic security audit;
+- claims of forward secrecy for NIP-44.
+
+## Remaining work
+
+Only the real-system gates in `FINAL_RELEASE_STATUS.md` remain: installed Omarchy validation/qmllint, rendered UI and interaction checks, real public-relay/two-client tests, legacy compatibility, existing Friends regression and desktop invite handling.
+
+Do not treat this file as a new feature backlog. Fix only concrete failures demonstrated by the real-system checklist before v4.15 stable.
