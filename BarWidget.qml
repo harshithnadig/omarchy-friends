@@ -157,5 +157,10 @@ BarWidget {
                 })
             }
         }
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.warn("Omarchy Friends panel failed to load: " + source)
+            }
+        }
     }
 }
