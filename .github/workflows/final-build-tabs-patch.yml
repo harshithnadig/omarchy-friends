@@ -1,0 +1,32 @@
+name: Final Build keyboard patch
+
+on:
+  push:
+    branches:
+      - feature/build-network
+    paths:
+      - .github/workflows/final-build-tabs-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/build-network
+          fetch-depth: 0
+      - name: Patch Build tabs
+        run: python3 scripts/_final_build_tabs_patch.py
+      - name: Verify focused UX contract
+        run: python3 -m unittest tests.test_final_ux_contract -v
+      - name: Remove one-shot helper and commit result
+        run: |
+          rm -f scripts/_final_build_tabs_patch.py .github/workflows/final-build-tabs-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add BuildNetworkPanelV3.qml scripts/_final_build_tabs_patch.py .github/workflows/final-build-tabs-patch.yml
+          git commit -m "Make Build tabs keyboard accessible"
+          git push origin HEAD:feature/build-network
