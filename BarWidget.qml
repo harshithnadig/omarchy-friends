@@ -12,6 +12,7 @@ BarWidget {
     property bool cardOpen: false
     property bool buildCardOpen: false
     property string pendingBuildTab: "discover"
+    property bool modernUiFailed: false
     readonly property Item button: buttonItem
     readonly property bool opened: cardOpen || buildCardOpen
     readonly property bool popoutSwitchClosing: false
@@ -78,6 +79,18 @@ BarWidget {
         service.setStatus(statuses[(idx + 1) % statuses.length])
     }
 
+    function notifyUiFallback() {
+        if (root.modernUiFailed) return
+        root.modernUiFailed = true
+        Quickshell.execDetached([
+            "omarchy-notification-send",
+            "--app-name", "Omarchy Friends",
+            "-u", "critical",
+            "Friends modern UI could not load",
+            "The safe legacy panel was loaded instead. Run the v4.15 real-system QML check before release."
+        ])
+    }
+
     WidgetButton {
         id: buttonItem
         anchors.fill: parent
@@ -102,6 +115,8 @@ BarWidget {
             return "👥 " + count
         }
         tooltipText: {
+            if (root.modernUiFailed)
+                return "Omarchy Friends · legacy fallback active\nModern v4.15 UI failed to load — run the QML release check"
             if (root.service && root.service.cowork && root.service.cowork.active) {
                 var s = root.service.cowork.remaining_seconds || 0
                 var bName = root.service.cowork.buddy_name || "yourself"
@@ -145,11 +160,16 @@ BarWidget {
         source: Qt.resolvedUrl("FriendsPanelV2.qml")
         visible: false
         onLoaded: if (item) {
+            root.modernUiFailed = false
             item.hostWidget = root
             Qt.callLater(function() { if (item) item.hostWidget = root })
         }
-        onStatusChanged: if (status === Loader.Error)
-            console.warn("Omarchy Friends modern panel failed; enabling legacy fallback: " + source)
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.warn("Omarchy Friends modern panel failed; enabling legacy fallback: " + source)
+                root.notifyUiFallback()
+            }
+        }
     }
 
     Loader {
