@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# v4.14 finalized-tree verification trigger
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
