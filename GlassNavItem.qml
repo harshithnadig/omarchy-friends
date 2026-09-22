@@ -15,6 +15,15 @@ Item {
 
     implicitHeight: Style.space(42)
     opacity: root.enabled ? 1 : 0.45
+    activeFocusOnTab: root.enabled
+
+    Keys.onPressed: function(event) {
+        if (!root.enabled) return
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+            root.clicked()
+            event.accepted = true
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -22,19 +31,21 @@ Item {
         gradient: Gradient {
             GradientStop {
                 position: 0
-                color: root.selected
-                    ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.28)
+                color: root.selected || root.activeFocus
+                    ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, root.selected ? 0.28 : 0.18)
                     : (hover.hovered ? Qt.rgba(1, 1, 1, 0.070) : "transparent")
             }
             GradientStop {
                 position: 1
-                color: root.selected
-                    ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.105)
+                color: root.selected || root.activeFocus
+                    ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, root.selected ? 0.105 : 0.075)
                     : (hover.hovered ? Qt.rgba(0.24, 0.34, 0.62, 0.055) : "transparent")
             }
         }
-        border.width: root.selected ? 1 : 0
-        border.color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.52)
+        border.width: root.selected || root.activeFocus ? 1 : 0
+        border.color: root.activeFocus
+            ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.88)
+            : Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.52)
 
         Rectangle {
             visible: root.selected
@@ -52,14 +63,14 @@ Item {
         }
 
         Rectangle {
-            visible: root.selected
+            visible: root.selected || root.activeFocus
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.leftMargin: Style.space(10)
             anchors.rightMargin: Style.space(10)
             height: 1
-            color: Qt.rgba(1, 1, 1, 0.12)
+            color: Qt.rgba(1, 1, 1, root.activeFocus ? 0.20 : 0.12)
         }
     }
 
@@ -75,7 +86,7 @@ Item {
             width: Style.space(20)
             horizontalAlignment: Text.AlignHCenter
             text: root.icon
-            color: root.selected ? "#e9e5ff" : (hover.hovered ? "#d6e9ff" : "#aab1c7")
+            color: root.selected || root.activeFocus ? "#e9e5ff" : (hover.hovered ? "#d6e9ff" : "#aab1c7")
             font.family: Style.font.family
             font.pixelSize: Style.font.bodySmall
         }
@@ -83,10 +94,10 @@ Item {
         Text {
             width: parent.width - Style.space(20) - badgeBox.width - Style.space(18)
             text: root.text
-            color: root.selected ? "#f7f7ff" : (hover.hovered ? "#e7ebf7" : "#bac0d2")
+            color: root.selected || root.activeFocus ? "#f7f7ff" : (hover.hovered ? "#e7ebf7" : "#bac0d2")
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
-            font.bold: root.selected
+            font.bold: root.selected || root.activeFocus
             elide: Text.ElideRight
         }
 
@@ -117,6 +128,9 @@ Item {
     HoverHandler { id: hover }
     TapHandler {
         enabled: root.enabled
-        onTapped: root.clicked()
+        onTapped: {
+            root.forceActiveFocus()
+            root.clicked()
+        }
     }
 }
