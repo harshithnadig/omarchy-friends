@@ -35,6 +35,7 @@ from omarchy_friends_global import (  # noqa: E402
 )
 from omarchy_friends_private import (  # noqa: E402
     NIP59_GIFT_WRAP_KIND,
+    NIP59_RANDOM_WINDOW_SECONDS,
     app_envelope_from_rumor,
     create_nip17_rumor,
     decrypt_private_text,
@@ -3082,7 +3083,11 @@ class FriendsEngine:
                 {
                     "kinds": [NIP59_GIFT_WRAP_KIND],
                     "#p": [identity["public_key"]],
-                    "since": max(0, started_at - 60),
+                    # NIP-59 gift wraps intentionally randomize their outer
+                    # timestamp over the two-day privacy window. A short
+                    # listener lookback can otherwise miss a live DM even
+                    # when every inbox relay is connected and delivering.
+                    "since": max(0, started_at - NIP59_RANDOM_WINDOW_SECONDS - 1),
                     "limit": MAX_MESSAGES,
                 },
             ])
