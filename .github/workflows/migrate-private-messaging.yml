@@ -6,6 +6,7 @@ on:
       - feature/build-network
     paths:
       - 'scripts/migrate-private-messaging.py'
+      - 'tests/test_e2e_journey.py'
       - '.github/workflows/migrate-private-messaging.yml'
 
 permissions:
@@ -46,7 +47,7 @@ jobs:
             exit 0
           fi
           git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.email '41898254+github-actions[bot]@users.noreply.github.com'
           git add bin/omarchy-friends manifest.json scripts/release-gate.sh
           git commit -m 'feat: migrate private messaging to NIP-44 and NIP-17'
           git push origin HEAD:feature/build-network
