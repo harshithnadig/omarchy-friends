@@ -60,6 +60,38 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(status["friends"], [])
         self.assertEqual(status["world_pulse"], [])
 
+    def test_unblock_global_only_removes_requested_key_and_presence_returns(self):
+        remote = friends_module.FriendsEngine(state_dir=tempfile.mkdtemp())
+        try:
+            blocked_key = remote.state["global_identity"]["public_key"]
+            other_key = "b" * 64
+            self.engine.state["global"]["blocked_pubkeys"] = [blocked_key, other_key]
+            self.engine.state["global"]["friendships"] = {other_key: {"status": "friends"}}
+            self.engine.state["global"]["messages"] = [{"id": "keep-message", "public_key": other_key}]
+            before = json.dumps(self.engine.state["global"], sort_keys=True)
+            blocked_event = remote._global_presence_event()
+            self.engine._ingest_global_presence(blocked_event)
+            self.engine._cleanup_global_peers()
+            self.assertNotIn(blocked_key, self.engine.state["global"]["peers"])
+
+            ok, message = self.engine.unblock_global(blocked_key)
+
+            self.assertTrue(ok, message)
+            self.assertEqual(self.engine.state["global"]["blocked_pubkeys"], [other_key])
+            self.assertEqual(self.engine.state["global"]["friendships"], {other_key: {"status": "friends"}})
+            self.assertEqual(self.engine.state["global"]["messages"], [{"id": "keep-message", "public_key": other_key}])
+            after = json.dumps(self.engine.state["global"], sort_keys=True)
+            before_without_blocked = json.loads(before)
+            after_without_blocked = json.loads(after)
+            before_without_blocked["blocked_pubkeys"] = [other_key]
+            self.assertEqual(after_without_blocked, before_without_blocked)
+            unblocked_event = remote._global_presence_event()
+            self.assertTrue(self.engine._ingest_global_presence(unblocked_event))
+            self.engine._cleanup_global_peers()
+            self.assertIn(blocked_key, self.engine.state["global"]["peers"])
+        finally:
+            shutil.rmtree(remote.state_dir, ignore_errors=True)
+
     def test_global_identity_and_presence_are_signed_without_friend_code(self):
         identity = self.engine.state["global_identity"]
         self.assertRegex(identity["public_key"], r"^[0-9a-f]{64}$")

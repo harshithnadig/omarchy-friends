@@ -68,9 +68,10 @@ grep -q 'def cancel_friend_request' bin/omarchy-friends || fail "Friends engine 
 grep -q '"friend_decline"' bin/omarchy-friends || fail "Friends engine is missing decline synchronization"
 grep -q '"friend_cancel"' bin/omarchy-friends || fail "Friends engine is missing cancel synchronization"
 
-grep -q 'function hidePeer' FriendsPanelV3.qml || fail "Friends V3 is missing Hide safety handling"
+grep -q 'function blockPeer' FriendsPanelV3.qml || fail "Friends V3 is missing Block safety handling"
 grep -q 'function reportPeer' FriendsPanelV3.qml || fail "Friends V3 is missing Report safety handling"
-grep -q 'text: "Hide builder"' FriendsPanelV3.qml || fail "World is missing on-demand Hide action"
+grep -q 'text: "Block"' FriendsPanelV3.qml || fail "World is missing on-demand Block action"
+grep -q 'text: "Close"' FriendsPanelV3.qml || fail "Chat header is missing Close action"
 grep -q 'text: "Report"' FriendsPanelV3.qml || fail "Friends V3 is missing Report action"
 grep -q 'function blockGlobal' Service.qml || fail "Service is missing the block/hide action"
 

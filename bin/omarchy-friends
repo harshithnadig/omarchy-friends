@@ -47,7 +47,7 @@ from omarchy_friends_private import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.15.0"
+PLUGIN_VERSION = "4.15.1"
 OFFICIAL_MANIFEST_URL = "https://raw.githubusercontent.com/harshithnadig/omarchy-friends/main/manifest.json"
 OFFICIAL_RELEASE_CHECK_SECONDS = 6 * 60 * 60
 OFFICIAL_RELEASE_RETRY_SECONDS = 30 * 60
@@ -3398,7 +3398,17 @@ class FriendsEngine:
         global_state["messages"] = [item for item in global_state.get("messages", []) if item.get("public_key") != public_key]
         global_state["community"] = [item for item in global_state.get("community", []) if item.get("public_key") != public_key]
         self.save_state()
-        return True, "Builder hidden from your world"
+        return True, "Builder blocked from your world"
+
+    def unblock_global(self, public_key):
+        public_key = trim_text(public_key, 64).lower()
+        if not is_valid_public_key(public_key):
+            return False, "That public key is not valid"
+        global_state = self.state.setdefault("global", {})
+        blocked = global_state.setdefault("blocked_pubkeys", [])
+        global_state["blocked_pubkeys"] = [key for key in blocked if key != public_key]
+        self.save_state()
+        return True, "Builder unblocked"
 
     def set_status(self, status_id):
         if status_id not in AVAILABLE_STATUSES:
@@ -4197,6 +4207,7 @@ class FriendsEngine:
             "global_groups": list(global_state.get("groups", {}).values()),
             "global_community": global_state.get("community", []),
             "global_memory": global_state.get("memory", {}),
+            "global_blocked_pubkeys": list(global_state.get("blocked_pubkeys", [])),
             "update": {
                 "available": bool(global_state.get("update_available", False)),
                 "current": PLUGIN_VERSION,
@@ -4463,6 +4474,9 @@ def main():
         print_result(ok, message)
     elif command == "block-global" and len(sys.argv) >= 3:
         ok, message = engine.block_global(sys.argv[2])
+        print_result(ok, message)
+    elif command == "unblock-global" and len(sys.argv) >= 3:
+        ok, message = engine.unblock_global(sys.argv[2])
         print_result(ok, message)
     elif command == "poll-events":
         print(json.dumps({"events": engine.pop_events()}))

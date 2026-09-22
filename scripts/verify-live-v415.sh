@@ -22,15 +22,15 @@ printf 'Installed Friends checkout: %s\n' "$PLUGIN_DIR"
 printf 'Branch: %s\n' "$branch"
 printf 'Commit: %s\n' "$sha"
 
-[[ "$branch" == "feature/build-network" ]] || fail "Live plugin is on '$branch', not feature/build-network"
+[[ "$branch" == "feature/build-network" || "$branch" == "hotfix/hide-restore-v4.15.1" ]] || fail "Live plugin is on '$branch', not the v4.15 release line"
 
-grep -q '"version"[[:space:]]*:[[:space:]]*"4.15.0"' "$PLUGIN_DIR/manifest.json" \
-  || fail "manifest.json is not v4.15.0"
-ok "manifest v4.15.0"
+grep -q '"version"[[:space:]]*:[[:space:]]*"4.15.1"' "$PLUGIN_DIR/manifest.json" \
+  || fail "manifest.json is not v4.15.1"
+ok "manifest v4.15.1"
 
-grep -q 'PLUGIN_VERSION = "4.15.0"' "$PLUGIN_DIR/bin/omarchy-friends" \
-  || fail "Friends engine is not v4.15.0"
-ok "Friends engine v4.15.0"
+grep -q 'PLUGIN_VERSION = "4.15.1"' "$PLUGIN_DIR/bin/omarchy-friends" \
+  || fail "Friends engine is not v4.15.1"
+ok "Friends engine v4.15.1"
 
 [[ -f "$PLUGIN_DIR/FriendsPanelV3.qml" ]] || fail "FriendsPanelV3.qml is missing from the installed plugin"
 grep -q 'FriendsPanelV3.qml' "$PLUGIN_DIR/BarWidget.qml" \

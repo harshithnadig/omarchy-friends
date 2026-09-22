@@ -1,8 +1,8 @@
-# Omarchy Friends v4.15.0 — final release status
+# Omarchy Friends v4.15.1 — final release status
 
 Feature scope is frozen. Repository-side v4.15 work is complete; do not add another product feature before release.
 
-**Release posture:** Omarchy Friends v4.15.0 — Public Beta. The feature scope is frozen and final real-machine validation is complete.
+**Release posture:** Omarchy Friends v4.15.1 hotfix. The hide and restore safety bug is fixed without changing the v4.15 feature scope.
 
 ## Repository-side state
 
@@ -10,7 +10,7 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 - Build Network backend: complete.
 - Friends V3 is the preferred shell; Friends V2 is the compatibility fallback; `Panel.qml` is the final legacy fallback.
 - Build Network uses `BuildNetworkPanelV3.qml -> BuildNetworkService.qml -> bin/build_network_app_v4.py` and is now **lazy-loaded only when opened** so normal Friends use does not start its Python/network work unnecessarily.
-- `manifest.json` and the live Friends engine advertise `4.15.0`.
+- `manifest.json` and the live Friends engine advertise `4.15.1`.
 - The shared glass primitives now expose visible keyboard focus and keyboard activation for primary buttons, navigation items and pills, so the main product is not mouse-only.
 - The latest release prep includes `SECURITY.md` and `RELEASE_NOTES_v4.15.md`.
 - Private inbox listening fans in all configured NIP-17 inbox relays, so one silent relay cannot park the listener indefinitely.

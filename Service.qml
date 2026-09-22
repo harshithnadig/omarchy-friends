@@ -44,6 +44,7 @@ Item {
     property var globalGroups: []
     property var globalCommunity: []
     property var globalMemory: ({})
+    property var globalBlockedPubkeys: []
     property var updateInfo: ({ available: false, current: "", latest: "" })
     property bool inviteNudge: false
     property var worldEvent: ({ title: "Ship-It Friday", live: false, label: "" })
@@ -343,7 +344,14 @@ Item {
 
     function blockGlobal(publicKey) {
         runAction([root.binPath, "block-global", publicKey], function(output) {
-            root.reportResult(output, "Builder hidden")
+            root.reportResult(output, "Builder blocked")
+            root.refresh()
+        })
+    }
+
+    function unblockGlobal(publicKey) {
+        runAction([root.binPath, "unblock-global", publicKey], function(output) {
+            root.reportResult(output, "Builder unblocked")
             root.refresh()
         })
     }
@@ -439,6 +447,7 @@ Item {
                     if (data.global_groups) root.globalGroups = data.global_groups
                     if (data.global_community) root.globalCommunity = data.global_community
                     if (data.global_memory) root.globalMemory = data.global_memory
+                    if (data.global_blocked_pubkeys) root.globalBlockedPubkeys = data.global_blocked_pubkeys
                     if (data.update) root.updateInfo = data.update
                     if (data.invite_nudge !== undefined) root.inviteNudge = data.invite_nudge
                     if (data.world_event) root.worldEvent = data.world_event

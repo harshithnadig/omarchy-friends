@@ -36,7 +36,7 @@ PopupCard {
     readonly property var groups: service && service.globalGroups ? service.globalGroups : []
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
-    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.15.0", latest: "4.15.0" })
+    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.15.1", latest: "4.15.1" })
     readonly property string reportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20report"
 
     property string page: "chats"
@@ -394,11 +394,16 @@ PopupCard {
         if (root.service && publicKey) root.service.cancelFriendRequest(publicKey)
     }
 
-    function hidePeer(peer) {
+    function blockPeer(peer) {
         if (!root.service || !peer || !peer.public_key) return
         root.service.blockGlobal(peer.public_key)
         if (root.selectedFriendKey === peer.public_key) root.selectedFriendKey = ""
-        root.showNotice((peer.handle || "Builder") + " hidden from Friends")
+        root.showNotice((peer.handle || "Builder") + " blocked")
+    }
+
+    function closeConversation() {
+        root.selectedFriendKey = ""
+        root.selectedGroupId = ""
     }
 
     function reportPeer(peer) {
@@ -467,7 +472,7 @@ PopupCard {
     }
 
     function formatVersion() {
-        return root.updateInfo.current || "4.15.0"
+        return root.updateInfo.current || "4.15.1"
     }
 
     Item {
@@ -797,14 +802,14 @@ PopupCard {
                                     readonly property var group: root.selectedGroup()
                                     GlassAvatar { size: Style.space(40); emoji: parent.group ? "🫂" : (parent.friend ? (parent.friend.avatar || "👾") : "✦"); online: parent.group ? true : (parent.friend && parent.friend.online === true); selected: true }
                                     Column {
-                                        width: parent.width - focusButton.width - buildTogetherButton.width - hideChatButton.width - reportChatButton.width - Style.space(88)
+                                        width: parent.width - focusButton.width - buildTogetherButton.width - closeChatButton.width - reportChatButton.width - Style.space(88)
                                         anchors.verticalCenter: parent.verticalCenter
                                         Text { width: parent.width; text: parent.parent.group ? (parent.parent.group.name || "Private group") : (parent.parent.friend ? (parent.parent.friend.handle || "Builder") : "Choose a chat"); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                         Text { width: parent.width; text: parent.parent.group ? "Private group · encrypted" : (parent.parent.friend ? (parent.parent.friend.online ? "Online now" : "Private chat") : "Pick a conversation or start a new one"); color: parent.parent.friend && parent.parent.friend.online ? root.success : root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     GlassButton { id: focusButton; text: "Focus"; icon: "◷"; compact: true; enabled: root.selectedFriend() !== null; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
                                     GlassButton { id: buildTogetherButton; text: "Build"; icon: "⌁"; compact: true; enabled: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked: root.openBuild("create") }
-                                    GlassButton { id: hideChatButton; text: "Hide"; compact: true; visible: root.selectedFriend() !== null; enabled: visible; onClicked: root.hidePeer(root.selectedFriend()) }
+                                    GlassButton { id: closeChatButton; text: "Close"; compact: true; visible: root.selectedFriend() !== null || root.selectedGroup() !== null; enabled: visible; onClicked: root.closeConversation() }
                                     GlassButton { id: reportChatButton; text: "Report"; compact: true; visible: root.selectedFriend() !== null; enabled: visible; onClicked: root.reportPeer(root.selectedFriend()) }
                                 }
 
@@ -1155,7 +1160,7 @@ PopupCard {
                                                 visible: parent.parent.safetyOpen
                                                 width: parent.width
                                                 spacing: Style.space(6)
-                                                GlassButton { text: "Hide builder"; compact: true; onClicked: root.hidePeer(modelData) }
+                                                GlassButton { text: "Block"; compact: true; onClicked: root.blockPeer(modelData) }
                                                 GlassButton { text: "Report"; compact: true; onClicked: root.reportPeer(modelData) }
                                             }
                                         }
@@ -1439,6 +1444,35 @@ PopupCard {
                                                 GlassPill { text: "Project"; active: root.profile.privacy && root.profile.privacy.share_project === true; onClicked: if (root.service) root.service.togglePrivacy("share_project") }
                                                 GlassPill { text: "Interests"; active: root.profile.privacy && root.profile.privacy.share_interests === true; onClicked: if (root.service) root.service.togglePrivacy("share_interests") }
                                                 GlassPill { text: "Room"; active: root.profile.privacy && root.profile.privacy.share_room === true; onClicked: if (root.service) root.service.togglePrivacy("share_room") }
+                                            }
+                                        }
+                                    }
+
+                                    GlassSurface {
+                                        width: parent.width
+                                        height: blockedPeopleColumn.implicitHeight + Style.space(24)
+                                        radius: Style.space(18)
+                                        fillOpacity: 0.60
+                                        Column {
+                                            id: blockedPeopleColumn
+                                            anchors.fill: parent
+                                            anchors.margins: Style.space(12)
+                                            spacing: Style.space(8)
+                                            Text { text: "Blocked people"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                            Text { width: parent.width; text: "Unblock a person to allow future World presence and messages again."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                            Column {
+                                                width: parent.width
+                                                spacing: Style.space(6)
+                                                Repeater {
+                                                    model: root.service && root.service.globalBlockedPubkeys ? root.service.globalBlockedPubkeys : []
+                                                    Row {
+                                                        width: parent.width
+                                                        spacing: Style.space(8)
+                                                        Text { width: parent.width - unblockButton.width - Style.space(8); text: String(modelData).slice(0, 12) + "…"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight; anchors.verticalCenter: parent.verticalCenter }
+                                                        GlassButton { id: unblockButton; text: "Unblock"; compact: true; onClicked: if (root.service) root.service.unblockGlobal(String(modelData)) }
+                                                    }
+                                                }
+                                                Text { visible: (!root.service || !root.service.globalBlockedPubkeys || root.service.globalBlockedPubkeys.length === 0); text: "No blocked people"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                             }
                                         }
                                     }

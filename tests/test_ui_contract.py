@@ -65,13 +65,13 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         service = self.read("Service.qml")
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
         chats = panel.split("// CHATS:", 1)[1].split("// REQUESTS", 1)[0]
-        self.assertIn("function hidePeer(peer)", panel)
+        self.assertIn("function blockPeer(peer)", panel)
         self.assertIn("function reportPeer(peer)", panel)
         self.assertIn("root.service.blockGlobal(peer.public_key)", panel)
         self.assertIn("root.reportUrl", panel)
-        self.assertIn('text: "Hide builder"', world)
+        self.assertIn('text: "Block"', world)
         self.assertIn('text: "Report"', world)
-        self.assertIn('text: "Hide"', chats)
+        self.assertIn('text: "Close"', chats)
         self.assertIn('text: "Report"', chats)
         self.assertIn('text: "⋯"', world)
         self.assertIn("function blockGlobal(publicKey)", service)

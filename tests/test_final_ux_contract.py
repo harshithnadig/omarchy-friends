@@ -45,6 +45,22 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("Friend request is still pending", friends)
         self.assertIn("Connect with this builder before starting a private chat", friends)
 
+    def test_chat_close_and_blocked_people_recovery_contract(self):
+        friends = read("FriendsPanelV3.qml")
+        service = read("Service.qml")
+        engine = read("bin/omarchy-friends")
+        header = friends[friends.index("id: closeChatButton"):friends.index("id: reportChatButton")]
+        self.assertIn('text: "Close"', header)
+        self.assertIn("root.closeConversation()", header)
+        self.assertNotIn("blockGlobal", header)
+        self.assertIn('text: "Block"', friends)
+        self.assertIn('text: "Blocked people"', friends)
+        self.assertIn('text: "Unblock"', friends)
+        self.assertIn("function unblockGlobal(publicKey)", service)
+        self.assertIn('"unblock-global"', service)
+        self.assertIn("def unblock_global(self, public_key)", engine)
+        self.assertIn('command == "unblock-global"', engine)
+
     def test_private_shared_links_are_clickable_but_http_only(self):
         friends = read("FriendsPanelV3.qml")
         self.assertIn("function openSafeUrl(url)", friends)

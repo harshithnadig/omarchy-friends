@@ -36,7 +36,7 @@ PopupCard {
     readonly property var groups: service && service.globalGroups ? service.globalGroups : []
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
-    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.15.0", latest: "4.15.0" })
+    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.15.1", latest: "4.15.1" })
 
     property string page: "chats"
     property string worldQuery: ""
@@ -297,7 +297,7 @@ PopupCard {
     }
 
     function formatVersion() {
-        return root.updateInfo.current || "4.15.0"
+        return root.updateInfo.current || "4.15.1"
     }
 
     Item {

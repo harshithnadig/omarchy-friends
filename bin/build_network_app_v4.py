@@ -20,7 +20,7 @@ import time
 import build_network_app_v3 as app
 
 core = app.base.core
-APP_VERSION = "4.15.0"
+APP_VERSION = "4.15.1"
 STATE_SCHEMA = 2
 MAX_PENDING = 64
 MAX_RETRY_PER_SYNC = 4
