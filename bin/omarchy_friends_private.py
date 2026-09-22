@@ -31,8 +31,9 @@ NIP59_GIFT_WRAP_KIND = 1059
 NIP44_SALT = b"nip44-v2"
 NIP59_RANDOM_WINDOW_SECONDS = 2 * 24 * 60 * 60
 
-MAX_PRIVATE_PLAINTEXT_BYTES = 64 * 1024
-MAX_PRIVATE_PAYLOAD_CHARS = 128 * 1024
+MAX_PRIVATE_PLAINTEXT_BYTES = 65535
+MAX_PRIVATE_PAYLOAD_CHARS = 87472
+MAX_PRIVATE_DECODED_BYTES = 65603
 
 
 def _secret_scalar(secret_key):
@@ -102,33 +103,20 @@ def _pad_plaintext(plaintext):
     raw = str(plaintext).encode("utf-8")
     length = len(raw)
     if length < 1 or length > MAX_PRIVATE_PLAINTEXT_BYTES:
-        raise ValueError("private message size is outside Friends limits")
-    if length < 65536:
-        prefix = struct.pack(">H", length)
-    else:
-        prefix = b"\x00\x00" + struct.pack(">I", length)
+        raise ValueError("private message size is outside NIP-44 v2 limits")
+    prefix = struct.pack(">H", length)
     return prefix + raw + (b"\x00" * (_calc_padded_len(length) - length))
 
 
 def _unpad_plaintext(padded):
     if not isinstance(padded, (bytes, bytearray)) or len(padded) < 2:
         raise ValueError("invalid NIP-44 padding")
-    first = struct.unpack(">H", bytes(padded[:2]))[0]
-    if first == 0:
-        if len(padded) < 6:
-            raise ValueError("invalid NIP-44 padding")
-        length = struct.unpack(">I", bytes(padded[2:6]))[0]
-        if length < 65536:
-            raise ValueError("invalid NIP-44 extended length")
-        prefix_len = 6
-    else:
-        length = first
-        prefix_len = 2
+    length = struct.unpack(">H", bytes(padded[:2]))[0]
     if length < 1 or length > MAX_PRIVATE_PLAINTEXT_BYTES:
-        raise ValueError("private message size is outside Friends limits")
-    if len(padded) != prefix_len + _calc_padded_len(length):
+        raise ValueError("private message size is outside NIP-44 v2 limits")
+    if len(padded) != 2 + _calc_padded_len(length):
         raise ValueError("invalid NIP-44 padding size")
-    raw = bytes(padded[prefix_len : prefix_len + length])
+    raw = bytes(padded[2 : 2 + length])
     if len(raw) != length:
         raise ValueError("invalid NIP-44 plaintext length")
     return raw.decode("utf-8")
@@ -210,7 +198,9 @@ def nip44_decrypt(secret_key, public_key, payload):
         decoded = base64.b64decode(payload, validate=True)
     except (ValueError, TypeError, base64.binascii.Error):
         raise ValueError("invalid NIP-44 base64")
-    if len(decoded) < 99 or decoded[0] != NIP44_VERSION:
+    if len(decoded) < 99 or len(decoded) > MAX_PRIVATE_DECODED_BYTES:
+        raise ValueError("invalid NIP-44 decoded payload size")
+    if decoded[0] != NIP44_VERSION:
         raise ValueError("unsupported NIP-44 version")
     nonce = decoded[1:33]
     ciphertext = decoded[33:-32]

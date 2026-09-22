@@ -1841,9 +1841,20 @@ class FriendsEngine:
 
     def _supports_nip17(self, public_key):
         public_key = trim_text(public_key, 64).lower()
-        peer = self.state.get("global", {}).get("peers", {}).get(public_key, {})
+        global_state = self.state.setdefault("global", {})
+        friendship = global_state.setdefault("friendships", {}).get(public_key, {})
+        if isinstance(friendship, dict) and friendship.get("private_protocol") == "nip17-v1":
+            return True
+        peer = global_state.get("peers", {}).get(public_key, {})
         capabilities = set(peer.get("capabilities", [])) if isinstance(peer, dict) else set()
-        return {"nip44-v2", "nip17-dm-v1"}.issubset(capabilities)
+        modern = {"nip44-v2", "nip17-dm-v1"}.issubset(capabilities)
+        if modern and isinstance(friendship, dict) and friendship.get("status") == "friends":
+            # Security upgrade is sticky: once a friend has advertised the
+            # modern protocol, a later absence/stale presence must not silently
+            # downgrade that established friendship to the legacy transport.
+            friendship["private_protocol"] = "nip17-v1"
+            friendship["private_protocol_seen_at"] = now_seconds()
+        return modern
 
     def _legacy_private_event(self, public_key, envelope, extra_tags=None, alt="Omarchy Friends private message"):
         identity = self._global_identity()

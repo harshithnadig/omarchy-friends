@@ -49,6 +49,23 @@ class TestPrivateMessagingStandards(unittest.TestCase):
         self.assertEqual(modern["scheme"], "nip44-v2")
         self.assertEqual(private.decrypt_private_text(bob["secret_key"], alice["public_key"], modern), "new message")
 
+    def test_nip44_v2_exact_size_boundaries(self):
+        self.assertEqual(private.MAX_PRIVATE_PLAINTEXT_BYTES, 65535)
+        self.assertEqual(private.MAX_PRIVATE_PAYLOAD_CHARS, 87472)
+        padded = private._pad_plaintext("a" * 65535)
+        self.assertEqual(len(padded), 2 + private._calc_padded_len(65535))
+        self.assertEqual(private._unpad_plaintext(padded), "a" * 65535)
+        with self.assertRaises(ValueError):
+            private._pad_plaintext("a" * 65536)
+        with self.assertRaises(ValueError):
+            private._pad_plaintext("")
+        alice = generate_keypair()
+        bob = generate_keypair()
+        with self.assertRaises(ValueError):
+            private.nip44_decrypt(
+                alice["secret_key"], bob["public_key"], "A" * 87473
+            )
+
     def test_nip17_gift_wrap_roundtrip(self):
         alice = generate_keypair()
         bob = generate_keypair()

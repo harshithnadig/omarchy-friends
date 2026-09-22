@@ -81,6 +81,15 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.assertEqual(opened["public_key"], self.key(self.alice))
         self.assertTrue(opened["incoming"])
 
+    def test_modern_capability_is_sticky_after_presence_expires(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_modern(self.alice, self.bob)
+        self.assertTrue(self.alice._supports_nip17(self.key(self.bob)))
+        friend = self.alice.state["global"]["friendships"][self.key(self.bob)]
+        self.assertEqual(friend.get("private_protocol"), "nip17-v1")
+        self.alice.state["global"]["peers"].pop(self.key(self.bob), None)
+        self.assertTrue(self.alice._supports_nip17(self.key(self.bob)))
+
     def test_old_peer_still_uses_legacy_transport_during_upgrade_window(self):
         self.make_friends(self.alice, self.bob)
         # No modern presence/capability record: this deliberately models a
