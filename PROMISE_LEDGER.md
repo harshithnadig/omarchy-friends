@@ -5,7 +5,8 @@ This is the source of truth for v4.15. **Feature scope is frozen.** If something
 ## Human layer / messaging
 
 - [x] Public Omarchy World presence.
-- [x] Friend requests and private DMs through the existing Friends engine.
+- [x] Friend requests with separate incoming/outgoing state plus Accept / Decline / Cancel lifecycle.
+- [x] Private DMs through the existing Friends engine.
 - [x] Private groups.
 - [x] Public Circles/community chat.
 - [x] Focus/co-working ritual.
@@ -123,7 +124,8 @@ Private chat is never silently summarized/published into community memory.
 - [x] `file://` / `javascript:` URLs rejected from collaboration objects.
 - [x] No arbitrary remote command execution.
 - [x] No config auto-install or arbitrary file upload.
-- [x] Existing Friends report/block controls remain in the social engine.
+- [x] Existing Friends block/hide support remains available in V3 from an active private conversation and as an on-demand World action.
+- [x] Existing report flow remains available in V3 without cluttering the primary World relationship action.
 - [x] Build Network filters content from public keys already blocked in Friends, including nested derived activity.
 - [x] Failed public publishes queue locally and retry in bounded batches.
 - [x] Corrupt Build state is quarantined.
@@ -135,7 +137,7 @@ Private chat is never silently summarized/published into community memory.
 - [x] Dedicated WebSocket fragmentation/deadline regression tests protect those transport bounds.
 - [x] QML action queue prevents timer status/refresh processes racing user writes.
 - [x] Release health reports schema, queued publishes, filtered blocks and relay status.
-- [x] CI compiles current Friends/Build modules, runs private-message standard + engine tests, the complete unit suite, remote-exec boundary and static release gate.
+- [x] CI compiles current Friends/Build modules, runs private-message standard + engine tests, request-lifecycle tests, the complete unit suite, remote-exec boundary and static release gate.
 - [x] One-shot write-capable migration workflows/scripts removed after use; normal CI remains read-only.
 
 ## UI
@@ -145,10 +147,13 @@ Private chat is never silently summarized/published into community memory.
 - [x] Chats contains only opened/history conversations instead of every friend.
 - [x] Full friends list and private-group creation live behind New chat.
 - [x] Requests is a separate first-class surface with Received and Sent/pending states.
+- [x] Received requests support Accept and Decline; Sent/pending requests support Cancel.
+- [x] Stale Decline/Cancel events cannot clear a newer request because lifecycle updates are correlated by request/session id.
 - [x] Incoming requests do not clutter Chats.
 - [x] Each friend/group has an isolated selected conversation and message history.
-- [x] World uses search + All/New/Building/Friends filters and one clear relationship action per person.
+- [x] World uses search + All/New/Building/Friends filters and one clear primary relationship action per person.
 - [x] Repeated Wave/Focus/Build buttons are removed from every World person card; Focus/Build stay contextual to a conversation.
+- [x] Hide/Report remain reachable as secondary safety actions rather than competing with the primary World action.
 - [x] Circles is a room-style public chat with compact header, safety note, message stream and composer.
 - [x] Me separates About, Presence and Privacy, including World/app/music/project/interests/room sharing controls.
 - [x] Liquid-glass V3 Build Network panel.
@@ -183,7 +188,7 @@ Repository-side v4.15 work is complete. These are the remaining gates before sta
 5. [ ] Restart persistence passes: modern protocol/inbox state survives and stale World presence does not downgrade the friendship.
 6. [ ] v4.15-to-legacy upgrade-compatibility test passes as specified in `FINAL_RELEASE_STATUS.md`.
 7. [ ] Build Network two-instance relay test passes: publish/receive/update/dedupe, offline retry, helper expiry and block filtering.
-8. [ ] Friends V3 regression passes: separate Chats/Requests, conversation isolation/New chat, friend requests, DMs, groups, World, Circles, focus, block/report, profile/privacy, update flow and V3 -> V2 -> legacy fallback.
+8. [ ] Friends V3 regression passes: separate Chats/Requests, Accept/Decline/Cancel synchronization, conversation isolation/New chat, DMs, groups, World, Circles, focus, Hide/Report, profile/privacy, update flow and V3 -> V2 -> legacy fallback.
 9. [ ] A real `omarchy-friends://invite/...` click opens through the installed desktop handler and invalid shapes are rejected.
 10. [ ] Chats, Requests, World, Circles and Me plus all six Build Network tabs pass visual/input/scroll/action-reachability inspection at normal laptop scale.
 
