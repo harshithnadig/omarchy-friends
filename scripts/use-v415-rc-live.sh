@@ -46,7 +46,7 @@ printf 'Rescanning Omarchy plugins...\n'
 omarchy-shell shell rescanPlugins >/dev/null
 sleep 1
 
-"$(dirname "$0")/verify-live-v415.sh" "$PLUGIN_DIR"
+bash "$(dirname "$0")/verify-live-v415.sh" "$PLUGIN_DIR"
 
 printf '\nRC is now the live installed checkout.\n'
 printf 'Open Friends again. You should see a visible Build entry, and middle-clicking the bar widget should open Build Network V3.\n'
