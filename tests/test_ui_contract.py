@@ -22,11 +22,19 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         panel = self.read("FriendsPanelV3.qml")
         for label in ("Chats", "Requests", "World", "Circles", "Build", "Me"):
             self.assertIn(f'text: "{label}"', panel)
-        for shortcut in ("New chat", "Ask help", "Share setup"):
+        for shortcut in ("New chat", "Ask help", "Setup"):
             self.assertIn(f'text: "{shortcut}"', panel)
         self.assertIn('root.openBuild("discover")', panel)
         self.assertIn('root.openBuild("share")', panel)
         self.assertIn('root.openBuild("help")', panel)
+
+    def test_chat_header_and_empty_state_keep_copy_compact(self):
+        panel = self.read("FriendsPanelV3.qml")
+        self.assertIn('text: "Opened conversations"', panel)
+        self.assertIn('text: "Pick a friend to start chatting."', panel)
+        self.assertIn('visible: root.selectedFriend() !== null; onClicked:', panel)
+        self.assertIn('visible: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked:', panel)
+        self.assertIn('width: parent.width - (focusButton.visible ? focusButton.width : 0)', panel)
 
     def test_requests_are_not_mixed_into_chat_list_and_are_manageable(self):
         panel = self.read("FriendsPanelV3.qml")

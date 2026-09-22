@@ -678,7 +678,7 @@ PopupCard {
                         Item { width: 1; height: Style.space(2) }
                         GlassNavItem { width: parent.width; text: "New chat"; icon: "+"; onClicked: { root.newChatOpen = true; root.page = "chats" } }
                         GlassNavItem { width: parent.width; text: "Ask help"; icon: "?"; onClicked: root.openBuild("help") }
-                        GlassNavItem { width: parent.width; text: "Share setup"; icon: "⌘"; onClicked: root.openBuild("share") }
+                        GlassNavItem { width: parent.width; text: "Setup"; icon: "⌘"; onClicked: root.openBuild("share") }
 
                         Item { width: 1; height: Math.max(0, parent.height - Style.space(410)) }
 
@@ -728,7 +728,7 @@ PopupCard {
                                     Column {
                                         width: parent.width - newChatButton.width - Style.space(6)
                                         Text { width: parent.width; text: "Chats"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true; elide: Text.ElideRight }
-                                        Text { width: parent.width; text: "Only conversations you've opened"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                        Text { width: parent.width; text: "Opened conversations"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     GlassButton { id: newChatButton; text: "New"; icon: "+"; compact: true; primary: true; anchors.verticalCenter: parent.verticalCenter; onClicked: root.newChatOpen = true }
                                 }
@@ -803,7 +803,7 @@ PopupCard {
                                             spacing: Style.space(8)
                                             topPadding: Style.space(26)
                                             Text { width: parent.width; text: "No chats yet"; color: root.ink; horizontalAlignment: Text.AlignHCenter; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                            Text { width: parent.width; text: "Start one from New chat. Your full friends list stays out of the way."; color: root.mutedInk; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                            Text { width: parent.width; text: "Pick a friend to start chatting."; color: root.mutedInk; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                             GlassButton { anchors.horizontalCenter: parent.horizontalCenter; text: "New chat"; icon: "+"; primary: true; onClicked: root.newChatOpen = true }
                                         }
                                     }
@@ -831,13 +831,13 @@ PopupCard {
                                     readonly property var group: root.selectedGroup()
                                     GlassAvatar { size: Style.space(40); emoji: parent.group ? "🫂" : (parent.friend ? (parent.friend.avatar || "👾") : "✦"); online: parent.group ? true : (parent.friend && parent.friend.online === true); selected: true }
                                     Column {
-                                        width: parent.width - focusButton.width - buildTogetherButton.width - closeChatButton.width - reportChatButton.width - Style.space(88)
+                                        width: parent.width - (focusButton.visible ? focusButton.width : 0) - (buildTogetherButton.visible ? buildTogetherButton.width : 0) - (closeChatButton.visible ? closeChatButton.width : 0) - (reportChatButton.visible ? reportChatButton.width : 0) - Style.space(88)
                                         anchors.verticalCenter: parent.verticalCenter
                                         Text { width: parent.width; text: parent.parent.group ? (parent.parent.group.name || "Private group") : (parent.parent.friend ? (parent.parent.friend.handle || "Builder") : "Choose a chat"); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
                                         Text { width: parent.width; text: parent.parent.group ? "Private group · encrypted" : (parent.parent.friend ? (parent.parent.friend.online ? "Online now" : "Private chat") : "Pick a conversation or start a new one"); color: parent.parent.friend && parent.parent.friend.online ? root.success : root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
-                                    GlassButton { id: focusButton; text: "Focus"; icon: "◷"; compact: true; enabled: root.selectedFriend() !== null; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
-                                    GlassButton { id: buildTogetherButton; text: "Build"; icon: "⌁"; compact: true; enabled: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked: root.openBuild("create") }
+                                    GlassButton { id: focusButton; text: "Focus"; icon: "◷"; compact: true; visible: root.selectedFriend() !== null; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
+                                    GlassButton { id: buildTogetherButton; text: "Build"; icon: "⌁"; compact: true; visible: root.selectedFriend() !== null || root.selectedGroup() !== null; onClicked: root.openBuild("create") }
                                     GlassButton { id: closeChatButton; text: "Close"; compact: true; visible: root.selectedFriend() !== null || root.selectedGroup() !== null; enabled: visible; onClicked: root.closeConversation() }
                                     GlassButton { id: reportChatButton; text: "Report"; compact: true; visible: root.selectedFriend() !== null; enabled: visible; onClicked: root.reportPeer(root.selectedFriend()) }
                                 }
@@ -909,7 +909,7 @@ PopupCard {
                                             topPadding: Style.space(50)
                                             spacing: Style.space(6)
                                             Text { width: parent.width; text: root.selectedFriend() || root.selectedGroup() ? "Say hi 👋" : "No conversation selected"; color: root.ink; horizontalAlignment: Text.AlignHCenter; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                            Text { width: parent.width; text: root.selectedFriend() || root.selectedGroup() ? "Messages in this chat stay separate from every other conversation." : "Choose a chat on the left, or start a new one."; color: root.mutedInk; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                            Text { width: parent.width; text: root.selectedFriend() || root.selectedGroup() ? "Messages stay in this conversation." : "Choose a chat or start a new one."; color: root.mutedInk; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                         }
                                     }
                                 }
