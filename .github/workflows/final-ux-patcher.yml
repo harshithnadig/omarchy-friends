@@ -1,5 +1,6 @@
 name: One-shot final UX patcher
 
+# Temporary migration runner. Delete after the patch lands.
 on:
   push:
     branches:
