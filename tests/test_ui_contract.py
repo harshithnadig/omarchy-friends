@@ -28,7 +28,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('root.openBuild("share")', panel)
         self.assertIn('root.openBuild("help")', panel)
 
-    def test_requests_are_not_mixed_into_chat_list(self):
+    def test_requests_are_not_mixed_into_chat_list_and_are_manageable(self):
         panel = self.read("FriendsPanelV3.qml")
         chats = panel.split("// CHATS:", 1)[1].split("// REQUESTS", 1)[0]
         requests = panel.split("// REQUESTS", 1)[1].split("// WORLD", 1)[0]
@@ -37,6 +37,13 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn("sentFriendRequests()", requests)
         self.assertIn('requestTab === "received"', requests)
         self.assertIn('requestTab === "sent"', requests)
+        self.assertIn('text: "Accept"', requests)
+        self.assertIn('text: "Decline"', requests)
+        self.assertIn('text: "Cancel"', requests)
+        self.assertIn('function declineFriendRequest', panel)
+        self.assertIn('function cancelFriendRequest', panel)
+        self.assertIn('"decline-friend"', panel)
+        self.assertIn('"cancel-friend"', panel)
 
     def test_chats_only_show_opened_conversations_and_have_separate_picker(self):
         panel = self.read("FriendsPanelV3.qml")
@@ -97,6 +104,10 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertNotIn('autoUpdate', modern_service)
         self.assertNotIn('Timer {', modern_service)
         self.assertFalse((ROOT / "bin" / "omarchy-friends-auto-update").exists())
+
+    def test_one_shot_write_capable_migration_helpers_are_removed(self):
+        self.assertFalse((ROOT / ".github" / "workflows" / "request-management-patcher.yml").exists())
+        self.assertFalse((ROOT / "scripts" / "_request_patch.py").exists())
 
     def test_shared_glass_primitives_exist(self):
         for path in (
