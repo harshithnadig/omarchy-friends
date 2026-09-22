@@ -5,7 +5,7 @@ import Quickshell.Io
 Item {
     id: root
 
-    readonly property string runtimePath: Qt.resolvedUrl("bin/build_network_app.py").toString().replace(/^file:\/\//, "")
+    readonly property string runtimePath: Qt.resolvedUrl("bin/build_network_app_v2.py").toString().replace(/^file:\/\//, "")
 
     property var profile: ({ handle: "OmarchyBuilder", public_key: "" })
     property var ideas: []
@@ -16,20 +16,28 @@ Item {
     property var tests: []
     property var results: []
     property var helpRequests: []
+    property var helpOffers: []
     property var solutions: []
+    property var solutionVerifications: []
     property var shipPosts: []
     property var updateReports: []
     property var updatePulse: []
     property var events: []
+    property var eventRsvps: []
     property var challenges: []
+    property var challengeJoins: []
+    property var taskUpdates: []
     property var contributors: []
     property var discoverFeed: []
-    property var stats: ({ ideas: 0, build_rooms: 0, setups: 0, tests: 0, builders: 0, ships: 0, solutions: 0, help_requests: 0, events: 0, challenges: 0 })
+    property var saved: []
+    property var stats: ({ ideas: 0, build_rooms: 0, setups: 0, tests: 0, builders: 0, ships: 0, solutions: 0, help_requests: 0, events: 0, challenges: 0, helps: 0, verifications: 0, task_updates: 0 })
     property int relayOk: 0
     property int relayTotal: 0
     property int lastRefresh: 0
     property var lastErrors: []
     property var detectedSetup: ({ theme: "", plugins: [], components: [], shell: "", terminal: "", editor: "" })
+    property var detectedEnvironment: ({ tags: [], omarchy_version: "", architecture: "", gpu_vendor: "", kernel: "" })
+    property var setupComparison: ({})
     property bool busy: false
     property string lastNotice: ""
 
@@ -46,14 +54,21 @@ Item {
         if (data.tests) root.tests = data.tests
         if (data.results) root.results = data.results
         if (data.help_requests) root.helpRequests = data.help_requests
+        if (data.help_offers) root.helpOffers = data.help_offers
         if (data.solutions) root.solutions = data.solutions
+        if (data.solution_verifications) root.solutionVerifications = data.solution_verifications
         if (data.ship_posts) root.shipPosts = data.ship_posts
         if (data.update_reports) root.updateReports = data.update_reports
         if (data.update_pulse) root.updatePulse = data.update_pulse
         if (data.events) root.events = data.events
+        if (data.event_rsvps) root.eventRsvps = data.event_rsvps
         if (data.challenges) root.challenges = data.challenges
+        if (data.challenge_joins) root.challengeJoins = data.challenge_joins
+        if (data.task_updates) root.taskUpdates = data.task_updates
         if (data.contributors) root.contributors = data.contributors
         if (data.discover_feed) root.discoverFeed = data.discover_feed
+        if (data.saved) root.saved = data.saved
+        if (data.environment) root.detectedEnvironment = data.environment
         if (data.stats) root.stats = data.stats
         if (data.relay_ok !== undefined) root.relayOk = data.relay_ok
         if (data.relay_total !== undefined) root.relayTotal = data.relay_total
@@ -80,6 +95,8 @@ Item {
             var data = root.parseOutput(output)
             root.applyStatus(data)
             if (data.setup) root.detectedSetup = data.setup
+            if (data.environment) root.detectedEnvironment = data.environment
+            if (data.comparison) root.setupComparison = data.comparison
             var ok = data.ok === true && exitCode === 0
             var message = data.message || fallback || (ok ? "Done" : "Build Network action failed")
             root.lastNotice = message
@@ -88,32 +105,34 @@ Item {
         proc.running = true
     }
 
-    function refreshLocal() {
-        if (!statusProc.running) statusProc.running = true
-    }
-
-    function refreshNetwork() {
-        if (!refreshProc.running) {
-            root.busy = true
-            refreshProc.running = true
-        }
-    }
+    function refreshLocal() { if (!statusProc.running) statusProc.running = true }
+    function refreshNetwork() { if (!refreshProc.running) { root.busy = true; refreshProc.running = true } }
 
     function inspectSetup() { run("inspect-setup", null, "Setup inspected") }
+    function inspectEnvironment() { run("inspect-environment", null, "Environment inspected") }
+    function compareSetup(setupId) { run("compare-setup", { setup_id: setupId }, "Setup comparison ready") }
     function createIdea(title, summary, tags) { run("create-idea", { title: title, summary: summary, tags: tags || [] }, "Idea shared") }
     function markInterested(ideaId, note) { run("interest", { idea_id: ideaId, note: note || "" }, "Marked interested") }
     function createRoom(title, goal, repoUrl, roles, tasks, sourceIdeaId) { run("create-room", { title: title, goal: goal, repo_url: repoUrl || "", roles_needed: roles || [], tasks: tasks || [], source_idea_id: sourceIdeaId || "" }, "Build Room opened") }
     function buildIdea(ideaId, repoUrl, roles) { run("room-from-idea", { idea_id: ideaId, repo_url: repoUrl || "", roles_needed: roles || [] }, "Idea promoted to Build Room") }
     function joinRoom(roomId, role, note) { run("join-room", { room_id: roomId, role: role || "Builder", note: note || "" }, "Joined Build Room") }
+    function taskUpdate(roomId, task, status, note) { run("task-update", { room_id: roomId, task: task, status: status || "doing", note: note || "" }, "Task updated") }
+    function updateRoom(roomId, status, repoUrl) { run("update-room", { room_id: roomId, status: status || "building", repo_url: repoUrl || "" }, "Build Room updated") }
     function createSetup(title, repoUrl, wallpaperUrl, notes, useDetected) { run("create-setup", { title: title, repo_url: repoUrl || "", wallpaper_url: wallpaperUrl || "", notes: notes || "", use_detected: useDetected !== false }, "Setup shared") }
     function createTest(title, artifactUrl, version, requestedTags, notes, roomId) { run("create-test", { title: title, artifact_url: artifactUrl || "", version: version || "", requested_tags: requestedTags || [], notes: notes || "", build_room_id: roomId || "" }, "Test request shared") }
     function submitTestResult(requestId, result, tags, note) { run("test-result", { request_id: requestId, result: result, environment_tags: tags || [], note: note || "" }, "Test result shared") }
-    function createHelp(title, problem, tried, environmentTags) { run("create-help", { title: title, problem: problem, tried: tried || "", environment_tags: environmentTags || [] }, "Help request shared") }
+    function createHelp(title, problem, tried, environmentTags, useDetected) { run("create-help", { title: title, problem: problem, tried: tried || "", environment_tags: environmentTags || [], use_detected: useDetected === true }, "Help request shared") }
+    function offerHelp(helpId, note, useDetected) { run("offer-help", { help_id: helpId, note: note || "", use_detected: useDetected !== false }, "Offered to help") }
+    function resolveHelp(helpId, status) { run("resolve-help", { help_id: helpId, status: status || "solved" }, "Help request updated") }
     function createSolution(title, problem, solution, environmentTags, sourceUrl) { run("create-solution", { title: title, problem: problem || "", solution: solution, environment_tags: environmentTags || [], source_url: sourceUrl || "" }, "Solution saved") }
+    function verifySolution(solutionId, result, note, useDetected) { run("verify-solution", { solution_id: solutionId, result: result || "worked", note: note || "", use_detected: useDetected !== false }, "Verification shared") }
     function ship(title, summary, artifactUrl, tags, roomId) { run("ship", { title: title, summary: summary || "", artifact_url: artifactUrl || "", tags: tags || [], build_room_id: roomId || "" }, "Ship post shared") }
-    function reportUpdate(version, result, environmentTags, note) { run("report-update", { version: version, result: result, environment_tags: environmentTags || [], note: note || "" }, "Update report shared") }
+    function reportUpdate(version, result, environmentTags, note, useDetected) { run("report-update", { version: version, result: result, environment_tags: environmentTags || [], note: note || "", use_detected: useDetected !== false }, "Update report shared") }
     function createEvent(title, whenText, location, eventUrl, notes) { run("create-event", { title: title, when_text: whenText || "", location: location || "", event_url: eventUrl || "", notes: notes || "" }, "Event shared") }
+    function rsvpEvent(eventId, response, note) { run("rsvp-event", { event_id: eventId, response: response || "interested", note: note || "" }, "RSVP shared") }
     function createChallenge(title, prompt, deadlineText, rulesUrl, tags) { run("create-challenge", { title: title, prompt: prompt || "", deadline_text: deadlineText || "", rules_url: rulesUrl || "", tags: tags || [] }, "Challenge shared") }
+    function joinChallenge(challengeId, teamName, repoUrl, note) { run("join-challenge", { challenge_id: challengeId, team_name: teamName || "", repo_url: repoUrl || "", note: note || "" }, "Joined challenge") }
+    function saveObject(objectId) { run("save", { id: objectId }, "Saved") }
     function hideObject(publicKey, objectId) { run("hide", { public_key: publicKey || "", id: objectId || "" }, "Hidden") }
 
     Component {
@@ -123,10 +142,7 @@ Item {
             property string resultText: ""
             signal completed(string output, int exitCode)
             stdout: StdioCollector { onStreamFinished: actionProc.resultText = this.text }
-            onExited: function(exitCode) {
-                completed(resultText, exitCode)
-                destroy()
-            }
+            onExited: function(exitCode) { completed(resultText, exitCode); destroy() }
         }
     }
 
@@ -156,23 +172,12 @@ Item {
         }
     }
 
-    Timer {
-        interval: 7000
-        repeat: true
-        running: true
-        onTriggered: root.refreshLocal()
-    }
-
-    Timer {
-        interval: 60000
-        repeat: true
-        running: true
-        triggeredOnStart: true
-        onTriggered: root.refreshNetwork()
-    }
+    Timer { interval: 7000; repeat: true; running: true; onTriggered: root.refreshLocal() }
+    Timer { interval: 60000; repeat: true; running: true; triggeredOnStart: true; onTriggered: root.refreshNetwork() }
 
     Component.onCompleted: {
         root.refreshLocal()
         root.inspectSetup()
+        root.inspectEnvironment()
     }
 }
