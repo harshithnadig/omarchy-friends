@@ -1,5 +1,6 @@
 name: One-shot sent request layout fixer
 
+# Temporary self-removing migration runner.
 on:
   push:
     branches:
