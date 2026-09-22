@@ -274,4 +274,6 @@ Return:
 - security/privacy findings;
 - final answer: whether all ten gates in `FINAL_RELEASE_STATUS.md` passed.
 
-Commit/push fixes only to `feature/build-network`. Do not merge `main`.
+**Stop condition:** if all ten gates pass, do not add or refactor anything else. Report success, leave the branch unmerged, and wait for Harshu's explicit merge/release instruction.
+
+Commit/push only minimal fixes for demonstrated failures to `feature/build-network`. Do not merge `main`.
