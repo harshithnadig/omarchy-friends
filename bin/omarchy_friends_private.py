@@ -103,7 +103,7 @@ def _pad_plaintext(plaintext):
     raw = str(plaintext).encode("utf-8")
     length = len(raw)
     if length < 1 or length > MAX_PRIVATE_PLAINTEXT_BYTES:
-        raise ValueError("private message size is outside NIP-44 v2 limits")
+        raise ValueError("private message size is outside the Friends NIP-44 resource limit")
     prefix = struct.pack(">H", length)
     return prefix + raw + (b"\x00" * (_calc_padded_len(length) - length))
 
@@ -113,7 +113,7 @@ def _unpad_plaintext(padded):
         raise ValueError("invalid NIP-44 padding")
     length = struct.unpack(">H", bytes(padded[:2]))[0]
     if length < 1 or length > MAX_PRIVATE_PLAINTEXT_BYTES:
-        raise ValueError("private message size is outside NIP-44 v2 limits")
+        raise ValueError("private message size is outside the Friends NIP-44 resource limit")
     if len(padded) != 2 + _calc_padded_len(length):
         raise ValueError("invalid NIP-44 padding size")
     raw = bytes(padded[2 : 2 + length])

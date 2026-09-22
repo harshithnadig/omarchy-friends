@@ -49,7 +49,7 @@ class TestPrivateMessagingStandards(unittest.TestCase):
         self.assertEqual(modern["scheme"], "nip44-v2")
         self.assertEqual(private.decrypt_private_text(bob["secret_key"], alice["public_key"], modern), "new message")
 
-    def test_nip44_v2_exact_size_boundaries(self):
+    def test_nip44_v2_friends_resource_cap(self):
         self.assertEqual(private.MAX_PRIVATE_PLAINTEXT_BYTES, 65535)
         self.assertEqual(private.MAX_PRIVATE_PAYLOAD_CHARS, 87472)
         padded = private._pad_plaintext("a" * 65535)

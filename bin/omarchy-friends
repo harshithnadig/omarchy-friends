@@ -55,6 +55,7 @@ GLOBAL_CAPABILITIES = (
     "nip44-v2",
     "nip17-dm-v1",
     "nip59-gift-wrap-v1",
+    "nip17-inbox-relays-v1",
 )
 PEER_TTL_SECONDS = 90
 MAX_PACKET_BYTES = 4096
@@ -76,6 +77,10 @@ MAX_MEMORY_PEERS = 60
 GLOBAL_PRESENCE_KIND = 30078
 GLOBAL_PING_KIND = 1
 GLOBAL_DM_KIND = 4
+NIP17_DM_RELAY_LIST_KIND = 10050
+NIP17_MAX_DM_RELAYS = 3
+NIP17_DM_RELAY_REFRESH_SECONDS = 12 * 60 * 60
+NIP17_DM_RELAY_CACHE_SECONDS = 7 * 24 * 60 * 60
 GLOBAL_COMMUNITY_KIND = 1
 GLOBAL_PRESENCE_TAG = "omarchy-friends-presence"
 GLOBAL_PING_TAG = "omarchy-friends-ping"
@@ -94,6 +99,7 @@ GLOBAL_RELAYS = tuple(
     ).split(",")
     if item.strip()
 )
+NIP17_DM_RELAYS = tuple(GLOBAL_RELAYS[:NIP17_MAX_DM_RELAYS])
 STATE_DIR = (
     Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
     / "omarchy-friends"
@@ -588,6 +594,7 @@ class FriendsEngine:
                 "memory": {},
                 "last_sync": 0,
                 "last_publish": 0,
+                "dm_relay_list_last_publish": 0,
                 "last_error": "",
                 "relays": {},
             },
@@ -710,6 +717,7 @@ class FriendsEngine:
             global_state = state["global"]
             global_state["last_sync"] = safe_int(old_global.get("last_sync"))
             global_state["last_publish"] = safe_int(old_global.get("last_publish"))
+            global_state["dm_relay_list_last_publish"] = safe_int(old_global.get("dm_relay_list_last_publish"))
             global_state["last_error"] = trim_text(old_global.get("last_error"), 180)
             global_state["update_available"] = bool(old_global.get("update_available", False))
             global_state["latest_version"] = trim_text(old_global.get("latest_version"), 16)
@@ -760,6 +768,18 @@ class FriendsEngine:
                     "handle": trim_text(friendship.get("handle"), 24) or "A builder",
                     "avatar": friendship.get("avatar") if friendship.get("avatar") in AVAILABLE_AVATARS else "👾",
                 }
+                if friendship.get("private_protocol") == "nip17-v1":
+                    item["private_protocol"] = "nip17-v1"
+                    item["private_protocol_seen_at"] = safe_int(friendship.get("private_protocol_seen_at"))
+                relay_urls = [
+                    relay_url
+                    for relay_url in friendship.get("nip17_dm_relays", [])
+                    if isinstance(relay_url, str) and relay_url in GLOBAL_RELAYS
+                ][:NIP17_MAX_DM_RELAYS]
+                if relay_urls:
+                    item["nip17_dm_relays"] = relay_urls
+                    item["nip17_dm_relays_seen_at"] = safe_int(friendship.get("nip17_dm_relays_seen_at"))
+                    item["nip17_dm_relays_event_at"] = safe_int(friendship.get("nip17_dm_relays_event_at"))
                 friendships[public_key] = item
             global_state["friendships"] = friendships
             global_state["messages"] = [
@@ -942,7 +962,12 @@ class FriendsEngine:
                 trim_text(item, 32)
                 for item in raw_capabilities
                 if isinstance(item, str) and trim_text(item, 32)
-            ][:8]
+            ][:12]
+        dm_relays = [
+            relay_url
+            for relay_url in peer.get("dm_relays", [])
+            if isinstance(relay_url, str) and relay_url in GLOBAL_RELAYS
+        ][:NIP17_MAX_DM_RELAYS]
         return {
             "public_key": public_key,
             "handle": trim_text(peer.get("handle"), 24) or generate_global_handle(public_key),
@@ -966,6 +991,7 @@ class FriendsEngine:
             "relay_count": safe_int(peer.get("relay_count"), maximum=len(GLOBAL_RELAYS)),
             "plugin_version": trim_text(peer.get("plugin_version"), 16),
             "capabilities": capabilities,
+            "dm_relays": dm_relays,
             "can_chat": "friend-requests-v1" in capabilities and (
                 "nip17-dm-v1" in capabilities or "encrypted-dm-v1" in capabilities
             ),
@@ -1279,6 +1305,7 @@ class FriendsEngine:
             "v": 1,
             "plugin_version": PLUGIN_VERSION,
             "capabilities": list(GLOBAL_CAPABILITIES),
+            "dm_relays": list(NIP17_DM_RELAYS),
             "type": "presence",
             "handle": trim_text(profile.get("handle"), 24) or "Omarchy Builder",
             "avatar": profile.get("avatar") if profile.get("avatar") in AVAILABLE_AVATARS else "👾",
@@ -1457,6 +1484,10 @@ class FriendsEngine:
                 return None
             sender = trim_text(rumor.get("pubkey"), 64).lower()
             if not is_valid_public_key(sender):
+                return None
+            own_key = identity["public_key"]
+            rumor_receivers = self._event_tag_values(rumor, "p")
+            if sender != own_key and own_key not in rumor_receivers:
                 return None
             envelope = app_envelope_from_rumor(rumor)
             return self._message_from_private_envelope(
@@ -1847,7 +1878,7 @@ class FriendsEngine:
             return True
         peer = global_state.get("peers", {}).get(public_key, {})
         capabilities = set(peer.get("capabilities", [])) if isinstance(peer, dict) else set()
-        modern = {"nip44-v2", "nip17-dm-v1"}.issubset(capabilities)
+        modern = {"nip44-v2", "nip17-dm-v1", "nip17-inbox-relays-v1"}.issubset(capabilities)
         if modern and isinstance(friendship, dict) and friendship.get("status") == "friends":
             # Security upgrade is sticky: once a friend has advertised the
             # modern protocol, a later absence/stale presence must not silently
@@ -1855,6 +1886,109 @@ class FriendsEngine:
             friendship["private_protocol"] = "nip17-v1"
             friendship["private_protocol_seen_at"] = now_seconds()
         return modern
+
+    @staticmethod
+    def _normalize_nip17_dm_relays(relay_urls):
+        result = []
+        for relay_url in relay_urls or []:
+            if not isinstance(relay_url, str):
+                continue
+            relay_url = relay_url.strip().rstrip("/")
+            # Remote kind-10050 data never gets to create arbitrary network
+            # destinations. Friends only follows relays the user already
+            # configured locally through GLOBAL_RELAYS.
+            if relay_url in GLOBAL_RELAYS and relay_url not in result:
+                result.append(relay_url)
+            if len(result) >= NIP17_MAX_DM_RELAYS:
+                break
+        return result
+
+    def _dm_relay_list_event(self):
+        identity = self._global_identity()
+        relays = self._normalize_nip17_dm_relays(NIP17_DM_RELAYS)
+        if not relays:
+            raise ValueError("no configured NIP-17 inbox relays")
+        return build_event(
+            identity["secret_key"],
+            NIP17_DM_RELAY_LIST_KIND,
+            [["relay", relay_url] for relay_url in relays],
+            "",
+        )
+
+    def _dm_relays_from_event(self, event, expected_public_key):
+        expected_public_key = trim_text(expected_public_key, 64).lower()
+        if (
+            not is_valid_public_key(expected_public_key)
+            or not verify_event(event)
+            or int(event.get("kind", -1)) != NIP17_DM_RELAY_LIST_KIND
+            or trim_text(event.get("pubkey"), 64).lower() != expected_public_key
+        ):
+            return []
+        return self._normalize_nip17_dm_relays(self._event_tag_values(event, "relay"))
+
+    def _remember_nip17_dm_relay_event(self, public_key, event):
+        public_key = trim_text(public_key, 64).lower()
+        friendship = self.state.setdefault("global", {}).setdefault("friendships", {}).get(public_key)
+        if not isinstance(friendship, dict) or friendship.get("status") != "friends":
+            return []
+        relays = self._dm_relays_from_event(event, public_key)
+        if not relays:
+            return []
+        event_at = safe_int(event.get("created_at"))
+        if event_at < safe_int(friendship.get("nip17_dm_relays_event_at")):
+            return self._normalize_nip17_dm_relays(friendship.get("nip17_dm_relays", []))
+        friendship["nip17_dm_relays"] = relays
+        friendship["nip17_dm_relays_seen_at"] = now_seconds()
+        friendship["nip17_dm_relays_event_at"] = event_at
+        return relays
+
+    def _fetch_nip17_dm_relays(self, public_key):
+        public_key = trim_text(public_key, 64).lower()
+        if public_key == self._global_identity()["public_key"]:
+            return self._normalize_nip17_dm_relays(NIP17_DM_RELAYS)
+        friendship = self.state.setdefault("global", {}).setdefault("friendships", {}).get(public_key, {})
+        cached = self._normalize_nip17_dm_relays(friendship.get("nip17_dm_relays", [])) if isinstance(friendship, dict) else []
+        cache_age = now_seconds() - safe_int(friendship.get("nip17_dm_relays_seen_at")) if isinstance(friendship, dict) else NIP17_DM_RELAY_CACHE_SECONDS + 1
+        if cached and cache_age <= NIP17_DM_RELAY_CACHE_SECONDS:
+            return cached
+        if not is_valid_public_key(public_key):
+            return []
+
+        for relay_url in GLOBAL_RELAYS:
+            sub_id = "ofdr" + uuid.uuid4().hex[:12]
+            try:
+                with WebSocketClient(relay_url, timeout=2.0) as relay:
+                    relay.send_json([
+                        "REQ", sub_id,
+                        {"kinds": [NIP17_DM_RELAY_LIST_KIND], "authors": [public_key], "limit": 4},
+                    ])
+                    candidates = []
+                    deadline = time.monotonic() + 1.5
+                    while time.monotonic() < deadline:
+                        try:
+                            message = relay.recv_json(max(0.05, deadline - time.monotonic()))
+                        except EOFError:
+                            break
+                        if not isinstance(message, list) or not message:
+                            continue
+                        if message[0] == "EVENT" and len(message) >= 3 and message[1] == sub_id:
+                            event = message[2]
+                            if self._dm_relays_from_event(event, public_key):
+                                candidates.append(event)
+                        elif message[0] in ("EOSE", "CLOSED") and len(message) >= 2 and message[1] == sub_id:
+                            break
+                    try:
+                        relay.send_json(["CLOSE", sub_id])
+                    except OSError:
+                        pass
+                if candidates:
+                    newest = max(candidates, key=lambda item: safe_int(item.get("created_at")))
+                    relays = self._remember_nip17_dm_relay_event(public_key, newest)
+                    if relays:
+                        return relays
+            except (OSError, ValueError, ssl.SSLError, EOFError):
+                continue
+        return []
 
     def _legacy_private_event(self, public_key, envelope, extra_tags=None, alt="Omarchy Friends private message"):
         identity = self._global_identity()
@@ -1878,7 +2012,10 @@ class FriendsEngine:
     def _publish_nip17(self, recipient_public_key, rumor):
         identity = self._global_identity()
         event = wrap_nip17_rumor(identity["secret_key"], recipient_public_key, rumor)
-        ok, relay_status = self._publish_global_event(event)
+        relay_urls = self._fetch_nip17_dm_relays(recipient_public_key)
+        if not relay_urls:
+            return False, event
+        ok, relay_status = self._publish_event_to_relays(event, relay_urls)
         self.state.setdefault("global", {}).setdefault("relays", {}).update(relay_status)
         return ok, event
 
@@ -2340,16 +2477,19 @@ class FriendsEngine:
         self.save_state()
         return True, "World focus ritual ended"
 
-    def _global_relay_sync(self, relay_url, presence_event, since):
-        """Publish presence and collect current presence plus addressed pings."""
+    def _global_relay_sync(self, relay_url, presence_event, since, dm_relay_event=None):
+        """Publish presence/inbox metadata and collect current addressed events."""
         presence_sub = "ofp" + uuid.uuid4().hex[:12]
         ping_sub = "ofg" + uuid.uuid4().hex[:12]
         dm_sub = "ofdm" + uuid.uuid4().hex[:12]
         community_sub = "ofc" + uuid.uuid4().hex[:12]
-        result = {"published": False, "presence": [], "pings": [], "messages": [], "community": []}
+        result = {"published": False, "dm_relay_published": False, "presence": [], "pings": [], "messages": [], "community": []}
         ok_seen = False
+        dm_ok_seen = False
         with WebSocketClient(relay_url, timeout=3.5) as relay:
             relay.send_json(["EVENT", presence_event])
+            if dm_relay_event is not None:
+                relay.send_json(["EVENT", dm_relay_event])
             relay.send_json(
                 [
                     "REQ",
@@ -2408,6 +2548,9 @@ class FriendsEngine:
                 if message[0] == "OK" and len(message) >= 3 and message[1] == presence_event["id"]:
                     ok_seen = True
                     result["published"] = bool(message[2])
+                elif dm_relay_event is not None and message[0] == "OK" and len(message) >= 3 and message[1] == dm_relay_event["id"]:
+                    dm_ok_seen = True
+                    result["dm_relay_published"] = bool(message[2])
                 elif message[0] == "EVENT" and len(message) >= 3:
                     if message[1] == presence_sub:
                         result["presence"].append(message[2])
@@ -2430,6 +2573,8 @@ class FriendsEngine:
                 # EVENT was written successfully, so don't show a false
                 # "offline" state to the user in that normal race.
                 result["published"] = True
+            if dm_relay_event is not None and not dm_ok_seen:
+                result["dm_relay_published"] = True
             try:
                 relay.send_json(["CLOSE", presence_sub])
                 relay.send_json(["CLOSE", ping_sub])
@@ -2439,10 +2584,10 @@ class FriendsEngine:
                 pass
         return result
 
-    def _publish_global_event(self, event):
+    def _publish_event_to_relays(self, event, relay_urls):
         published = 0
         relay_status = {}
-        for relay_url in GLOBAL_RELAYS:
+        for relay_url in self._normalize_nip17_dm_relays(relay_urls) if int(event.get("kind", -1)) == NIP59_GIFT_WRAP_KIND else list(dict.fromkeys(relay_urls or [])):
             try:
                 with WebSocketClient(relay_url, timeout=3.0) as relay:
                     relay.send_json(["EVENT", event])
@@ -2468,6 +2613,9 @@ class FriendsEngine:
             except (OSError, ValueError, ssl.SSLError) as error:
                 relay_status[relay_url] = {"online": False, "error": trim_text(error, 120)}
         return published > 0, relay_status
+
+    def _publish_global_event(self, event):
+        return self._publish_event_to_relays(event, GLOBAL_RELAYS)
 
     def _ingest_global_dm(self, event):
         """Store one raw relay DM event and raise its popup. Returns True when stored."""
@@ -2667,6 +2815,12 @@ class FriendsEngine:
             return False, "Turn on global visibility to appear in Friends"
 
         presence_event = self._global_presence_event()
+        dm_relay_event = None
+        if (
+            NIP17_DM_RELAYS
+            and now_seconds() - safe_int(global_state.get("dm_relay_list_last_publish")) >= NIP17_DM_RELAY_REFRESH_SECONDS
+        ):
+            dm_relay_event = self._dm_relay_list_event()
         sync_since = max(0, safe_int(global_state.get("last_sync")) - 10)
         peers = {}
         relay_counts = {}
@@ -2676,12 +2830,14 @@ class FriendsEngine:
         relay_status = {}
         successes = 0
         published = False
+        dm_relay_published = False
         errors = []
         for relay_url in GLOBAL_RELAYS:
             try:
-                result = self._global_relay_sync(relay_url, presence_event, sync_since)
+                result = self._global_relay_sync(relay_url, presence_event, sync_since, dm_relay_event)
                 successes += 1
                 published = published or bool(result.get("published"))
+                dm_relay_published = dm_relay_published or bool(result.get("dm_relay_published"))
                 relay_status[relay_url] = {"online": True, "accepted": bool(result.get("published"))}
                 for event in result.get("presence", []):
                     peer = self._global_peer_from_event(event)
@@ -2719,6 +2875,8 @@ class FriendsEngine:
         if successes:
             global_state["last_sync"] = now_seconds()
             global_state["last_publish"] = now_seconds() if published else global_state.get("last_publish", 0)
+            if dm_relay_event is not None and dm_relay_published:
+                global_state["dm_relay_list_last_publish"] = now_seconds()
             global_state["last_error"] = "" if published else "Relays reached, but presence was not accepted"
         else:
             global_state["last_error"] = "No public relay answered" if not errors else trim_text(errors[0], 180)
@@ -2751,10 +2909,11 @@ class FriendsEngine:
             if not self.state["profile"].get("privacy", {}).get("share_global", True):
                 self.save_state()
                 return
-            if not GLOBAL_RELAYS:
+            listen_relays = NIP17_DM_RELAYS or GLOBAL_RELAYS
+            if not listen_relays:
                 time.sleep(30)
                 continue
-            relay_url = GLOBAL_RELAYS[relay_index % len(GLOBAL_RELAYS)]
+            relay_url = listen_relays[relay_index % len(listen_relays)]
             relay_index += 1
             try:
                 self._listen_on_relay(relay_url)
@@ -2768,6 +2927,12 @@ class FriendsEngine:
         global_state = self.state.setdefault("global", {})
         identity = self._global_identity()
         presence_event = self._global_presence_event()
+        dm_relay_event = None
+        if (
+            NIP17_DM_RELAYS
+            and now_seconds() - safe_int(global_state.get("dm_relay_list_last_publish")) >= NIP17_DM_RELAY_REFRESH_SECONDS
+        ):
+            dm_relay_event = self._dm_relay_list_event()
         ping_sub = "ofl" + uuid.uuid4().hex[:12]
         dm_sub = "ofdl" + uuid.uuid4().hex[:12]
         community_sub = "ofcl" + uuid.uuid4().hex[:12]
@@ -2775,6 +2940,8 @@ class FriendsEngine:
         started_at = now_seconds()
         with WebSocketClient(relay_url, timeout=5.0) as relay:
             relay.send_json(["EVENT", presence_event])
+            if dm_relay_event is not None:
+                relay.send_json(["EVENT", dm_relay_event])
             relay.send_json([
                 "REQ", ping_sub,
                 {
@@ -2815,6 +2982,8 @@ class FriendsEngine:
             global_state["relays"][relay_url] = {"online": True, "accepted": True}
             global_state["last_sync"] = now_seconds()
             global_state["last_publish"] = now_seconds()
+            if dm_relay_event is not None:
+                global_state["dm_relay_list_last_publish"] = now_seconds()
             global_state["last_error"] = ""
             self.save_state()
             last_presence = time.monotonic()

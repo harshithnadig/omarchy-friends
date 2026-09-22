@@ -109,8 +109,11 @@ class TwoUserJourney(unittest.TestCase):
         for sender, receiver, skey, text in (
                 (alice, bob, self.bkey, "hey bob"), (bob, alice, self.akey, "hey alice")):
             out = []
-            with patch.object(sender, "_publish_global_event",
-                              side_effect=lambda e: out.append(e) or (True, {})):
+            with patch.object(sender, "_publish_event_to_relays",
+                              side_effect=lambda e, relays: out.append(e) or (True, {})):
+                # Simulate the receiver's verified kind-10050 relay metadata.
+                sender.state["global"]["friendships"][skey]["nip17_dm_relays"] = list(friends_module.NIP17_DM_RELAYS)
+                sender.state["global"]["friendships"][skey]["nip17_dm_relays_seen_at"] = int(time.time())
                 ok, _ = sender.send_dm(skey, text, "")
             self.assertTrue(ok)
             recipient_event = next(

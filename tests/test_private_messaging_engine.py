@@ -49,6 +49,11 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.assertIsNotNone(normalized)
         viewer.state["global"]["peers"][normalized["public_key"]] = normalized
         self.assertTrue(viewer._supports_nip17(normalized["public_key"]))
+        relay_event = peer._dm_relay_list_event()
+        self.assertEqual(
+            viewer._remember_nip17_dm_relay_event(normalized["public_key"], relay_event),
+            list(friends.NIP17_DM_RELAYS),
+        )
 
     @staticmethod
     def targeted(event, public_key):
@@ -61,11 +66,13 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.make_friends(self.alice, self.bob)
         self.advertise_modern(self.alice, self.bob)
         published = []
+        routed = []
         with patch.object(
-            self.alice, "_publish_global_event",
-            side_effect=lambda event: published.append(event) or (True, {}),
+            self.alice, "_publish_event_to_relays",
+            side_effect=lambda event, relays: routed.append((event, tuple(relays))) or (published.append(event) or (True, {})),
         ):
             ok, message = self.alice.send_dm(self.key(self.bob), "secret hello", "")
+        self.assertTrue(all(relays == friends.NIP17_DM_RELAYS for _, relays in routed))
         self.assertTrue(ok, message)
         gift = next(
             event for event in published
@@ -89,6 +96,43 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.assertEqual(friend.get("private_protocol"), "nip17-v1")
         self.alice.state["global"]["peers"].pop(self.key(self.bob), None)
         self.assertTrue(self.alice._supports_nip17(self.key(self.bob)))
+        self.alice.save_state()
+        restarted = friends.FriendsEngine(state_dir=self.paths[0])
+        restored = restarted.state["global"]["friendships"][self.key(self.bob)]
+        self.assertEqual(restored.get("private_protocol"), "nip17-v1")
+        self.assertEqual(restored.get("nip17_dm_relays"), list(friends.NIP17_DM_RELAYS))
+        self.assertTrue(restarted._supports_nip17(self.key(self.bob)))
+
+    def test_signed_kind_10050_inbox_list_is_bounded_to_configured_relays(self):
+        self.make_friends(self.alice, self.bob)
+        event = self.bob._dm_relay_list_event()
+        self.assertTrue(friends.verify_event(event))
+        self.assertEqual(event["kind"], friends.NIP17_DM_RELAY_LIST_KIND)
+        self.assertEqual(
+            self.alice._dm_relays_from_event(event, self.key(self.bob)),
+            list(friends.NIP17_DM_RELAYS),
+        )
+        hostile = friends.build_event(
+            self.bob.state["global_identity"]["secret_key"],
+            friends.NIP17_DM_RELAY_LIST_KIND,
+            [["relay", "wss://127.0.0.1.example.invalid"], ["relay", "ws://127.0.0.1:7777"]],
+            "",
+        )
+        self.assertEqual(self.alice._dm_relays_from_event(hostile, self.key(self.bob)), [])
+
+    def test_incoming_rumor_must_address_receiver(self):
+        self.make_friends(self.alice, self.bob)
+        self.make_friends(self.alice, self.carol)
+        rumor = friends.create_nip17_rumor(
+            self.alice.state["global_identity"]["secret_key"],
+            [self.key(self.carol)],
+            "not for bob",
+            app_envelope={"v": 3, "type": "direct", "text": "not for bob", "media": []},
+        )
+        gift_for_bob = friends.wrap_nip17_rumor(
+            self.alice.state["global_identity"]["secret_key"], self.key(self.bob), rumor
+        )
+        self.assertIsNone(self.bob._global_dm_from_event(gift_for_bob))
 
     def test_old_peer_still_uses_legacy_transport_during_upgrade_window(self):
         self.make_friends(self.alice, self.bob)
@@ -117,8 +161,8 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.advertise_modern(self.alice, self.carol)
         published = []
         with patch.object(
-            self.alice, "_publish_global_event",
-            side_effect=lambda event: published.append(event) or (True, {}),
+            self.alice, "_publish_event_to_relays",
+            side_effect=lambda event, relays: published.append(event) or (True, {}),
         ):
             ok, message = self.alice.create_group(
                 "Secret Ship Crew", [self.key(self.bob), self.key(self.carol)]
