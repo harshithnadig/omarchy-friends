@@ -49,4 +49,5 @@ sleep 1
 bash "$(dirname "$0")/verify-live-v415.sh" "$PLUGIN_DIR"
 
 printf '\nRC is now the live installed checkout.\n'
-printf 'Open Friends again. You should see a visible Build entry, and middle-clicking the bar widget should open Build Network V3.\n'
+printf 'Open Friends again. Left-click should load Friends V3 with separate Chats/Requests; middle-click or the visible Build entry should open Build Network V3.\n'
+printf 'Then follow CODEX_REAL_SYSTEM_TEST.md for real QML, screenshots, relay and two-client validation.\n'
