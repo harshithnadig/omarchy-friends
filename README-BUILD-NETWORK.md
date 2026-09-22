@@ -4,7 +4,7 @@ Build Network is the Omarchy-native collaboration layer inside Friends. The v4.1
 
 ## Open it
 
-- **Left-click** Friends to open the normal Friends deck, then use the visible **🛠 Build** button.
+- **Left-click** Friends to open the normal Friends V3 deck, then use the visible **Build** entry.
 - **Middle-click** Friends to jump directly to **Build Network**.
 - **Right-click** Friends to cycle status.
 
@@ -39,11 +39,13 @@ Private Friends messaging has a separate standards layer in `bin/omarchy_friends
 - Restart-persistent modern-protocol state so stale World presence does not silently downgrade an upgraded friendship.
 - Compatibility read/fallback for pre-v4.15 Friends private messages.
 
+The Friends V3 shell around Build Network also includes conversation-only Chats, separate Received/Sent Requests with Accept/Decline/Cancel lifecycle, simplified World discovery, on-demand Hide/Report safety actions, room-style Circles and explicit Me/Privacy controls.
+
 ## Federation and release hardening
 
 Public Build Network objects are signed with the existing pseudonymous Friends identity and use Nostr kind `30079` with bounded normalized metadata. Relay copies are de-duplicated and newer author/object versions replace older cached versions.
 
-The release also adds bounded offline retry, stale-helper expiry, corrupt-state quarantine, schema migration backup, longer bounded knowledge lookback, per-author cache fairness, malformed-event metadata/tag/timestamp/content checks, and serialized QML actions so refresh timers cannot race user writes.
+The release also adds bounded offline retry, stale-helper expiry, corrupt-state quarantine, schema migration backup, longer bounded knowledge lookback, per-author cache fairness, malformed-event metadata/tag/timestamp/content checks, bounded WebSocket fragmentation/deadline handling, and serialized QML actions so refresh timers cannot race user writes.
 
 ## Safety boundary
 
@@ -71,6 +73,6 @@ Run on the actual Omarchy system:
 bash scripts/release-gate.sh
 ```
 
-Then complete `CODEX_REAL_SYSTEM_TEST.md`, including real `omarchy plugin validate .`, `qmllint`, kind-10050 inbox publication/fetch, current-to-current NIP-17/NIP-59 messaging, restart/anti-downgrade behavior, legacy compatibility, Build Network relay tests, existing Friends regressions and desktop invite URI opening.
+Then complete `CODEX_REAL_SYSTEM_TEST.md`, including real `omarchy plugin validate .`, `qmllint`, Friends V3 request/safety flows, kind-10050 inbox publication/fetch, current-to-current NIP-17/NIP-59 messaging, restart/anti-downgrade behavior, legacy compatibility, Build Network relay tests, existing Friends regressions and desktop invite URI opening.
 
 Those are validation tasks, not prompts for another architecture or crypto rewrite. Repo-side automated work is complete. If the documented real-system gates pass, cut v4.15 stable. Do not add another feature to this release.
