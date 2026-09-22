@@ -54,6 +54,7 @@ PopupCard {
     property string projectDescDraft: ""
     property string projectUrlDraft: ""
     property var interestsDraft: []
+    property bool serviceSignalsConnected: false
 
     contentWidth: root.fittedContentWidth(Style.space(760))
     contentHeight: root.fittedContentHeight(Style.space(680))
@@ -62,6 +63,16 @@ PopupCard {
         root.notice = text || "Done"
         noticeTimer.restart()
     }
+
+    function connectServiceSignals() {
+        if (!root.service || root.serviceSignalsConnected) return
+        root.service.actionResult.connect(function(ok, message) { root.showNotice(message || (ok ? "Done" : "Something went wrong")) })
+        root.service.eventReceived.connect(function(event) { if (event && event.message) root.showNotice(event.message) })
+        root.serviceSignalsConnected = true
+    }
+
+    onServiceChanged: connectServiceSignals()
+    Component.onCompleted: connectServiceSignals()
 
     function worldPeer(publicKey) {
         for (var i = 0; i < root.world.length; i++) {
@@ -294,17 +305,6 @@ PopupCard {
         height: 0
         visible: false
         Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
-    }
-
-    Item {
-        width: 0
-        height: 0
-        visible: false
-        Connections {
-            target: root.service
-            function onActionResult(ok, message) { root.showNotice(message || (ok ? "Done" : "Something went wrong")) }
-            function onEventReceived(event) { if (event && event.message) root.showNotice(event.message) }
-        }
     }
 
     onOpenChanged: if (root.open) Qt.callLater(root.ensureConversation)
