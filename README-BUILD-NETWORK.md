@@ -1,159 +1,71 @@
-# Omarchy Friends Build Network — v4.14
+# Omarchy Friends Build Network — v4.14 release candidate
 
-This branch turns Omarchy Friends into an Omarchy-native social + collaboration layer while keeping the existing private messaging/World experience intact.
+Build Network is the Omarchy-native collaboration layer inside Friends. The v4.14 product scope is frozen; remaining work is real-system validation, not feature invention.
 
 ## Open it
 
-- **Left-click** Friends: existing Friends deck (World, chats, Circles, groups, profile, focus).
-- **Middle-click** Friends: **Build Network**.
-- **Right-click** Friends: cycle status.
+- **Left-click** Friends to open the normal Friends deck, then use the visible **🛠 Build** button.
+- **Middle-click** Friends to jump directly to **Build Network**.
+- **Right-click** Friends to cycle status.
 
 ## Active implementation
-
-There is one active Build UI path:
 
 ```text
 BarWidget.qml
   -> BuildNetworkPanelV3.qml
   -> BuildNetworkService.qml
-  -> bin/build_network_app_v2.py
+  -> bin/build_network_app_v4.py
+  -> bin/build_network_app_v3.py / v2 collaboration layers
   -> bin/build_network_runtime.py
 ```
 
-Core public-object models live in:
+Core public-object models live in `bin/build_network.py`, `bin/build_network_social.py`, `bin/build_network_v2.py` and `bin/build_network_v3.py`.
 
-```text
-bin/build_network.py
-bin/build_network_social.py
-bin/build_network_v2.py
-```
+## What v4.14 includes
 
-The old V1/V2 QML panels and V1 app entrypoint were removed so real-system testing does not waste time on dead prototypes.
+- Discover feed for recent useful community work without follower/engagement ranking.
+- Ideas -> Build Rooms -> roles/tasks -> testing/shipped lifecycle.
+- Public GitHub snapshot and explicitly published project-activity cards.
+- Setup Cards, safe local comparison and individual setup-component sharing.
+- Community Test Network with safe environment labels.
+- Human Help, Can Help / Pair / Build-with-me availability, helper matching and private Friends chat handoff.
+- Help -> reusable Solution Card and community verification.
+- Ship Log, voluntary Update Pulse, events and challenges.
+- External share-text generation and `omarchy-friends://` invite handling.
+- Local save/hide plus reuse of the existing Friends block list.
 
-## UI direction
+## Federation and release hardening
 
-V3 replaces the original dense debug-panel look with a dark **liquid-glass** design system:
+Public Build Network objects are signed with the existing pseudonymous Friends identity and use Nostr kind `30079` with bounded normalized metadata. Relay copies are de-duplicated and newer author/object versions replace older cached versions.
 
-- `GlassSurface.qml` — translucent layered surfaces, soft edge light and depth;
-- `GlassPill.qml` — reusable capsule actions/tabs;
-- larger hierarchy and whitespace;
-- fewer hard borders;
-- floating segmented navigation;
-- clearer primary/secondary actions;
-- modern glass setup comparison, help, build, pulse and create surfaces;
-- responsive content width within the Omarchy popup card.
+v4.14 also adds bounded offline retry, stale-helper expiry, corrupt-state quarantine, schema migration backup, longer bounded knowledge lookback, per-author cache fairness, malformed-event metadata/tag/timestamp/content checks, and serialized QML actions so refresh timers cannot race user writes.
 
-It intentionally approximates frosted glass using safe native QML layers rather than depending on an unverified blur API. A real Omarchy pass can add true compositor blur only if the shell already exposes a stable supported effect.
+## Safety boundary
 
-## Product loops implemented
+Build Network cards are public signed metadata. They do **not** remotely execute commands, install components, upload configs/logs/files automatically, or expose hostname/username/IP/serial/file contents. Shared setup components are review/copy/open-link workflows only.
 
-### Discover
+Safe optional environment labels are limited to coarse non-identifying information such as Omarchy version, architecture, GPU vendor category and kernel version label, and are only published by explicit user actions that include them.
 
-Recent useful activity only: ideas, Build Rooms, setup cards, help requests, solutions, shipped work, events and challenges. Builders get contribution-oriented reputation from useful actions rather than follower counts.
+Private chat stays in the existing Friends messaging layer. Its current encryption is application-specific and is not described as formally audited; standardized NIP-44 migration is intentionally a separate compatibility-tested release.
 
-### Ideas -> Build Rooms -> Ship
+## Invite handler
 
-Users can publish ideas, signal interest, promote an idea into a Build Room, advertise roles, join a room, link a GitHub repository, open its Issues/PRs, publish task progress, move a room through building/testing/shipped states and publish a Ship entry.
-
-GitHub remains the code source of truth. Friends is the human discovery/coordination layer.
-
-### Setup Cards
-
-Setup sharing contains shallow metadata only: theme, plugin directory names, architecture/OS labels, shell, terminal, editor, optional HTTP(S) dotfiles URL and notes.
-
-Recipients can:
-
-- compare a shared setup against their local metadata;
-- see missing/already-present plugins and differing fields;
-- copy the setup recipe;
-- open the author's HTTP(S) repo.
-
-Nothing is automatically installed or executed.
-
-### Test Network
-
-Authors can request specific environments. Other users can report pass/issue results using safe local environment labels.
-
-### Human escalation
-
-A Help Request can contain the problem, a bounded description of what the user/AI already tried, and optional safe environment labels. Other users can offer help and then move to the existing Friends private chat flow. The author can mark a request solved/closed.
-
-### Community memory
-
-Solution Cards preserve useful fixes. Other builders can verify them as worked/partial/did-not-work, producing community evidence rather than a single unverified answer.
-
-### Omarchy Update Pulse
-
-Users explicitly opt in to report working/minor-issue/rolled-back for an Omarchy version. The UI shows totals plus a simple similar-environment aggregate based on safe shared labels. No background telemetry is collected.
-
-### Events + challenges
-
-Events support Going/Interested RSVP counts. Challenges support joining and converting the challenge into a Build Room/team.
-
-### Save/hide
-
-Public objects can be saved or hidden locally without changing the relay object.
-
-## Federation
-
-Public Build Network objects use the existing pseudonymous Friends identity when available and are published as signed Nostr parameterized-replaceable events:
-
-- kind `30079`
-- tag `t=omarchy-friends-build`
-- `d=<object-id>`
-- bounded normalized JSON envelope
-
-Relay copies are de-duplicated and newer author/object versions replace older cached versions.
-
-## Safe environment labels
-
-The v2 runtime may locally detect only non-identifying labels such as:
-
-- Omarchy version;
-- CPU architecture;
-- GPU vendor category (NVIDIA/AMD/Intel);
-- kernel version label.
-
-It does **not** collect hostname, username, IP address, serial number, tokens, config contents, SSH material or arbitrary file contents. These labels are not published unless the user explicitly performs an action that includes them.
-
-## Invite link handler
-
-`bin/omarchy-friends-open` safely parses only:
+`bin/omarchy-friends-open` accepts only:
 
 ```text
 omarchy-friends://invite/<64-hex-public-key>
 ```
 
-and routes that key into the existing direct friend/chat invitation command. It never evaluates link content. Desktop URI registration still needs to be verified against the real Omarchy plugin install path before enabling it globally.
+The v4.14 runtime installs an idempotent user-local desktop handler using the actual installed plugin path. The final desktop-open behavior still has to be verified on the real Omarchy machine.
 
-## Tests
+## Final validation
 
-GitHub Actions compiles all active Build Network Python modules, runs the complete repository unit suite and fails if Build Network code introduces obvious dynamic shell/eval primitives (`eval`, `exec`, `os.system`, `shell=True`).
-
-Local validation:
+Run on the actual Omarchy system:
 
 ```bash
-python3 -m py_compile \
-  bin/build_network.py \
-  bin/build_network_social.py \
-  bin/build_network_v2.py \
-  bin/build_network_runtime.py \
-  bin/build_network_app_v2.py \
-  bin/omarchy-friends-open
-
-python3 -m unittest discover -s tests -v
-
-omarchy plugin validate .
-qmllint -I "$OMARCHY_PATH/shell" \
-  BarWidget.qml Panel.qml Service.qml \
-  BuildNetworkPanelV3.qml BuildNetworkService.qml \
-  GlassSurface.qml GlassPill.qml
+bash scripts/release-gate.sh
 ```
 
-The final two commands require a real Omarchy/Quickshell environment.
+Then complete `CODEX_REAL_SYSTEM_TEST.md`, including real `omarchy plugin validate .`, `qmllint`, two-instance relay tests, existing Friends regressions and desktop invite URI opening.
 
-## Security boundary
-
-Remote Build Network content is untrusted metadata. It must never become arbitrary command execution. The branch intentionally does not provide remote shell execution, automatic setup installation, arbitrary file uploads or automatic telemetry.
-
-A future one-click setup importer must first produce an exact local review/diff plan and require explicit user confirmation for every applied change.
+If those gates pass, cut v4.14 stable. Do not add another feature to this release.
