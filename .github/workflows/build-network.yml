@@ -32,7 +32,6 @@ jobs:
             bin/build_network_social.py \
             bin/build_network_v2.py \
             bin/build_network_runtime.py \
-            bin/build_network_app.py \
             bin/build_network_app_v2.py \
             bin/omarchy-friends-open
       - name: Run complete unit suite
