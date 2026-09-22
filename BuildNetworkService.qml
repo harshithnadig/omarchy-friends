@@ -5,7 +5,7 @@ import Quickshell.Io
 Item {
     id: root
 
-    readonly property string runtimePath: Qt.resolvedUrl("bin/build_network_app_v3.py").toString().replace(/^file:\/\//, "")
+    readonly property string runtimePath: Qt.resolvedUrl("bin/build_network_app_v4.py").toString().replace(/^file:\/\//, "")
 
     property var profile: ({ handle: "OmarchyBuilder", public_key: "" })
     property var ideas: []
@@ -37,7 +37,8 @@ Item {
     property var githubSnapshot: ({ repo_url: "", items: [] })
     property string shareText: ""
     property var uriRegistration: ({})
-    property var stats: ({ ideas: 0, build_rooms: 0, setups: 0, tests: 0, builders: 0, ships: 0, solutions: 0, help_requests: 0, events: 0, challenges: 0, helps: 0, verifications: 0, task_updates: 0, helpers: 0, setup_components: 0, project_activity: 0 })
+    property var releaseInfo: ({ app_version: "", state_schema: 1, pending_publish: 0, blocked_filtered: 0 })
+    property var stats: ({ ideas: 0, build_rooms: 0, setups: 0, tests: 0, builders: 0, ships: 0, solutions: 0, help_requests: 0, events: 0, challenges: 0, helps: 0, verifications: 0, task_updates: 0, helpers: 0, setup_components: 0, project_activity: 0, pending_publish: 0, blocked_filtered: 0 })
     property int relayOk: 0
     property int relayTotal: 0
     property int lastRefresh: 0
@@ -82,6 +83,7 @@ Item {
         if (data.setup_components) root.setupComponents = data.setup_components
         if (data.project_activity) root.projectActivity = data.project_activity
         if (data.environment) root.detectedEnvironment = data.environment
+        if (data.release) root.releaseInfo = data.release
         if (data.github_snapshot) { root.githubSnapshot = data.github_snapshot; root.githubSnapshotReady(data.github_snapshot) }
         if (data.share_text !== undefined) { root.shareText = data.share_text; root.shareTextReady(data.share_text) }
         if (data.registration) root.uriRegistration = data.registration
@@ -155,6 +157,7 @@ Item {
     function loadGithubSnapshot(repoUrl) { run("github-snapshot", { repo_url: repoUrl }, "GitHub activity loaded") }
     function generateShareText(objectId) { run("share-text", { id: objectId }, "Share text ready") }
     function registerInviteLinks() { run("register-uri", null, "Invite link handler registered") }
+    function health() { run("health", null, "Release health ready") }
     function saveObject(objectId) { run("save", { id: objectId }, "Saved") }
     function hideObject(publicKey, objectId) { run("hide", { public_key: publicKey || "", id: objectId || "" }, "Hidden") }
 
