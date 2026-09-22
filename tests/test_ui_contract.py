@@ -85,14 +85,18 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('readonly property color bg: "#070b14"', panel)
         self.assertIn('readonly property color accent: "#7c6cff"', panel)
 
-    def test_update_path_is_visible_and_explicit(self):
+    def test_update_path_is_visible_explicit_and_never_background_write(self):
         panel = self.read("FriendsPanelV3.qml")
         service = self.read("Service.qml")
+        modern_service = self.read("ServiceModern.qml")
         self.assertIn('visible: root.updateInfo.available', panel)
         self.assertIn('root.service.updatePlugin()', panel)
         self.assertIn('omarchy', service)
         self.assertIn('rescanPlugins', service)
         self.assertNotIn('Component.onCompleted: root.service.updatePlugin()', panel)
+        self.assertNotIn('autoUpdate', modern_service)
+        self.assertNotIn('Timer {', modern_service)
+        self.assertFalse((ROOT / "bin" / "omarchy-friends-auto-update").exists())
 
     def test_shared_glass_primitives_exist(self):
         for path in (
