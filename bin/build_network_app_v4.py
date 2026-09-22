@@ -358,7 +358,12 @@ def _store_and_publish_durable(model, success_message):
         and f"{item.get('type','')}:{item.get('id','')}" != key
     ]
     filtered.append(payload)
-    state["pending_publish"] = filtered[-MAX_PENDING:]
+    if len(filtered) >= MAX_PENDING:
+        result["message"] = "Saved locally, but the retry queue is full; this item was not queued for automatic retry"
+        core._write_json(core.BUILD_STATE, state)
+        return result
+    filtered.append(payload)
+    state["pending_publish"] = filtered
     core._write_json(core.BUILD_STATE, state)
     result["message"] = "Saved locally; Friends will retry this on the next Build Network sync"
     return result

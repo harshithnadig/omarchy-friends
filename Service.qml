@@ -351,8 +351,8 @@ Item {
 
     function unblockGlobal(publicKey) {
         runAction([root.binPath, "unblock-global", publicKey], function(output) {
-            root.reportResult(output, "Builder unblocked")
-            root.refresh()
+            var result = root.reportResult(output, "Builder unblocked")
+            if (result.ok === true) root.refreshGlobal()
         })
     }
 

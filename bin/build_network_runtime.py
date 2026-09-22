@@ -185,13 +185,21 @@ def _publish(payload):
         try:
             with WebSocketClient(relay_url, timeout=2.5) as relay:
                 relay.send_json(["EVENT", event])
-                # Relay acknowledgement is nice-to-have. Sending successfully is
-                # enough to continue because some relays delay or omit OK.
-                try:
-                    relay.recv_json(timeout=0.35)
-                except (OSError, EOFError, TimeoutError):
-                    pass
-                successes += 1
+                response = relay.recv_json(timeout=0.8)
+                if (
+                    isinstance(response, list)
+                    and len(response) >= 4
+                    and response[0] == "OK"
+                    and response[1] == event["id"]
+                    and response[2] is True
+                ):
+                    successes += 1
+                elif isinstance(response, list) and response[:1] == ["OK"] and len(response) >= 4:
+                    relay_errors.append(f"{relay_url}: {str(response[3])[:160] or 'rejected'}")
+                else:
+                    relay_errors.append(f"{relay_url}: invalid acknowledgement")
+        except TimeoutError:
+            relay_errors.append(f"{relay_url}: acknowledgement timeout")
         except (OSError, EOFError, ValueError) as exc:
             relay_errors.append(f"{relay_url}: {type(exc).__name__}")
     return successes > 0, successes, relay_errors, event

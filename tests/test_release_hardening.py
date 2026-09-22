@@ -4,6 +4,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bin"))
@@ -12,6 +13,58 @@ import build_network_app_v4 as release
 
 
 class ReleaseHardeningTests(unittest.TestCase):
+    def test_rejected_or_unacknowledged_publish_is_not_reported_as_success(self):
+        event = {"id": "event-id"}
+
+        class FakeRelay:
+            def __init__(self, _url, timeout):
+                self.response = ["OK", event["id"], False, "blocked: rate-limited"]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def send_json(self, _value):
+                pass
+
+            def recv_json(self, timeout):
+                return self.response
+
+        with patch.object(release.core, "_build_state", return_value={}), \
+             patch.object(release.core, "_identity", return_value={"secret_key": "1"}), \
+             patch.object(release.core, "build_event", return_value=event), \
+             patch.object(release.core, "RELAYS", ("wss://reject.test",)), \
+             patch.object(release.core, "WebSocketClient", FakeRelay):
+            ok, successes, errors, _published = release.core._publish({"id": "item", "type": "idea"})
+        self.assertFalse(ok)
+        self.assertEqual(successes, 0)
+        self.assertIn("blocked: rate-limited", errors[0])
+
+    def test_full_retry_queue_does_not_silently_drop_or_claim_retry(self):
+        original_build = release.core.BUILD_STATE
+        original_store = release._previous_store_and_publish
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                release.core.BUILD_STATE = pathlib.Path(tmp) / "build.json"
+                pending = [{"type": "idea", "id": f"old-{i}"} for i in range(release.MAX_PENDING)]
+                release.core._write_json(release.core.BUILD_STATE, {"pending_publish": pending})
+                release._previous_store_and_publish = lambda *_args: {"ok": False, "message": "offline"}
+
+                class Model:
+                    def to_payload(self):
+                        return {"type": "idea", "id": "new-item"}
+
+                result = release._store_and_publish_durable(Model(), "Shared")
+                state = release.core._read_json(release.core.BUILD_STATE, {})
+                self.assertFalse(result["ok"])
+                self.assertIn("retry queue is full", result["message"])
+                self.assertEqual(state["pending_publish"], pending)
+        finally:
+            release.core.BUILD_STATE = original_build
+            release._previous_store_and_publish = original_store
+
     def test_helper_availability_expires(self):
         now = 2_000_000
         fresh = {"status": "active", "created_at": now - 60, "available_minutes": 30}

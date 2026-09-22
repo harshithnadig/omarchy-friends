@@ -76,6 +76,17 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('text: "⋯"', world)
         self.assertIn("function blockGlobal(publicKey)", service)
 
+    def test_unblock_triggers_world_refresh_and_chat_drafts_do_not_cross_recipients(self):
+        panel = self.read("FriendsPanelV3.qml")
+        service = self.read("Service.qml")
+        unblock = service.split("function unblockGlobal(publicKey)", 1)[1].split("function dismissNudge", 1)[0]
+        self.assertIn("if (result.ok === true) root.refreshGlobal()", unblock)
+        self.assertIn("function prepareDraftForConversation(key)", panel)
+        self.assertIn('root.prepareDraftForConversation("friend:"', panel)
+        self.assertIn('root.prepareDraftForConversation("group:"', panel)
+        self.assertIn('root.draftConversationKey !== key', panel)
+        self.assertIn('root.messageDraft = ""', panel)
+
     def test_world_cards_keep_one_clear_primary_connection_action(self):
         panel = self.read("FriendsPanelV3.qml")
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]

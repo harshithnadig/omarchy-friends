@@ -48,6 +48,7 @@ PopupCard {
     property string selectedGroupId: ""
     property string messageDraft: ""
     property string mediaDraft: ""
+    property string draftConversationKey: ""
     property bool mediaComposerOpen: false
     property string communityDraft: ""
     property string notice: ""
@@ -246,7 +247,17 @@ PopupCard {
         return "Start the group conversation"
     }
 
+    function prepareDraftForConversation(key) {
+        if (root.draftConversationKey && root.draftConversationKey !== key) {
+            root.messageDraft = ""
+            root.mediaDraft = ""
+            root.mediaComposerOpen = false
+        }
+        root.draftConversationKey = key
+    }
+
     function chooseFriend(friend) {
+        root.prepareDraftForConversation("friend:" + (friend && friend.public_key ? friend.public_key : ""))
         root.selectedFriendKey = friend && friend.public_key ? friend.public_key : ""
         root.selectedGroupId = ""
         root.page = "chats"
@@ -255,6 +266,7 @@ PopupCard {
     }
 
     function chooseGroup(group) {
+        root.prepareDraftForConversation("group:" + (group && group.id ? group.id : ""))
         root.selectedGroupId = group && group.id ? group.id : ""
         root.selectedFriendKey = ""
         root.page = "chats"
@@ -378,6 +390,7 @@ PopupCard {
         var req = root.requestFor(peer.public_key)
         if (req) {
             root.service.acceptFriendRequest(req.id)
+            root.prepareDraftForConversation("friend:" + peer.public_key)
             root.selectedFriendKey = peer.public_key
             root.selectedGroupId = ""
             root.page = "chats"
@@ -986,6 +999,7 @@ PopupCard {
                                                     anchors.verticalCenter: parent.verticalCenter
                                                     onClicked: {
                                                         if (root.service) root.service.acceptFriendRequest(modelData.id)
+                                                        root.prepareDraftForConversation("friend:" + (modelData.public_key || ""))
                                                         root.selectedFriendKey = modelData.public_key || ""
                                                         root.selectedGroupId = ""
                                                         root.page = "chats"

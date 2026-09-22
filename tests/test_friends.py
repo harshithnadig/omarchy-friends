@@ -73,6 +73,7 @@ class TestFriendsEngine(unittest.TestCase):
             self.engine._ingest_global_presence(blocked_event)
             self.engine._cleanup_global_peers()
             self.assertNotIn(blocked_key, self.engine.state["global"]["peers"])
+            self.assertNotIn(blocked_key, self.engine.state["global"]["memory"])
 
             ok, message = self.engine.unblock_global(blocked_key)
 
