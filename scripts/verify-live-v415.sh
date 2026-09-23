@@ -4,6 +4,7 @@ set -euo pipefail
 PLUGIN_ID="community.omarchy-friends"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 PLUGIN_DIR="${1:-$CONFIG_HOME/omarchy/plugins/$PLUGIN_ID}"
+EXPECTED_COMMIT="${2:-}"
 
 fail() {
   printf '[FAIL] %s\n' "$*" >&2
@@ -22,7 +23,13 @@ printf 'Installed Friends checkout: %s\n' "$PLUGIN_DIR"
 printf 'Branch: %s\n' "$branch"
 printf 'Commit: %s\n' "$sha"
 
-[[ "$branch" == "feature/build-network" || "$branch" == "hotfix/hide-restore-v4.15.1" ]] || fail "Live plugin is on '$branch', not the v4.15 release line"
+if [[ -n "$EXPECTED_COMMIT" ]]; then
+  [[ "$EXPECTED_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || fail "Expected commit must be a full 40-character SHA"
+  actual="$(git -C "$PLUGIN_DIR" rev-parse HEAD)"
+  [[ "${actual,,}" == "${EXPECTED_COMMIT,,}" ]] || fail "Live commit $actual does not match expected $EXPECTED_COMMIT"
+else
+  [[ "$branch" == "feature/build-network" || "$branch" == "hotfix/hide-restore-v4.15.1" ]] || fail "Live plugin is on '$branch', not the v4.15 release line"
+fi
 
 grep -q '"version"[[:space:]]*:[[:space:]]*"4.15.1"' "$PLUGIN_DIR/manifest.json" \
   || fail "manifest.json is not v4.15.1"

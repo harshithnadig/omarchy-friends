@@ -17,7 +17,7 @@ Item {
     implicitHeight: Style.space(root.strong ? 34 : 30)
     opacity: root.enabled ? 1 : 0.42
     scale: tap.pressed ? 0.97 : (hover.hovered ? 1.015 : 1)
-    activeFocusOnTab: root.enabled
+    activeFocusOnTab: root.enabled || root.activeFocus
     Accessible.role: Accessible.Button
     Accessible.name: root.accessibleName || root.text
 

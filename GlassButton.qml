@@ -19,7 +19,9 @@ Item {
     implicitHeight: Style.space(root.compact ? 30 : 38)
     opacity: root.enabled ? 1 : 0.42
     scale: tap.pressed ? 0.965 : (hover.hovered ? 1.015 : 1)
-    activeFocusOnTab: root.enabled
+    // Keep the current focus item tabbable until focus leaves it. Changing this
+    // to false while it owns active focus emits a Qt runtime warning.
+    activeFocusOnTab: root.enabled || root.activeFocus
     Accessible.role: Accessible.Button
     Accessible.name: root.accessibleName || root.text || root.icon
 
