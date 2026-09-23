@@ -34,6 +34,7 @@ PopupCard {
     property string urlDraft: ""
     property string tagsDraft: ""
     property string extraDraft: ""
+    property string pendingCreateSnapshot: ""
     property string updateResult: "working"
     property string notice: ""
     property bool useDetectedEnvironment: true
@@ -58,6 +59,9 @@ PopupCard {
         onActionResult: function(ok, message) {
             root.notice = message || (ok ? "Done" : "Build Network action failed")
             noticeTimer.restart()
+        }
+        onCreateResult: function(ok, message) {
+            if (ok && root.pendingCreateSnapshot === root.createDraftSnapshot()) root.clearDrafts()
         }
         onShareTextReady: function(text) {
             root.copyText(text, "Share text copied")
@@ -187,12 +191,17 @@ PopupCard {
         root.extraDraft = ""
     }
 
+    function createDraftSnapshot() {
+        return JSON.stringify([root.titleDraft, root.bodyDraft, root.urlDraft, root.tagsDraft, root.extraDraft])
+    }
+
     function submitCreate() {
         var title = root.titleDraft.trim()
         var body = root.bodyDraft.trim()
         var url = root.urlDraft.trim()
         var tags = root.csv(root.tagsDraft)
         var extra = root.extraDraft.trim()
+        root.pendingCreateSnapshot = root.createDraftSnapshot()
         if (root.createKind !== "update" && !title) {
             root.notice = "Give it a title first"
             noticeTimer.restart()
@@ -208,7 +217,6 @@ PopupCard {
         else if (root.createKind === "update") build.reportUpdate(extra || title, root.updateResult, tags, body, root.useDetectedEnvironment)
         else if (root.createKind === "event") build.createEvent(title, extra, root.tagsDraft.trim(), url, body)
         else if (root.createKind === "challenge") build.createChallenge(title, body, extra, url, tags)
-        root.clearDrafts()
     }
 
     function kindLabel(kind) {

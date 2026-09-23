@@ -331,8 +331,12 @@ Item {
         })
     }
 
-    function sendCommunity(text) {
-        runAction([root.binPath, "send-community", text || ""], function(output) { root.reportResult(output, "Community message sent"); root.refresh() })
+    function sendCommunity(text, callback) {
+        runAction([root.binPath, "send-community", text || ""], function(output) {
+            var result = root.reportResult(output, "Community message sent")
+            root.refresh()
+            if (callback) callback(result.ok === true, result)
+        })
     }
 
     function updatePlugin() {

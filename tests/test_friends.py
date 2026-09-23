@@ -469,6 +469,31 @@ class TestFriendsEngine(unittest.TestCase):
         finally:
             shutil.rmtree(remote_dir, ignore_errors=True)
 
+    def test_malformed_gift_wrap_kind_does_not_abort_global_refresh(self):
+        relay_result = {
+            "published": True,
+            "presence": [],
+            "pings": [],
+            "messages": [{"kind": "not-an-integer"}],
+            "community": [],
+        }
+        with patch.object(self.engine, "_global_relay_sync", return_value=relay_result):
+            ok, message = self.engine.sync_global()
+        self.assertTrue(ok, message)
+        self.assertEqual(self.engine.state["global"]["messages"], [])
+
+    def test_relay_without_publish_ack_is_not_reported_as_visible(self):
+        with patch.object(friends_module, "GLOBAL_RELAYS", ("wss://relay.example",)), patch.object(
+            friends_module, "WebSocketClient"
+        ) as client_class:
+            relay = client_class.return_value.__enter__.return_value
+            relay.recv_json.return_value = ["EOSE", "ofp123"]
+            result = self.engine._global_relay_sync(
+                "wss://relay.example", {"id": "presence"}, 0, {"id": "inbox"}
+            )
+        self.assertFalse(result["published"])
+        self.assertFalse(result["dm_relay_published"])
+
     def test_presence_match_and_trusted_friend(self):
         self.engine.set_interests(["linux", "music", "invalid", "linux", "design", "games"])
         self.prime_peer()

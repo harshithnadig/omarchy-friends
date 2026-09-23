@@ -53,6 +53,7 @@ PopupCard {
     property bool creatingGroup: false
     property bool mediaComposerOpen: false
     property string communityDraft: ""
+    property bool sendingCommunity: false
     property string notice: ""
     property bool newChatOpen: false
     property bool groupCreateOpen: false
@@ -348,10 +349,14 @@ PopupCard {
     }
 
     function sendCommunity() {
+        if (root.sendingCommunity) return
         var text = root.communityDraft.trim()
         if (!text || !root.service) return
-        root.service.sendCommunity(text)
-        root.communityDraft = ""
+        root.sendingCommunity = true
+        root.service.sendCommunity(text, function(ok) {
+            root.sendingCommunity = false
+            if (ok && root.communityDraft.trim() === text) root.communityDraft = ""
+        })
     }
 
     function filteredWorld() {

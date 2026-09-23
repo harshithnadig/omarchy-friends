@@ -102,6 +102,22 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("cardOpen = false", close_body)
         self.assertIn("buildCardOpen = false", close_body)
 
+    def test_async_send_and_create_failures_preserve_user_drafts(self):
+        friends = read("FriendsPanelV3.qml")
+        service = read("Service.qml")
+        build = read("BuildNetworkPanelV3.qml")
+        build_service = read("BuildNetworkService.qml")
+        circle_send = friends[friends.index("function sendCommunity()"):friends.index("function filteredWorld()")]
+        create_submit = build[build.index("function submitCreate()"):build.index("function kindLabel(")]
+        self.assertIn("if (callback) callback(result.ok === true, result)", service)
+        self.assertIn("if (ok && root.communityDraft.trim() === text)", circle_send)
+        self.assertIn("if (ok && root.communityDraft.trim() === text) root.communityDraft = \"\"", circle_send)
+        self.assertIn("onCreateResult", build)
+        self.assertIn("if (ok && root.pendingCreateSnapshot === root.createDraftSnapshot()) root.clearDrafts()", build)
+        self.assertNotIn("root.clearDrafts()", create_submit)
+        self.assertIn("createAction: createAction === true", build_service)
+        self.assertIn("if (next.createAction) root.createResult(ok, message)", build_service)
+
     def test_primary_glass_actions_are_keyboard_reachable(self):
         for path in ("GlassButton.qml", "GlassNavItem.qml", "GlassPill.qml"):
             text = read(path)

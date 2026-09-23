@@ -1674,8 +1674,11 @@ class FriendsEngine:
 
     def _global_dm_from_event(self, event):
         identity = self._global_identity()
-
-        if isinstance(event, dict) and int(event.get("kind", -1)) == NIP59_GIFT_WRAP_KIND:
+        try:
+            event_kind = int(event.get("kind", -1)) if isinstance(event, dict) else -1
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if isinstance(event, dict) and event_kind == NIP59_GIFT_WRAP_KIND:
             try:
                 rumor = unwrap_nip17_gift_wrap(identity["secret_key"], event)
             except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError):
@@ -2805,12 +2808,11 @@ class FriendsEngine:
                 elif message[0] == "CLOSED" and len(message) >= 2:
                     eose.add(message[1])
             if not ok_seen:
-                # Some relays flush EOSE before their OK acknowledgement. The
-                # EVENT was written successfully, so don't show a false
-                # "offline" state to the user in that normal race.
-                result["published"] = True
+                # No matching OK means this relay did not confirm publication.
+                # Do not claim visibility on an EOSE-only/read-only response.
+                result["published"] = False
             if dm_relay_event is not None and not dm_ok_seen:
-                result["dm_relay_published"] = True
+                result["dm_relay_published"] = False
             try:
                 relay.send_json(["CLOSE", presence_sub])
                 relay.send_json(["CLOSE", ping_sub])
@@ -3194,13 +3196,22 @@ class FriendsEngine:
             for key, peer in peers.items():
                 self._touch_memory(key, peer.get("handle", ""), peer.get("avatar", ""), encounter=True)
         for event in messages:
-            self._ingest_global_dm(event)
+            try:
+                self._ingest_global_dm(event)
+            except (TypeError, ValueError, OverflowError, KeyError, UnicodeError, json.JSONDecodeError):
+                continue
         global_state["messages"] = global_state.get("messages", [])[-MAX_MESSAGES:]
         for event in community_events:
-            self._ingest_global_community(event)
+            try:
+                self._ingest_global_community(event)
+            except (TypeError, ValueError, OverflowError, KeyError, UnicodeError, json.JSONDecodeError):
+                continue
         global_state["community"] = global_state.get("community", [])[-MAX_COMMUNITY_MESSAGES:]
         for event in pings:
-            self._ingest_global_ping(event)
+            try:
+                self._ingest_global_ping(event)
+            except (TypeError, ValueError, OverflowError, KeyError, UnicodeError, json.JSONDecodeError):
+                continue
         global_state["pings"] = global_state.get("pings", [])[-GLOBAL_MAX_PINGS:]
 
         if successes:
