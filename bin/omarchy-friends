@@ -71,6 +71,8 @@ MAX_EVENTS = 48
 MAX_PULSE_ITEMS = 24
 MAX_INVITES = 8
 MAX_SEEN_EVENT_IDS = 128
+MAX_SEEN_NIP17_RUMORS = 4096
+NIP17_RUMOR_DEDUPE_SECONDS = NIP59_RANDOM_WINDOW_SECONDS + 24 * 60 * 60
 MAX_ROOM_LENGTH = 24
 MAX_INCOMING_SIGNALS_PER_MINUTE = 12
 MAX_SIGNAL_RECEIPTS = 96
@@ -191,13 +193,13 @@ AVAILABLE_INTERESTS = [
 INTEREST_BY_ID = {item["id"]: item for item in AVAILABLE_INTERESTS}
 
 PRIVACY_DEFAULTS = {
-    "share_window": True,
-    "share_music": True,
+    "share_window": False,
+    "share_music": False,
     "share_lan": True,
-    "share_project": True,
+    "share_project": False,
     "share_theme": False,
-    "share_interests": True,
-    "share_room": True,
+    "share_interests": False,
+    "share_room": False,
     # The generated pseudonym is visible by default so a new install appears
     # in the Friends tab. This can be hidden instantly from My Beacon.
     "share_global": True,
@@ -571,8 +573,8 @@ class FriendsEngine:
             "total_seconds": 0,
         }
 
-    def _default_state(self):
-        global_identity = generate_keypair()
+    def _default_state(self, global_identity=None):
+        global_identity = global_identity or generate_keypair()
         return {
             "profile": {
                 "handle": generate_global_handle(global_identity["public_key"]),
@@ -602,6 +604,8 @@ class FriendsEngine:
                 "community": [],
                 "sent_pings": [],
                 "processed_event_ids": [],
+                "handled_friend_requests": [],
+                "nip17_seen_rumors": {},
                 "memory": {},
                 "last_sync": 0,
                 "last_publish": 0,
@@ -679,7 +683,7 @@ class FriendsEngine:
                             except (AttributeError, TypeError, ValueError, OverflowError):
                                 corrupt = True
                         global_data = data.get("global") if isinstance(data.get("global"), dict) else {}
-                        for name in ("peers", "friendships", "groups", "memory", "relays"):
+                        for name in ("peers", "friendships", "groups", "memory", "relays", "nip17_seen_rumors"):
                             if name in global_data and not isinstance(global_data[name], dict):
                                 corrupt = True
                         for name in (
@@ -789,6 +793,7 @@ class FriendsEngine:
                 "community": MAX_COMMUNITY_MESSAGES,
                 "sent_pings": GLOBAL_MAX_SENT_PINGS,
                 "processed_event_ids": MAX_SEEN_EVENT_IDS,
+                "nip17_seen_rumors": None,
                 "world_pulse": MAX_PULSE_ITEMS,
                 "events": MAX_EVENTS,
                 "seen_event_ids": MAX_EVENTS * 2,
@@ -801,18 +806,19 @@ class FriendsEngine:
         return copy.deepcopy(desired)
 
     def _migrate_state(self, data):
-        state = self._default_state()
-        if not isinstance(data, dict):
-            return state
-
-        old_identity = data.get("global_identity")
+        old_identity = data.get("global_identity") if isinstance(data, dict) else None
+        preserved_identity = None
         if isinstance(old_identity, dict):
             try:
                 candidate = generate_keypair(old_identity.get("secret_key"))
                 if candidate["public_key"] == trim_text(old_identity.get("public_key"), 64).lower():
-                    state["global_identity"] = candidate
+                    preserved_identity = candidate
             except (TypeError, ValueError, OverflowError):
                 pass
+
+        state = self._default_state(global_identity=preserved_identity)
+        if not isinstance(data, dict):
+            return state
 
         old_profile = data.get("profile")
         if isinstance(old_profile, dict):
@@ -846,7 +852,15 @@ class FriendsEngine:
             if isinstance(old_privacy, dict):
                 for key in PRIVACY_DEFAULTS:
                     if key in old_privacy:
-                        profile["privacy"][key] = bool(old_privacy[key])
+                        value = old_privacy[key]
+                        if isinstance(value, bool):
+                            profile["privacy"][key] = value
+                        elif isinstance(value, str):
+                            normalized = value.strip().lower()
+                            if normalized in {"true", "1", "yes", "on"}:
+                                profile["privacy"][key] = True
+                            elif normalized in {"false", "0", "no", "off", ""}:
+                                profile["privacy"][key] = False
                 # The old demo's global matching switch was never a real
                 # transport feature.  Do not carry it forward.
 
@@ -959,6 +973,24 @@ class FriendsEngine:
                 for event_id in old_global.get("processed_event_ids", [])
                 if trim_text(event_id, 64)
             ))[-MAX_SEEN_EVENT_IDS:]
+            global_state["handled_friend_requests"] = list(dict.fromkeys(
+                trim_text(item, 160)
+                for item in old_global.get("handled_friend_requests", [])
+                if trim_text(item, 160)
+            ))[-MAX_SEEN_EVENT_IDS:]
+            cutoff = now_seconds() - NIP17_RUMOR_DEDUPE_SECONDS
+            seen_rumors = {
+                trim_text(rumor_id, 64).lower(): safe_int(seen_at)
+                for rumor_id, seen_at in (old_global.get("nip17_seen_rumors") or {}).items()
+                if re.fullmatch(r"[0-9a-fA-F]{64}", str(rumor_id)) and safe_int(seen_at) >= cutoff
+            }
+            for message in global_state["messages"]:
+                rumor_id = trim_text(message.get("id"), 64).lower()
+                if re.fullmatch(r"[0-9a-f]{64}", rumor_id):
+                    seen_rumors.setdefault(rumor_id, now_seconds())
+            global_state["nip17_seen_rumors"] = dict(
+                sorted(seen_rumors.items(), key=lambda item: item[1])[-MAX_SEEN_NIP17_RUMORS:]
+            )
             memory = {}
             for public_key, entry in (old_global.get("memory") or {}).items():
                 public_key = trim_text(public_key, 64).lower()
@@ -1456,12 +1488,12 @@ class FriendsEngine:
             "handle": profile["handle"],
             "avatar": profile["avatar"],
             "status": profile.get("status", "coding"),
-            "activity": get_active_window() if privacy.get("share_window", True) else "",
-            "music": get_active_music() if privacy.get("share_music", True) else "",
+            "activity": get_active_window() if privacy.get("share_window", False) else "",
+            "music": get_active_music() if privacy.get("share_music", False) else "",
             "focus_mins": self.get_focus_minutes(),
             "timestamp": now_seconds(),
         }
-        if privacy.get("share_project", True):
+        if privacy.get("share_project", False):
             payload.update(
                 {
                     "project_name": profile.get("project_name", ""),
@@ -1469,9 +1501,9 @@ class FriendsEngine:
                     "project_url": profile.get("project_url", ""),
                 }
             )
-        if privacy.get("share_interests", True):
+        if privacy.get("share_interests", False):
             payload["interests"] = list(profile.get("interests", []))
-        if privacy.get("share_room", True):
+        if privacy.get("share_room", False):
             payload["room"] = normalize_room(profile.get("room"))
         if privacy.get("share_theme", False):
             payload["theme"] = trim_text(get_current_theme(), 48)
@@ -1511,11 +1543,11 @@ class FriendsEngine:
             "focus_mins": self.get_focus_minutes(),
             "timestamp": now_seconds(),
         }
-        if privacy.get("share_window", True):
+        if privacy.get("share_window", False):
             content["activity"] = get_active_window()
-        if privacy.get("share_music", True):
+        if privacy.get("share_music", False):
             content["music"] = get_active_music()
-        if privacy.get("share_project", True):
+        if privacy.get("share_project", False):
             content.update(
                 {
                     "project_name": profile.get("project_name", ""),
@@ -1523,9 +1555,9 @@ class FriendsEngine:
                     "project_url": profile.get("project_url", ""),
                 }
             )
-        if privacy.get("share_interests", True):
+        if privacy.get("share_interests", False):
             content["interests"] = list(profile.get("interests", []))
-        if privacy.get("share_room", True):
+        if privacy.get("share_room", False):
             content["room"] = normalize_room(profile.get("room"))
         if privacy.get("share_theme", False):
             content["theme"] = trim_text(get_current_theme(), 48)
@@ -1954,7 +1986,7 @@ class FriendsEngine:
     def _global_peers(self):
         self._cleanup_global_peers()
         profile = self.state["profile"]
-        active_app = get_active_window() if profile.get("privacy", {}).get("share_window", True) else ""
+        active_app = get_active_window() if profile.get("privacy", {}).get("share_window", False) else ""
         memory = self.state.get("global", {}).get("memory", {})
         peers = []
         for peer in self.state.get("global", {}).get("peers", {}).values():
@@ -2066,6 +2098,7 @@ class FriendsEngine:
             return False, message
         self.state["global"].setdefault("friendships", {})[ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
         self.state["global"]["pings"] = [item for item in self.state["global"]["pings"] if item.get("id") != ping_id]
+        self._remember_handled_friend_request(ping)
         self.state["stats"]["friends_made"] += 1
         self._mark_friends_memory(ping["public_key"], ping.get("handle", ""), ping.get("avatar", ""))
         self.save_state()
@@ -2087,6 +2120,7 @@ class FriendsEngine:
         if not ok:
             return False, message
         self.state["global"]["pings"] = [item for item in pings if item.get("id") != ping_id]
+        self._remember_handled_friend_request(ping)
         self.save_state()
         return True, "Friend request declined"
 
@@ -2108,6 +2142,22 @@ class FriendsEngine:
         friendships.pop(public_key, None)
         self.save_state()
         return True, "Friend request cancelled"
+
+    def _friend_request_key(self, ping):
+        session_id = trim_text(ping.get("session_id"), 128)
+        if session_id:
+            return f"{ping.get('public_key', '')}:{session_id}"
+        event_id = trim_text(ping.get("id"), 64).lower()
+        return f"{ping.get('public_key', '')}:event:{event_id}" if event_id else ""
+
+    def _remember_handled_friend_request(self, ping):
+        key = self._friend_request_key(ping)
+        if not key:
+            return
+        handled = self.state.setdefault("global", {}).setdefault("handled_friend_requests", [])
+        if key not in handled:
+            handled.append(key)
+        self.state["global"]["handled_friend_requests"] = handled[-MAX_SEEN_EVENT_IDS:]
 
     def _supports_nip17(self, public_key):
         public_key = trim_text(public_key, 64).lower()
@@ -2263,10 +2313,28 @@ class FriendsEngine:
         if not rumor_id:
             return
         global_state = self.state.setdefault("global", {})
+        self._remember_nip17_rumor(rumor_id)
         processed = global_state.setdefault("processed_event_ids", [])
         if rumor_id not in processed:
             processed.append(rumor_id)
             global_state["processed_event_ids"] = processed[-MAX_SEEN_EVENT_IDS:]
+
+    def _remember_nip17_rumor(self, rumor_id):
+        rumor_id = trim_text(rumor_id, 64).lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", rumor_id):
+            return
+        global_state = self.state.setdefault("global", {})
+        seen = global_state.setdefault("nip17_seen_rumors", {})
+        cutoff = now_seconds() - NIP17_RUMOR_DEDUPE_SECONDS
+        seen = {
+            event_id: safe_int(seen_at)
+            for event_id, seen_at in seen.items()
+            if safe_int(seen_at) >= cutoff
+        }
+        seen[rumor_id] = now_seconds()
+        if len(seen) > MAX_SEEN_NIP17_RUMORS:
+            seen = dict(sorted(seen.items(), key=lambda item: item[1])[-MAX_SEEN_NIP17_RUMORS:])
+        global_state["nip17_seen_rumors"] = seen
 
     def send_dm(self, public_key, text, media_url=""):
         public_key = trim_text(public_key, 64).lower()
@@ -2722,7 +2790,16 @@ class FriendsEngine:
         ping_sub = "ofg" + uuid.uuid4().hex[:12]
         dm_sub = "ofdm" + uuid.uuid4().hex[:12]
         community_sub = "ofc" + uuid.uuid4().hex[:12]
-        result = {"published": False, "dm_relay_published": False, "presence": [], "pings": [], "messages": [], "community": []}
+        result = {
+            "published": False,
+            "acknowledged": False,
+            "dm_relay_published": False,
+            "dm_relay_acknowledged": False,
+            "presence": [],
+            "pings": [],
+            "messages": [],
+            "community": [],
+        }
         ok_seen = False
         dm_ok_seen = False
         with WebSocketClient(relay_url, timeout=3.5) as relay:
@@ -2761,7 +2838,13 @@ class FriendsEngine:
                     {
                         "kinds": [NIP59_GIFT_WRAP_KIND],
                         "#p": [self._global_identity()["public_key"]],
-                        "since": max(0, since - 10),
+                        # Unlike kind-4 DMs, NIP-59 gift-wrap timestamps are
+                        # randomized across a two-day window. A narrow delta
+                        # from last_sync misses most wraps during explicit
+                        # refresh/recovery when the persistent listener was
+                        # unavailable. The rumor-id dedupe makes this bounded
+                        # lookback safe for repeated refreshes.
+                        "since": max(0, now_seconds() - NIP59_RANDOM_WINDOW_SECONDS - 1),
                         "limit": MAX_MESSAGES,
                     },
                 ]
@@ -2780,16 +2863,24 @@ class FriendsEngine:
             )
             eose = set()
             deadline = time.monotonic() + 3.5
-            while time.monotonic() < deadline and len(eose) < 4:
-                message = relay.recv_json(max(0.05, deadline - time.monotonic()))
+            while time.monotonic() < deadline:
+                if ok_seen and (dm_relay_event is None or dm_ok_seen) and len(eose) >= 4:
+                    break
+                message = relay.recv_json(max(0.05, min(0.5, deadline - time.monotonic())))
                 if not isinstance(message, list) or not message:
                     continue
                 if message[0] == "OK" and len(message) >= 3 and message[1] == presence_event["id"]:
                     ok_seen = True
+                    result["acknowledged"] = True
                     result["published"] = bool(message[2])
+                    if (dm_relay_event is None or dm_ok_seen) and len(eose) >= 4:
+                        break
                 elif dm_relay_event is not None and message[0] == "OK" and len(message) >= 3 and message[1] == dm_relay_event["id"]:
                     dm_ok_seen = True
+                    result["dm_relay_acknowledged"] = True
                     result["dm_relay_published"] = bool(message[2])
+                    if ok_seen and len(eose) >= 4:
+                        break
                 elif message[0] == "EVENT" and len(message) >= 3:
                     if message[1] == presence_sub:
                         result["presence"].append(message[2])
@@ -2803,16 +2894,20 @@ class FriendsEngine:
                         result["messages"].append(message[2])
                     elif message[1] == community_sub:
                         result["community"].append(message[2])
-                elif message[0] == "EOSE" and len(message) >= 2:
+                elif message[0] in ("EOSE", "CLOSED") and len(message) >= 2:
                     eose.add(message[1])
-                elif message[0] == "CLOSED" and len(message) >= 2:
-                    eose.add(message[1])
+                    if len(eose) >= 4:
+                        if ok_seen and (dm_relay_event is None or dm_ok_seen):
+                            break
+                        deadline = min(deadline, time.monotonic() + 0.8)
             if not ok_seen:
                 # No matching OK means this relay did not confirm publication.
                 # Do not claim visibility on an EOSE-only/read-only response.
                 result["published"] = False
+                result["acknowledged"] = False
             if dm_relay_event is not None and not dm_ok_seen:
                 result["dm_relay_published"] = False
+                result["dm_relay_acknowledged"] = False
             try:
                 relay.send_json(["CLOSE", presence_sub])
                 relay.send_json(["CLOSE", ping_sub])
@@ -2865,7 +2960,11 @@ class FriendsEngine:
         global_state = self.state.setdefault("global", {})
         processed_ids = global_state.setdefault("processed_event_ids", [])
         message = self._global_dm_from_event(event)
-        if not message or message["id"] in processed_ids:
+        if not message:
+            return False
+        is_nip17 = safe_int(event.get("kind")) == NIP59_GIFT_WRAP_KIND if isinstance(event, dict) else False
+        seen_nip17 = global_state.setdefault("nip17_seen_rumors", {})
+        if message["id"] in processed_ids or (is_nip17 and message["id"] in seen_nip17):
             return False
         if message["public_key"] in global_state.get("blocked_pubkeys", []):
             processed_ids.append(message["id"])
@@ -2873,6 +2972,8 @@ class FriendsEngine:
             return False
         if not self._allow_global_signal(message["public_key"]):
             return False
+        if is_nip17:
+            self._remember_nip17_rumor(message["id"])
         if message.get("message_type") == "group_invite":
             group = self._normalize_group(message.get("group_id"), message.get("group") or {})
             if not group:
@@ -2953,6 +3054,12 @@ class FriendsEngine:
             return True
         if ping.get("action") == "friend_cancel":
             session_id = ping.get("session_id")
+            if session_id:
+                self._remember_handled_friend_request(ping)
+            else:
+                for item in global_state.get("pings", []):
+                    if item.get("action") == "friend_request" and item.get("public_key") == ping["public_key"]:
+                        self._remember_handled_friend_request(item)
             global_state["pings"] = [
                 item for item in global_state.get("pings", [])
                 if not (
@@ -2985,6 +3092,10 @@ class FriendsEngine:
             global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
             return True
         if ping.get("action") == "friend_request":
+            if self._friend_request_key(ping) in global_state.setdefault("handled_friend_requests", []):
+                processed_ids.append(ping["id"])
+                global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
+                return False
             friendship = global_state.setdefault("friendships", {}).get(ping["public_key"], {})
             if friendship.get("status") == "pending":
                 global_state["friendships"][ping["public_key"]] = {"status": "friends", "handle": ping.get("handle", "A builder"), "avatar": ping.get("avatar", "👾")}
@@ -2993,6 +3104,7 @@ class FriendsEngine:
                 self._remember_memory_signal(ping["public_key"], "friend_request", "received", ping.get("handle", ""), ping.get("avatar", ""))
                 self._append_event("friend_accept", "✅", ping.get("handle"), ping.get("avatar"), f"You and {ping.get('handle', 'a builder')} are now mutual friends.", ping["id"])
                 self.global_ping(ping["public_key"], "friend_accept", session_id=ping.get("session_id"), allow_offline=True)
+                self._remember_handled_friend_request(ping)
                 processed_ids.append(ping["id"])
                 global_state["processed_event_ids"] = processed_ids[-MAX_SEEN_EVENT_IDS:]
                 return True
@@ -3171,7 +3283,12 @@ class FriendsEngine:
                 successes += 1
                 published = published or bool(result.get("published"))
                 dm_relay_published = dm_relay_published or bool(result.get("dm_relay_published"))
-                relay_status[relay_url] = {"online": True, "accepted": bool(result.get("published"))}
+                relay_status[relay_url] = {
+                    "online": True,
+                    "accepted": bool(result.get("published")),
+                    "acknowledged": bool(result.get("acknowledged")),
+                    "error": "",
+                }
                 for event in result.get("presence", []):
                     peer = self._global_peer_from_event(event)
                     if not peer:
@@ -3187,7 +3304,12 @@ class FriendsEngine:
             except (OSError, ValueError, ssl.SSLError, EOFError) as error:
                 message = trim_text(error, 120)
                 errors.append(f"{relay_url}: {message}")
-                relay_status[relay_url] = {"online": False, "error": message}
+                relay_status[relay_url] = {
+                    "online": False,
+                    "accepted": False,
+                    "acknowledged": False,
+                    "error": message,
+                }
 
         for key, peer in peers.items():
             peer["relay_count"] = len(relay_counts.get(key, set()))
@@ -4348,8 +4470,8 @@ class FriendsEngine:
         global_focus = self._current_global_focus()
         profile = self.state["profile"]
         privacy = profile.get("privacy", {})
-        active_app = get_active_window() if privacy.get("share_window", True) else "Hidden"
-        active_music = get_active_music() if privacy.get("share_music", True) else ""
+        active_app = get_active_window() if privacy.get("share_window", False) else "Hidden"
+        active_music = get_active_music() if privacy.get("share_music", False) else ""
         theme = get_current_theme()
         wallpaper = get_current_wallpaper()
         peers = self._available_peers()

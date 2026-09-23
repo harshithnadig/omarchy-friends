@@ -7,6 +7,7 @@ Item {
     property string text: ""
     property string icon: ""
     property string badge: ""
+    property string accessibleName: ""
     property bool selected: false
     property bool enabled: true
     property color accentColor: "#8b7cff"
@@ -16,6 +17,8 @@ Item {
     implicitHeight: Style.space(42)
     opacity: root.enabled ? 1 : 0.45
     activeFocusOnTab: root.enabled
+    Accessible.role: Accessible.Button
+    Accessible.name: root.accessibleName || root.text
 
     Keys.onPressed: function(event) {
         if (!root.enabled) return

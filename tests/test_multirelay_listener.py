@@ -130,6 +130,39 @@ class MultiRelayListenerTests(unittest.TestCase):
         ]
         self.assertEqual(len(matching), 1)
 
+    def test_nip17_rumor_remains_deduplicated_after_generic_cache_churn_and_restart(self):
+        self.assertTrue(self.bob._ingest_global_dm(self.gift))
+        self.bob.state["global"]["processed_event_ids"] = [
+            f"{index:064x}" for index in range(friends.MAX_SEEN_EVENT_IDS)
+        ]
+        self.bob.save_state()
+        restarted = friends.FriendsEngine(state_dir=self.paths[1])
+        self.assertNotIn(self.gift["id"], restarted.state["global"]["processed_event_ids"])
+        before = len(restarted.state["global"]["messages"])
+        self.assertFalse(restarted._ingest_global_dm(self.gift))
+        self.assertEqual(len(restarted.state["global"]["messages"]), before)
+
+    def test_rate_limited_nip17_rumor_can_be_retried_later(self):
+        sender_key = self.alice.state["global_identity"]["public_key"]
+        now = friends.now_seconds()
+        self.bob.state["global"]["incoming_receipts"] = [
+            {"public_key": sender_key, "timestamp": now}
+            for _ in range(friends.MAX_INCOMING_SIGNALS_PER_MINUTE)
+        ]
+
+        self.assertFalse(self.bob._ingest_global_dm(self.gift))
+        self.assertNotIn(
+            self.gift["id"], self.bob.state["global"]["nip17_seen_rumors"]
+        )
+
+        self.bob.state["global"]["incoming_receipts"] = []
+        self.assertTrue(self.bob._ingest_global_dm(self.gift))
+        self.assertEqual(
+            sum(message.get("text") == "hello across the second inbox relay"
+                for message in self.bob.state["global"]["messages"]),
+            1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

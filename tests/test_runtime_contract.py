@@ -22,6 +22,18 @@ class RuntimeContractTests(unittest.TestCase):
         missing = sorted(called - available)
         self.assertEqual(missing, [], "FriendsPanelV3 calls missing Service methods: " + ", ".join(missing))
 
+    def test_initial_privacy_indicators_match_private_engine_defaults(self):
+        service = read("Service.qml")
+        engine = read("bin/omarchy-friends")
+        defaults = re.search(r"PRIVACY_DEFAULTS\s*=\s*\{([^}]+)\}", engine)
+        self.assertIsNotNone(defaults)
+        for key in ("share_window", "share_music", "share_lan", "share_project", "share_theme", "share_interests", "share_room", "share_global"):
+            expected = re.search(rf'"{key}"\s*:\s*(True|False)', defaults.group(1))
+            actual = re.search(rf'{key}\s*:\s*(true|false)', service)
+            self.assertIsNotNone(expected, key)
+            self.assertIsNotNone(actual, key)
+            self.assertEqual(actual.group(1).lower(), expected.group(1).lower(), key)
+
     def test_build_panel_friends_handoffs_exist(self):
         panel = read("BuildNetworkPanelV3.qml")
         service = read("Service.qml")
@@ -29,6 +41,18 @@ class RuntimeContractTests(unittest.TestCase):
         called = set(re.findall(r"\broot\.friendsService\.([A-Za-z_]\w*)\s*\(", panel))
         missing = sorted(called - available)
         self.assertEqual(missing, [], "Build Network calls missing Friends service methods: " + ", ".join(missing))
+
+    def test_build_chat_handoff_is_supported_by_every_friends_fallback(self):
+        widget = read("BarWidget.qml")
+        self.assertIn("panel = compatibilityPanelLoader.item", widget)
+        self.assertIn("panel = fallbackPanelLoader.item", widget)
+        self.assertIn("panel.openChatForPublicKey(key)", widget)
+        self.assertIn("return panel.openChatForPublicKey(key) === true", widget)
+        for path in ("FriendsPanelV3.qml", "FriendsPanelV2.qml", "Panel.qml"):
+            self.assertIn("function openChatForPublicKey(publicKey)", read(path), path)
+        build = read("BuildNetworkPanelV3.qml")
+        self.assertIn("var opened = root.hostWidget.openFriendChat(publicKey)", build)
+        self.assertIn('"Friend not found in Chats; check Requests or World"', build)
 
     def test_build_panel_actions_exist_in_build_service(self):
         panel = read("BuildNetworkPanelV3.qml")

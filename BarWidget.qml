@@ -74,11 +74,15 @@ BarWidget {
 
     function deliverPendingFriendChat() {
         if (!root.pendingFriendChatKey) return false
-        if (!modernPanelLoader.item || typeof modernPanelLoader.item.openChatForPublicKey !== "function") return false
+        var panel = modernPanelLoader.item
+        if (!panel && compatibilityPanelLoader.status === Loader.Ready)
+            panel = compatibilityPanelLoader.item
+        if (!panel && fallbackPanelLoader.status === Loader.Ready)
+            panel = fallbackPanelLoader.item
+        if (!panel || typeof panel.openChatForPublicKey !== "function") return false
         var key = root.pendingFriendChatKey
         root.pendingFriendChatKey = ""
-        modernPanelLoader.item.openChatForPublicKey(key)
-        return true
+        return panel.openChatForPublicKey(key) === true
     }
 
     function openFriendChat(publicKey) {
@@ -87,6 +91,7 @@ BarWidget {
         buildCardOpen = false
         cardOpen = true
         if (root.deliverPendingFriendChat()) return true
+        if (!root.pendingFriendChatKey) return false
         Qt.callLater(root.deliverPendingFriendChat)
         return true
     }
@@ -207,7 +212,10 @@ BarWidget {
         visible: false
         onLoaded: if (item) {
             item.hostWidget = root
-            Qt.callLater(function() { if (item) item.hostWidget = root })
+            Qt.callLater(function() {
+                if (item) item.hostWidget = root
+                root.deliverPendingFriendChat()
+            })
         }
         onStatusChanged: if (status === Loader.Error)
             console.warn("Omarchy Friends V2 compatibility panel also failed: " + source)
@@ -220,7 +228,10 @@ BarWidget {
         visible: false
         onLoaded: if (item) {
             item.hostWidget = root
-            Qt.callLater(function() { if (item) item.hostWidget = root })
+            Qt.callLater(function() {
+                if (item) item.hostWidget = root
+                root.deliverPendingFriendChat()
+            })
         }
         onStatusChanged: if (status === Loader.Error)
             console.warn("Omarchy Friends legacy fallback also failed: " + source)

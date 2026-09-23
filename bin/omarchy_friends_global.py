@@ -7,6 +7,7 @@ without asking users to install Python packages or run a server.
 """
 
 import base64
+from functools import lru_cache
 import hashlib
 import hmac
 import json
@@ -62,6 +63,14 @@ def _point_mul(scalar, point=GENERATOR):
     return result
 
 
+@lru_cache(maxsize=32)
+def _public_point_for_secret(secret_key):
+    """Cache the local identity's expensive affine public-key derivation."""
+    if not isinstance(secret_key, int) or not 1 <= secret_key < CURVE_N:
+        raise ValueError("invalid secp256k1 secret key")
+    return _point_mul(secret_key)
+
+
 def _tagged_hash(tag, payload):
     tag_hash = hashlib.sha256(tag.encode("ascii")).digest()
     return hashlib.sha256(tag_hash + tag_hash + payload).digest()
@@ -87,7 +96,7 @@ def generate_keypair(secret_key=None):
         secret_key = int(secret_key, 16)
     if not isinstance(secret_key, int) or not 1 <= secret_key < CURVE_N:
         raise ValueError("invalid secp256k1 secret key")
-    point = _point_mul(secret_key)
+    point = _public_point_for_secret(secret_key)
     return {
         "secret_key": f"{secret_key:064x}",
         "public_key": f"{point[0]:064x}",
@@ -135,7 +144,7 @@ def schnorr_sign(message_hash, secret_key):
     secret = int(secret_key, 16) if isinstance(secret_key, str) else secret_key
     if not 1 <= secret < CURVE_N:
         raise ValueError("invalid secp256k1 secret key")
-    public_point = _point_mul(secret)
+    public_point = _public_point_for_secret(secret)
     effective_secret = secret if public_point[1] % 2 == 0 else CURVE_N - secret
     public_x = public_point[0].to_bytes(32, "big")
     # BIP-340's auxiliary randomness means a compromised process cannot make
@@ -235,15 +244,22 @@ def verify_event(event):
             return False
         pubkey = event["pubkey"]
         event_id = event["id"]
-        created_at = int(event["created_at"])
-        kind = int(event["kind"])
+        created_at = event["created_at"]
+        kind = event["kind"]
         tags = event["tags"]
         content = event["content"]
         if not isinstance(pubkey, str) or len(pubkey) != 64:
             return False
         if not isinstance(event_id, str) or len(event_id) != 64:
             return False
-        if not isinstance(tags, list) or not isinstance(content, str) or not 0 <= kind <= 65535:
+        if (
+            type(created_at) is not int
+            or type(kind) is not int
+            or not isinstance(tags, list)
+            or any(not isinstance(tag, list) or any(not isinstance(value, str) for value in tag) for tag in tags)
+            or not isinstance(content, str)
+            or not 0 <= kind <= 65535
+        ):
             return False
         serialized = json.dumps(
             [0, pubkey, created_at, kind, tags, content],
@@ -408,7 +424,10 @@ class WebSocketClient:
                         continue
                 else:
                     continue
-                return json.loads(payload.decode("utf-8"))
+                try:
+                    return json.loads(payload.decode("utf-8"))
+                except RecursionError as error:
+                    raise ValueError("relay JSON nesting too deep") from error
         except socket.timeout:
             return None
 

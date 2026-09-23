@@ -70,6 +70,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
 
     def test_people_safety_actions_survive_the_v3_cleanup(self):
         panel = self.read("FriendsPanelV3.qml")
+        legacy_panel = self.read("Panel.qml")
         service = self.read("Service.qml")
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
         chats = panel.split("// CHATS:", 1)[1].split("// REQUESTS", 1)[0]
@@ -83,6 +84,10 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('text: "Report"', chats)
         self.assertIn('text: "⋯"', world)
         self.assertIn("function blockGlobal(publicKey)", service)
+
+        legacy_block_action = legacy_panel.split("root.service.blockGlobal(modelData.public_key)", 1)[0][-500:]
+        self.assertIn('text: "Block"', legacy_block_action)
+        self.assertNotIn('text: "Hide"', legacy_panel)
 
     def test_unblock_triggers_world_refresh_and_chat_drafts_do_not_cross_recipients(self):
         panel = self.read("FriendsPanelV3.qml")
@@ -136,6 +141,11 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('text: "Omarchy Circle"', circles)
         self.assertIn('placeholder: "Message the Circle…"', circles)
         self.assertIn('text: "Privacy"', profile)
+        self.assertNotIn("This is what other Omarchy users see when you choose to share it.", profile)
+        self.assertIn('text: "Pseudonymous profile · sharing is opt-in."', profile)
+        self.assertIn('readonly property string globalConnectionText:', panel)
+        self.assertIn('"Presence not accepted"', panel)
+        self.assertNotIn('"Reconnecting"', panel)
         for privacy_key in ("share_global", "share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertIn(f'root.service.togglePrivacy("{privacy_key}")', profile)
 
@@ -185,6 +195,27 @@ class ModernFriendsUiContractTests(unittest.TestCase):
             "GlassField.qml", "GlassNavItem.qml", "GlassAvatar.qml",
         ):
             self.assertTrue((ROOT / path).is_file(), path)
+
+    def test_chat_and_group_rows_are_keyboard_reachable(self):
+        panel = self.read("FriendsPanelV3.qml")
+        self.assertEqual(panel.count("Accessible.role: Accessible.Button"), 4)
+        self.assertEqual(panel.count("Keys.onReturnPressed:"), 4)
+        self.assertEqual(panel.count("Keys.onSpacePressed:"), 4)
+        self.assertEqual(panel.count("activeFocusOnTab: true"), 4)
+
+    def test_fallback_conversation_selection_remains_keyboard_reachable(self):
+        for path, minimum_actions in (("FriendsPanelV2.qml", 3), ("Panel.qml", 4)):
+            panel = self.read(path)
+            self.assertGreaterEqual(panel.count("Keys.onReturnPressed:"), minimum_actions, path)
+            self.assertGreaterEqual(panel.count("Keys.onSpacePressed:"), minimum_actions, path)
+            self.assertGreaterEqual(panel.count("Accessible.role: Accessible.Button"), minimum_actions, path)
+
+    def test_profile_has_explicit_feature_and_bug_feedback_paths(self):
+        panel = self.read("FriendsPanelV3.qml")
+        self.assertIn('text: "Suggest a feature"', panel)
+        self.assertIn('text: "Report a bug"', panel)
+        self.assertIn('labels=enhancement&title=Feature%20idea', panel)
+        self.assertIn('labels=bug&title=Omarchy%20Friends%20bug', panel)
 
 
 if __name__ == "__main__":

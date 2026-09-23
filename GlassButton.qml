@@ -6,6 +6,7 @@ Item {
 
     property string text: ""
     property string icon: ""
+    property string accessibleName: ""
     property bool primary: false
     property bool selected: false
     property bool enabled: true
@@ -19,6 +20,8 @@ Item {
     opacity: root.enabled ? 1 : 0.42
     scale: tap.pressed ? 0.965 : (hover.hovered ? 1.015 : 1)
     activeFocusOnTab: root.enabled
+    Accessible.role: Accessible.Button
+    Accessible.name: root.accessibleName || root.text || root.icon
 
     Keys.onPressed: function(event) {
         if (!root.enabled) return

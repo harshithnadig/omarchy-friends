@@ -56,6 +56,94 @@ class FriendRequestLifecycleTests(unittest.TestCase):
             [(alice_key, "friend_decline", "request-session", True)],
         )
 
+    def test_declined_request_replay_after_restart_stays_dismissed(self):
+        alice_key = self.key(self.alice)
+        ping = {
+            "id": "a" * 64, "public_key": alice_key, "handle": "Alice",
+            "avatar": "🦊", "action": "friend_request",
+            "session_id": "request-session", "timestamp": friends.now_seconds(),
+        }
+        self.bob.state["global"]["pings"] = [ping]
+        with patch.object(self.bob, "global_ping", return_value=(True, "sent")):
+            self.assertTrue(self.bob.decline_friend_request(ping["id"])[0])
+        self.bob.save_state()
+        restarted = friends.FriendsEngine(state_dir=self.paths[1])
+        with patch.object(restarted, "_global_ping_from_event", return_value=ping):
+            self.assertFalse(restarted._ingest_global_ping({}))
+        self.assertEqual(restarted.state["global"]["pings"], [])
+
+    def test_accepted_request_replay_does_not_return_to_received(self):
+        alice_key = self.key(self.alice)
+        ping = {
+            "id": "8" * 64, "public_key": alice_key, "handle": "Alice",
+            "avatar": "🦊", "action": "friend_request",
+            "session_id": "accepted-session", "timestamp": friends.now_seconds(),
+        }
+        self.bob.state["global"]["pings"] = [ping]
+        with patch.object(self.bob, "global_ping", return_value=(True, "sent")):
+            self.assertTrue(self.bob.accept_friend_request(ping["id"])[0])
+        self.bob.save_state()
+        restarted = friends.FriendsEngine(state_dir=self.paths[1])
+        with patch.object(restarted, "_global_ping_from_event", return_value=ping):
+            self.assertFalse(restarted._ingest_global_ping({}))
+        self.assertEqual(restarted.state["global"]["pings"], [])
+        self.assertEqual(restarted.state["global"]["friendships"][alice_key]["status"], "friends")
+
+    def test_mutual_request_replay_after_restart_stays_accepted(self):
+        alice_key = self.key(self.alice)
+        bob_key = self.key(self.bob)
+        self.bob.state["global"]["friendships"][alice_key] = {
+            "status": "pending", "request_id": "outgoing-session", "handle": "Alice",
+        }
+        ping = {
+            "id": "9" * 64, "public_key": alice_key, "handle": "Alice",
+            "avatar": "🦊", "action": "friend_request",
+            "session_id": "incoming-session", "timestamp": friends.now_seconds(),
+        }
+        with patch.object(self.bob, "_global_ping_from_event", return_value=ping), \
+             patch.object(self.bob, "global_ping", return_value=(True, "sent")):
+            self.assertTrue(self.bob._ingest_global_ping({}))
+        self.assertEqual(self.bob.state["global"]["friendships"][alice_key]["status"], "friends")
+
+        # Force the generic event-ID cache to forget the request, as it can
+        # after ordinary relay traffic, then replay it after a process restart.
+        self.bob.state["global"]["processed_event_ids"] = [f"{i:064x}" for i in range(friends.MAX_SEEN_EVENT_IDS)]
+        self.bob.save_state()
+        restarted = friends.FriendsEngine(state_dir=self.paths[1])
+        with patch.object(restarted, "_global_ping_from_event", return_value=ping):
+            self.assertFalse(restarted._ingest_global_ping({}))
+        self.assertEqual(restarted.state["global"]["pings"], [])
+        self.assertEqual(restarted.state["global"]["friendships"][alice_key]["status"], "friends")
+        self.assertIn(restarted._friend_request_key(ping), restarted.state["global"]["handled_friend_requests"])
+
+    def test_cancel_before_request_suppresses_late_relay_replay(self):
+        alice_key = self.key(self.alice)
+        cancel = {
+            "id": "4" * 64, "public_key": alice_key, "handle": "Alice",
+            "avatar": "🦊", "action": "friend_cancel",
+            "session_id": "cancelled-session", "timestamp": friends.now_seconds(),
+        }
+        request = {**cancel, "id": "5" * 64, "action": "friend_request"}
+        with patch.object(self.bob, "_global_ping_from_event", return_value=cancel):
+            self.assertTrue(self.bob._ingest_global_ping({}))
+        with patch.object(self.bob, "_global_ping_from_event", return_value=request):
+            self.assertFalse(self.bob._ingest_global_ping({}))
+        self.assertEqual(self.bob.state["global"]["pings"], [])
+
+    def test_new_request_session_is_not_suppressed_by_old_cancel(self):
+        alice_key = self.key(self.alice)
+        cancel = {
+            "id": "6" * 64, "public_key": alice_key, "handle": "Alice",
+            "avatar": "🦊", "action": "friend_cancel",
+            "session_id": "old-session", "timestamp": friends.now_seconds(),
+        }
+        request = {**cancel, "id": "7" * 64, "action": "friend_request", "session_id": "new-session"}
+        with patch.object(self.bob, "_global_ping_from_event", return_value=cancel):
+            self.assertTrue(self.bob._ingest_global_ping({}))
+        with patch.object(self.bob, "_global_ping_from_event", return_value=request):
+            self.assertTrue(self.bob._ingest_global_ping({}))
+        self.assertEqual([p["session_id"] for p in self.bob.state["global"]["pings"]], ["new-session"])
+
     def test_cancel_removes_outgoing_pending_request_and_sends_matching_session(self):
         bob_key = self.key(self.bob)
         self.alice.state["global"]["friendships"][bob_key] = {

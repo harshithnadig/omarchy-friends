@@ -4,7 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-PopupCard {
+KeyboardPanel {
     id: root
 
     property var hostWidget: null
@@ -12,7 +12,7 @@ PopupCard {
     bar: hostWidget ? hostWidget.bar : null
     owner: hostWidget || root
     open: hostWidget ? hostWidget.cardOpen === true : false
-    triggerMode: "click"
+    focusTarget: chatsNav
 
     readonly property color canvas: "#070b14"
     readonly property color panel: "#0b1120"
@@ -36,8 +36,11 @@ PopupCard {
     readonly property var groups: service && service.globalGroups ? service.globalGroups : []
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
+    readonly property string globalConnectionText: !root.worldStatus.last_error ? "Connected" : ((root.worldStatus.relay_count || 0) > 0 ? "Presence not accepted" : "Offline")
     readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.15.1", latest: "4.15.1" })
     readonly property string reportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20report"
+    readonly property string featureIdeaUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
+    readonly property string bugReportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20bug"
 
     property string page: "chats"
     property string requestTab: "received"
@@ -667,6 +670,8 @@ PopupCard {
                         Item { width: 1; height: Style.space(3) }
 
                         GlassNavItem {
+                            id: chatsNav
+                            Keys.onEscapePressed: root.close()
                             width: parent.width
                             text: "Chats"
                             icon: "◉"
@@ -704,7 +709,7 @@ PopupCard {
                                 anchors.fill: parent
                                 anchors.margins: Style.space(8)
                                 spacing: 1
-                                Text { text: root.worldStatus.last_error ? "Reconnecting" : "Connected"; color: root.worldStatus.last_error ? root.warning : root.success; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                Text { text: root.globalConnectionText; color: root.worldStatus.last_error ? root.warning : root.success; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
                                 Text { width: parent.width; text: (root.worldStatus.relay_count || 0) + "/" + (root.worldStatus.relay_total || 0) + " relays"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                             }
                         }
@@ -770,7 +775,13 @@ PopupCard {
                                                 radius: Style.space(13)
                                                 selected: root.selectedGroupId === modelData.id
                                                 fillOpacity: selected ? 0.78 : 0.48
+                                                activeFocusOnTab: true
+                                                Accessible.role: Accessible.Button
+                                                Accessible.name: "Open group " + (modelData.name || "Private group")
                                                 TapHandler { onTapped: root.chooseGroup(modelData) }
+                                                Keys.onReturnPressed: root.chooseGroup(modelData)
+                                                Keys.onEnterPressed: root.chooseGroup(modelData)
+                                                Keys.onSpacePressed: root.chooseGroup(modelData)
                                                 Row {
                                                     anchors.fill: parent
                                                     anchors.margins: Style.space(8)
@@ -783,6 +794,7 @@ PopupCard {
                                                         Text { width: parent.width; text: root.groupLastMessagePreview(modelData.id); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                 }
+                                                Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                             }
                                         }
 
@@ -794,7 +806,13 @@ PopupCard {
                                                 radius: Style.space(13)
                                                 selected: root.selectedFriendKey === modelData.public_key
                                                 fillOpacity: selected ? 0.78 : 0.48
+                                                activeFocusOnTab: true
+                                                Accessible.role: Accessible.Button
+                                                Accessible.name: "Open chat with " + (modelData.handle || "friend")
                                                 TapHandler { onTapped: root.chooseFriend(modelData) }
+                                                Keys.onReturnPressed: root.chooseFriend(modelData)
+                                                Keys.onEnterPressed: root.chooseFriend(modelData)
+                                                Keys.onSpacePressed: root.chooseFriend(modelData)
                                                 Row {
                                                     anchors.fill: parent
                                                     anchors.margins: Style.space(8)
@@ -807,6 +825,7 @@ PopupCard {
                                                         Text { width: parent.width; text: root.lastMessagePreview(modelData.public_key); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                 }
+                                                Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                             }
                                         }
 
@@ -1361,7 +1380,7 @@ PopupCard {
                                         spacing: Style.space(3)
                                         Text { width: parent.width; text: root.profile.handle || "Omarchy Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true; elide: Text.ElideRight }
                                         Text { width: parent.width; text: (root.profile.status_emoji || "🚀") + " " + (root.profile.status_name || "Ready") + (root.profile.project_name ? " · building " + root.profile.project_name : ""); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
-                                        Text { width: parent.width; text: "Your public beacon is pseudonymous. You control what it shares below."; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                        Text { width: parent.width; text: "Pseudonymous profile · sharing is opt-in."; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     Column {
                                         width: Style.space(150)
@@ -1388,7 +1407,6 @@ PopupCard {
                                         anchors.margins: Style.space(12)
                                         spacing: Style.space(8)
                                         Text { text: "About you"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                        Text { text: "This is what other Omarchy users see when you choose to share it."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                         GlassField { width: parent.width; placeholder: "Display name"; text: root.handleDraft; onTextChanged: root.handleDraft = text }
                                         GlassField { width: parent.width; placeholder: "Project name (optional)"; text: root.projectNameDraft; onTextChanged: root.projectNameDraft = text }
                                         GlassField { width: parent.width; placeholder: "Project link https://…"; text: root.projectUrlDraft; onTextChanged: root.projectUrlDraft = text }
@@ -1541,6 +1559,26 @@ PopupCard {
                                 }
                             }
 
+                            GlassSurface {
+                                width: parent.width
+                                height: supportColumn.implicitHeight + Style.space(20)
+                                radius: Style.space(15)
+                                fillOpacity: 0.54
+                                Column {
+                                    id: supportColumn
+                                    anchors.fill: parent
+                                    anchors.margins: Style.space(10)
+                                    spacing: Style.space(7)
+                                    Text { text: "Feedback"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                    Flow {
+                                        width: parent.width
+                                        spacing: Style.space(7)
+                                        GlassButton { text: "Suggest a feature"; compact: true; onClicked: root.openSafeUrl(root.featureIdeaUrl) }
+                                        GlassButton { text: "Report a bug"; compact: true; onClicked: root.openSafeUrl(root.bugReportUrl) }
+                                    }
+                                }
+                            }
+
                             Item { width: 1; height: Style.space(10) }
                         }
                     }
@@ -1591,7 +1629,13 @@ PopupCard {
                                             height: Style.space(56)
                                             radius: Style.space(13)
                                             fillOpacity: 0.50
+                                            activeFocusOnTab: true
+                                            Accessible.role: Accessible.Button
+                                            Accessible.name: "Start private chat with " + (modelData.handle || "friend")
                                             TapHandler { onTapped: root.chooseFriend(modelData) }
+                                            Keys.onReturnPressed: root.chooseFriend(modelData)
+                                            Keys.onEnterPressed: root.chooseFriend(modelData)
+                                            Keys.onSpacePressed: root.chooseFriend(modelData)
                                             Row {
                                                 anchors.fill: parent
                                                 anchors.margins: Style.space(8)
@@ -1605,6 +1649,7 @@ PopupCard {
                                                 }
                                                 Text { anchors.verticalCenter: parent.verticalCenter; text: "›"; color: root.cyan; font.pixelSize: Style.font.heading }
                                             }
+                                            Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                         }
                                     }
                                     Text { visible: root.friendsList().length === 0; width: parent.width; text: "No friends yet. Open World to connect with someone first."; color: root.mutedInk; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; font.family: Style.font.family; font.pixelSize: Style.font.caption; topPadding: Style.space(30) }
@@ -1658,7 +1703,13 @@ PopupCard {
                                             height: Style.space(48)
                                             radius: Style.space(12)
                                             selected: root.groupMemberKeys.indexOf(modelData.public_key) >= 0
+                                            activeFocusOnTab: true
+                                            Accessible.role: Accessible.Button
+                                            Accessible.name: "Toggle group member " + (modelData.handle || "friend")
                                             TapHandler { onTapped: root.toggleGroupMember(modelData.public_key) }
+                                            Keys.onReturnPressed: root.toggleGroupMember(modelData.public_key)
+                                            Keys.onEnterPressed: root.toggleGroupMember(modelData.public_key)
+                                            Keys.onSpacePressed: root.toggleGroupMember(modelData.public_key)
                                             Row {
                                                 anchors.fill: parent
                                                 anchors.margins: Style.space(7)
@@ -1667,6 +1718,7 @@ PopupCard {
                                                 Text { width: parent.width - Style.space(66); anchors.verticalCenter: parent.verticalCenter; text: modelData.handle || "Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                 Text { anchors.verticalCenter: parent.verticalCenter; text: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓" : "+"; color: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? root.success : root.mutedInk; font.pixelSize: Style.font.bodySmall }
                                             }
+                                            Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                         }
                                     }
                                 }
@@ -1683,7 +1735,7 @@ PopupCard {
                 height: Style.space(30)
                 spacing: Style.space(8)
                 Text { anchors.verticalCenter: parent.verticalCenter; text: "●"; color: root.worldStatus.last_error ? root.warning : root.success; font.pixelSize: Style.font.caption }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: root.worldStatus.last_error ? "Reconnecting" : "Friends connected"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: root.worldStatus.last_error ? (root.worldStatus.relay_count > 0 ? "Presence not accepted" : "Offline") : "Friends connected"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                 Item { width: Math.max(0, parent.width - Style.space(390) - footerTagline.width); height: 1 }
                 Text {
                     id: footerTagline

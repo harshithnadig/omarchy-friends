@@ -99,7 +99,7 @@ wss://relay.damus.io
 
 Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
 
-New profiles are globally visible by default. Their signed World presence can include the generated handle, avatar/status/focus time, active-app name, music, project name/description/URL, interests and room. These presence events are readable by the configured public relays. The **Me → Privacy** controls let you turn off global visibility and each activity/profile field; disabling them stops future sharing but cannot guarantee removal of events already received or retained by relays. Review these defaults before using Friends, and do not publish sensitive project details or links.
+New profiles are globally discoverable by their generated pseudonymous handle by default; basic avatar/status/focus metadata and the signed inbox-relay list are also public. Active-app name, music, project details/URL, interests and room are **off until explicitly enabled** in **Me → Privacy**. Presence events are readable by configured public relays when shared. Previously saved privacy choices are preserved during migration. Turning sharing off stops future publication but cannot guarantee removal of information already received or retained by relays; do not publish sensitive project details or links.
 
 ## Direct invites
 
@@ -109,7 +109,7 @@ Friends produces links like:
 omarchy-friends://invite/<public-key>
 ```
 
-The current release includes a strict URI parser and best-effort user-local desktop registration. The real installed path must still be validated on the target Omarchy machine before release.
+The URI handler validates the invite key and starts a friend request immediately when the link is opened; it is not a preview-only action. Opening the link therefore sends a network-visible request and introduction ping. The handler is registered in the user-local desktop database. The real installed and removal paths must still be validated on the target Omarchy machine before release.
 
 Direct invite links can start the connection flow even when World has not cached the peer yet.
 

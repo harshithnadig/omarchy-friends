@@ -4,7 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-PopupCard {
+KeyboardPanel {
     id: root
 
     property var hostWidget: null
@@ -12,7 +12,7 @@ PopupCard {
     bar: hostWidget ? hostWidget.bar : null
     owner: hostWidget || root
     open: hostWidget ? hostWidget.buildCardOpen === true : false
-    triggerMode: "click"
+    focusTarget: syncButton
 
     // Friends owns a stable cool product palette instead of inheriting every
     // Omarchy theme hue. This keeps Build Network visually consistent with
@@ -125,8 +125,8 @@ PopupCard {
         var relation = friendships[publicKey]
         if (relation && relation.status === "friends") {
             if (root.hostWidget && typeof root.hostWidget.openFriendChat === "function") {
-                root.hostWidget.openFriendChat(publicKey)
-                root.notice = "Opening private chat"
+                var opened = root.hostWidget.openFriendChat(publicKey)
+                root.notice = opened ? "Opening private chat" : "Friend not found in Chats; check Requests or World"
             } else {
                 root.notice = "Open Friends → Chats to continue the conversation"
             }
@@ -330,6 +330,7 @@ PopupCard {
 
                         GlassPill {
                             id: syncButton
+                            Keys.onEscapePressed: root.close()
                             text: build.busy ? "Syncing…" : "↻ Sync"
                             active: !build.busy
                             enabled: !build.busy
@@ -872,11 +873,39 @@ PopupCard {
                         }
                         GlassSurface {
                             width: parent.width; height: Style.space(42); radius: Style.space(13); fillOpacity: 0.48
-                            TextInput { anchors.fill: parent; anchors.margins: Style.space(11); text: root.availabilitySkillsDraft; onTextChanged: root.availabilitySkillsDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
+                            TextField {
+                                anchors.fill: parent
+                                anchors.margins: Style.space(11)
+                                text: root.availabilitySkillsDraft
+                                placeholderText: "Skills, tools or topics"
+                                placeholderTextColor: faint
+                                Accessible.name: "Skills, tools or topics"
+                                onTextChanged: root.availabilitySkillsDraft = text
+                                color: fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                verticalAlignment: TextInput.AlignVCenter
+                                background: null
+                                padding: 0
+                            }
                         }
                         GlassSurface {
                             width: parent.width; height: Style.space(42); radius: Style.space(13); fillOpacity: 0.48
-                            TextInput { anchors.fill: parent; anchors.margins: Style.space(11); text: root.availabilityNoteDraft; onTextChanged: root.availabilityNoteDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
+                            TextField {
+                                anchors.fill: parent
+                                anchors.margins: Style.space(11)
+                                text: root.availabilityNoteDraft
+                                placeholderText: "Short note for other builders"
+                                placeholderTextColor: faint
+                                Accessible.name: "Short note for other builders"
+                                onTextChanged: root.availabilityNoteDraft = text
+                                color: fg
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.caption
+                                verticalAlignment: TextInput.AlignVCenter
+                                background: null
+                                padding: 0
+                            }
                         }
                         Flow {
                             width: parent.width

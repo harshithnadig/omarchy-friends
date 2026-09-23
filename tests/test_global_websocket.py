@@ -92,6 +92,15 @@ class WebSocketResourceLimitTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "relay frame too large"):
                 client.recv_json()
 
+    def test_excessive_json_nesting_is_malformed_relay_value_error(self):
+        client = self.client(buffer=relay_frame(0x1, b"[" * 100_000 + b"0" + b"]" * 100_000))
+        with patch.object(transport, "MAX_WEBSOCKET_FRAME_BYTES", 300_000):
+            with patch.object(transport, "MAX_WEBSOCKET_MESSAGE_BYTES", 300_000):
+                client.sock.chunks = [client._buffer]
+                client._buffer = b""
+                with self.assertRaisesRegex(ValueError, "nesting too deep"):
+                    client.recv_json()
+
     def test_fragmented_message_uses_one_overall_read_deadline(self):
         # The first socket read supplies one non-final fragment. By the time the
         # next frame header is needed, the original recv_json deadline has

@@ -4,7 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-PopupCard {
+KeyboardPanel {
     id: root
 
     property var hostWidget: null
@@ -12,7 +12,7 @@ PopupCard {
     bar: hostWidget ? hostWidget.bar : null
     owner: hostWidget || root
     open: hostWidget ? hostWidget.cardOpen === true : false
-    triggerMode: "click"
+    focusTarget: chatsNav
 
     readonly property color canvas: "#070b14"
     readonly property color panel: "#0b1120"
@@ -160,6 +160,22 @@ PopupCard {
         root.prepareDraftForConversation("friend:" + (friend && friend.public_key ? friend.public_key : ""))
         root.selectedFriendKey = friend && friend.public_key ? friend.public_key : ""
         root.selectedGroupId = ""
+    }
+
+    function openChatForPublicKey(publicKey) {
+        if (!publicKey) return false
+        var list = root.friendsList()
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].public_key === publicKey) {
+                root.chooseFriend(list[i])
+                root.page = "chats"
+                root.newChatOpen = false
+                return true
+            }
+        }
+        root.page = "world"
+        root.showNotice("Friend not found. Choose them in World to connect.")
+        return false
     }
 
     function chooseGroup(group) {
@@ -514,6 +530,8 @@ PopupCard {
                         Item { width: 1; height: Style.space(4) }
 
                         GlassNavItem {
+                            id: chatsNav
+                            Keys.onEscapePressed: root.close()
                             width: parent.width
                             text: "Chats"
                             icon: "◉"
@@ -686,7 +704,13 @@ PopupCard {
                                                 radius: Style.space(13)
                                                 selected: root.selectedGroupId === modelData.id
                                                 fillOpacity: selected ? 0.78 : 0.50
+                                                activeFocusOnTab: true
+                                                Accessible.role: Accessible.Button
+                                                Accessible.name: "Open group " + (modelData.name || "Private group")
                                                 TapHandler { onTapped: root.chooseGroup(modelData) }
+                                                Keys.onReturnPressed: root.chooseGroup(modelData)
+                                                Keys.onEnterPressed: root.chooseGroup(modelData)
+                                                Keys.onSpacePressed: root.chooseGroup(modelData)
                                                 Row {
                                                     anchors.fill: parent
                                                     anchors.margins: Style.space(9)
@@ -699,6 +723,7 @@ PopupCard {
                                                         Text { width: parent.width; text: ((modelData.members || []).length || 0) + " people · encrypted"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                 }
+                                                Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                             }
                                         }
 
@@ -710,7 +735,13 @@ PopupCard {
                                                 radius: Style.space(13)
                                                 selected: root.selectedFriendKey === modelData.public_key
                                                 fillOpacity: selected ? 0.78 : 0.50
+                                                activeFocusOnTab: true
+                                                Accessible.role: Accessible.Button
+                                                Accessible.name: "Open chat with " + (modelData.handle || "friend")
                                                 TapHandler { onTapped: root.chooseFriend(modelData) }
+                                                Keys.onReturnPressed: root.chooseFriend(modelData)
+                                                Keys.onEnterPressed: root.chooseFriend(modelData)
+                                                Keys.onSpacePressed: root.chooseFriend(modelData)
                                                 Row {
                                                     anchors.fill: parent
                                                     anchors.margins: Style.space(9)
@@ -723,6 +754,7 @@ PopupCard {
                                                         Text { width: parent.width; text: root.lastMessagePreview(modelData.public_key); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                 }
+                                                Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                             }
                                         }
 
@@ -1321,7 +1353,13 @@ PopupCard {
                                             height: Style.space(46)
                                             radius: Style.space(12)
                                             selected: root.groupMemberKeys.indexOf(modelData.public_key) >= 0
+                                            activeFocusOnTab: true
+                                            Accessible.role: Accessible.Button
+                                            Accessible.name: "Toggle group member " + (modelData.handle || "friend")
                                             TapHandler { onTapped: root.toggleGroupMember(modelData.public_key) }
+                                            Keys.onReturnPressed: root.toggleGroupMember(modelData.public_key)
+                                            Keys.onEnterPressed: root.toggleGroupMember(modelData.public_key)
+                                            Keys.onSpacePressed: root.toggleGroupMember(modelData.public_key)
                                             Row {
                                                 anchors.fill: parent
                                                 anchors.margins: Style.space(7)
@@ -1330,6 +1368,7 @@ PopupCard {
                                                 Text { width: parent.width - Style.space(64); anchors.verticalCenter: parent.verticalCenter; text: modelData.handle || "Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                 Text { anchors.verticalCenter: parent.verticalCenter; text: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓" : "+"; color: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? root.success : root.mutedInk; font.pixelSize: Style.font.bodySmall }
                                             }
+                                            Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                         }
                                     }
                                 }

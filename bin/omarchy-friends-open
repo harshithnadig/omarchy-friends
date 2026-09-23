@@ -22,14 +22,18 @@ def result(ok, message):
 def main():
     if len(sys.argv) != 2:
         return result(False, "Expected one omarchy-friends:// URL")
-    raw = str(sys.argv[1]).strip()
+    raw = str(sys.argv[1])
+    if raw != raw.strip() or any(ord(char) < 0x20 for char in raw):
+        return result(False, "Invalid Friends link")
     try:
         parsed = urlsplit(raw)
     except ValueError:
         return result(False, "Invalid Friends link")
     if parsed.scheme != "omarchy-friends" or parsed.netloc != "invite":
         return result(False, "Only omarchy-friends://invite links are supported")
-    public_key = parsed.path.strip("/")
+    if "?" in raw or "#" in raw or parsed.path.count("/") != 1:
+        return result(False, "Invite link has an unsupported URL shape")
+    public_key = parsed.path[1:] if parsed.path.startswith("/") else ""
     if not KEY_RE.fullmatch(public_key):
         return result(False, "Invite link has an invalid public key")
 

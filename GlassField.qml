@@ -7,6 +7,7 @@ Item {
 
     property alias text: input.text
     property string placeholder: ""
+    property string accessibleName: ""
     property bool multiline: false
     property bool readOnly: false
     property color accentColor: "#8b7cff"
@@ -56,6 +57,7 @@ Item {
     TextInput {
         id: input
         visible: !root.multiline
+        Accessible.name: root.accessibleName || root.placeholder || "Text field"
         anchors.fill: parent
         anchors.margins: Style.space(11)
         color: "#f2f5ff"
@@ -81,6 +83,7 @@ Item {
     TextArea {
         id: area
         visible: root.multiline
+        Accessible.name: root.accessibleName || root.placeholder || "Text field"
         anchors.fill: parent
         anchors.margins: Style.space(5)
         text: root.multiline ? input.text : ""

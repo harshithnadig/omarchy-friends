@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -8,10 +9,44 @@ BIN_DIR = Path(__file__).parent.parent / "bin"
 sys.path.insert(0, str(BIN_DIR))
 
 import omarchy_friends_private as private  # noqa: E402
-from omarchy_friends_global import generate_keypair  # noqa: E402
+from omarchy_friends_global import generate_keypair, schnorr_sign, verify_event  # noqa: E402
 
 
 class TestPrivateMessagingStandards(unittest.TestCase):
+    def signed_event_with_fields(self, **overrides):
+        identity = generate_keypair("0" * 63 + "1")
+        fields = {
+            "pubkey": identity["public_key"], "created_at": 1_700_000_000,
+            "kind": 10050, "tags": [["relay", "wss://relay.example"]], "content": "",
+        }
+        fields.update(overrides)
+        serialized = json.dumps(
+            [0, fields["pubkey"], fields["created_at"], fields["kind"], fields["tags"], fields["content"]],
+            ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")
+        event_id = hashlib.sha256(serialized).digest()
+        return {
+            **fields, "id": event_id.hex(),
+            "sig": schnorr_sign(event_id, identity["secret_key"]).hex(),
+        }
+
+    def test_event_verifier_rejects_malformed_tag_rows_even_when_signed(self):
+        for tags in ([{"relay": "wss://relay.example"}], [["relay", 42]]):
+            with self.subTest(tags=tags):
+                self.assertFalse(verify_event(self.signed_event_with_fields(tags=tags)))
+
+    def test_event_verifier_requires_integer_timestamp_and_kind_even_when_signed(self):
+        malformed_fields = (
+            {"created_at": "1700000000"}, {"created_at": True},
+            {"kind": "10050"}, {"kind": True},
+        )
+        for fields in malformed_fields:
+            with self.subTest(fields=fields):
+                self.assertFalse(verify_event(self.signed_event_with_fields(**fields)))
+
+    def test_event_verifier_accepts_valid_signed_event(self):
+        self.assertTrue(verify_event(self.signed_event_with_fields()))
+
     def test_nip44_official_vector(self):
         sec1 = "0" * 63 + "1"
         sec2 = "0" * 63 + "2"

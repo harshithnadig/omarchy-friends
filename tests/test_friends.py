@@ -3,6 +3,7 @@ import tempfile
 import time
 import unittest
 import json
+import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from unittest.mock import patch
@@ -59,6 +60,14 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertIsNone(status["matched_peer"])
         self.assertEqual(status["friends"], [])
         self.assertEqual(status["world_pulse"], [])
+
+    def test_repeated_state_reload_reuses_local_public_key_derivation(self):
+        crypto = sys.modules[friends_module.generate_keypair.__module__]
+        crypto._public_point_for_secret.cache_clear()
+        with patch.object(crypto, "_point_mul", wraps=crypto._point_mul) as point_mul:
+            self.engine.load_state()
+            self.engine.load_state()
+        self.assertEqual(point_mul.call_count, 1)
 
     def test_unblock_global_only_removes_requested_key_and_presence_returns(self):
         remote = friends_module.FriendsEngine(state_dir=tempfile.mkdtemp())
@@ -494,6 +503,79 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertFalse(result["published"])
         self.assertFalse(result["dm_relay_published"])
 
+    def test_relay_sync_waits_for_ok_when_eose_arrives_first(self):
+        class EoseFirstRelay:
+            def __init__(self, _url, timeout):
+                self.sent_reqs = []
+                self.delivered = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def send_json(self, message):
+                if message[0] == "REQ":
+                    self.sent_reqs.append(message[1])
+
+            def recv_json(self, _timeout):
+                if self.delivered < len(self.sent_reqs):
+                    sub = self.sent_reqs[self.delivered]
+                    self.delivered += 1
+                    return ["EOSE", sub]
+                if self.delivered == len(self.sent_reqs):
+                    self.delivered += 1
+                    return ["OK", "presence-123", True, ""]
+                return None
+
+        relay = EoseFirstRelay("wss://relay.example", 3.5)
+        with patch.object(friends_module, "WebSocketClient", return_value=relay):
+            result = self.engine._global_relay_sync(
+                "wss://relay.example", {"id": "presence-123"}, 0
+            )
+        self.assertTrue(result["published"])
+        self.assertTrue(result["acknowledged"])
+
+    def test_global_refresh_uses_nip59_randomized_timestamp_lookback(self):
+        class EoseRelay:
+            def __init__(self, _url, timeout):
+                self.responses = []
+                self.sent = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def send_json(self, message):
+                self.sent.append(message)
+                if message[0] == "EVENT":
+                    self.responses.append(["OK", message[1]["id"], True, ""])
+                elif message[0] == "REQ":
+                    self.responses.append(["EOSE", message[1]])
+
+            def recv_json(self, _timeout):
+                return self.responses.pop(0) if self.responses else None
+
+        relay = EoseRelay("wss://relay.example", 3.5)
+        with patch.object(friends_module, "GLOBAL_RELAYS", ("wss://relay.example",)), \
+             patch.object(friends_module, "WebSocketClient", return_value=relay):
+            self.engine._global_relay_sync(
+                "wss://relay.example", {"id": "presence-event"},
+                friends_module.now_seconds() - 5,
+            )
+        dm_query = next(
+            message[2]
+            for message in relay.sent
+            if message[0] == "REQ" and message[2].get("kinds") == [friends_module.NIP59_GIFT_WRAP_KIND]
+        )
+        self.assertLessEqual(
+            dm_query["since"],
+            friends_module.now_seconds() - friends_module.NIP59_RANDOM_WINDOW_SECONDS,
+        )
+
     def test_presence_match_and_trusted_friend(self):
         self.engine.set_interests(["linux", "music", "invalid", "linux", "design", "games"])
         self.prime_peer()
@@ -538,6 +620,7 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(peer["common_ground"][0], "Room: Friday Hack Night")
         self.assertIn("Friday Hack Night", peer["icebreaker"])
 
+        self.assertTrue(self.engine.toggle_privacy("share_room"))
         payload = self.engine.get_public_payload()
         self.assertEqual(payload["room"], "Friday Hack Night")
         self.assertFalse(self.engine.toggle_privacy("share_room"))
@@ -577,6 +660,18 @@ class TestFriendsEngine(unittest.TestCase):
             "A real project beacon",
             "https://github.com/example/radar",
         )
+        self.engine.set_interests(["linux", "music"])
+        with patch.object(friends_module, "get_active_window", return_value="Neovim"), patch.object(
+            friends_module, "get_active_music", return_value="A track"
+        ):
+            private_by_default = self.engine.get_public_payload()
+        self.assertEqual(private_by_default["activity"], "")
+        self.assertEqual(private_by_default["music"], "")
+        self.assertNotIn("project_name", private_by_default)
+        self.assertNotIn("interests", private_by_default)
+
+        for key in ("share_window", "share_music", "share_project", "share_interests", "share_room"):
+            self.assertTrue(self.engine.toggle_privacy(key))
         with patch.object(friends_module, "get_active_window", return_value="Neovim"), patch.object(
             friends_module, "get_active_music", return_value="A track"
         ):
@@ -584,16 +679,10 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(payload["project_name"], "Local Radar")
         self.assertEqual(payload["activity"], "Neovim")
         self.assertEqual(payload["music"], "A track")
-
-        self.engine.set_interests(["linux", "music"])
-        self.assertEqual(payload.get("interests"), [])
-        payload = self.engine.get_public_payload()
         self.assertEqual(payload["interests"], ["linux", "music"])
 
-        self.assertFalse(self.engine.toggle_privacy("share_window"))
-        self.assertFalse(self.engine.toggle_privacy("share_music"))
-        self.assertFalse(self.engine.toggle_privacy("share_project"))
-        self.assertFalse(self.engine.toggle_privacy("share_interests"))
+        for key in ("share_window", "share_music", "share_project", "share_interests", "share_room"):
+            self.assertFalse(self.engine.toggle_privacy(key))
         with patch.object(friends_module, "get_active_window", return_value="Neovim"), patch.object(
             friends_module, "get_active_music", return_value="A track"
         ):
@@ -603,8 +692,35 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertNotIn("project_name", private_payload)
         self.assertNotIn("interests", private_payload)
 
+    def test_new_profile_detail_sharing_is_opt_in_and_migration_preserves_choices(self):
+        profile = self.engine.state["profile"]
+        for key in ("share_window", "share_music", "share_project", "share_interests", "share_room"):
+            self.assertFalse(profile["privacy"][key])
+        self.assertTrue(profile["privacy"]["share_global"])
+        public_event = self.engine._global_presence_content()
+        for key in ("activity", "music", "project_name", "project_desc", "project_url", "interests", "room"):
+            self.assertNotIn(key, public_event)
+
+        migrated = self.engine._migrate_state({"profile": {"privacy": {"share_window": True}}})
+        self.assertTrue(migrated["profile"]["privacy"]["share_window"])
+        self.assertFalse(migrated["profile"]["privacy"]["share_music"])
+        self.assertFalse(migrated["profile"]["privacy"]["share_project"])
+
+    def test_privacy_migration_parses_legacy_string_booleans_safely(self):
+        migrated = self.engine._migrate_state({"profile": {"privacy": {
+            "share_window": "false", "share_project": " off ",
+            "share_interests": "true", "share_room": "yes",
+        }}})
+        privacy = migrated["profile"]["privacy"]
+        self.assertFalse(privacy["share_window"])
+        self.assertFalse(privacy["share_project"])
+        self.assertTrue(privacy["share_interests"])
+        self.assertTrue(privacy["share_room"])
+        self.assertFalse(privacy["share_music"])
+
     def test_setup_showcase_interests_are_publicly_matchable(self):
         self.engine.set_interests(["plugins", "rice"])
+        self.assertTrue(self.engine.toggle_privacy("share_interests"))
         payload = self.engine.get_public_payload()
         self.assertEqual(payload["interests"], ["plugins", "rice"])
 
@@ -1089,6 +1205,24 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(quarantined[0].read_text(encoding="utf-8"), invalid)
         self.assertTrue(friends_module.is_valid_public_key(recovered.state["global_identity"]["public_key"]))
         self.assertEqual(json.loads(state_file.read_text(encoding="utf-8"))["global_identity"], recovered.state["global_identity"])
+
+    def test_non_object_global_identity_is_quarantined_before_migration(self):
+        state_file = self.engine.state_file
+        invalid = json.dumps({
+            "profile": {"handle": "must-not-be-loaded"},
+            "friends": [],
+            "global": {},
+            "global_identity": "not-an-identity-object",
+        })
+        state_file.write_text(invalid, encoding="utf-8")
+
+        recovered = friends_module.FriendsEngine(state_dir=self.test_dir)
+
+        quarantined = list(Path(self.test_dir).glob("friends_state.corrupt-*.json"))
+        self.assertEqual(len(quarantined), 1)
+        self.assertEqual(quarantined[0].read_text(encoding="utf-8"), invalid)
+        self.assertNotEqual(recovered.state["profile"]["handle"], "must-not-be-loaded")
+        self.assertTrue(friends_module.is_valid_public_key(recovered.state["global_identity"]["public_key"]))
 
     def test_focus_accept_survives_stale_lobby_cache(self):
         ping = {

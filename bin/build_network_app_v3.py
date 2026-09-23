@@ -338,15 +338,26 @@ def ensure_uri_registration():
             os.chmod(desktop, 0o644)
         except OSError:
             pass
-        for command in (
+    try:
+        subprocess.run(
             ["xdg-mime", "default", desktop.name, "x-scheme-handler/omarchy-friends"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0, check=True,
+        )
+        subprocess.run(
             ["update-desktop-database", str(applications)],
-        ):
-            try:
-                subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0, check=False)
-            except (OSError, subprocess.SubprocessError):
-                pass
-    return {"registered": desktop.exists(), "desktop_file": str(desktop), "handler": str(handler), "changed": changed}
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        query = subprocess.run(
+            ["xdg-mime", "query", "default", "x-scheme-handler/omarchy-friends"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=2.0, check=False,
+        )
+        registered = query.returncode == 0 and query.stdout.strip() == desktop.name
+    except (OSError, subprocess.SubprocessError):
+        registered = False
+    return {"registered": registered, "desktop_file": str(desktop), "handler": str(handler), "changed": changed}
 
 
 def _finish(result, **extra):

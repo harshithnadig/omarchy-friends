@@ -4,7 +4,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-PopupCard {
+KeyboardPanel {
     id: root
 
     property var hostWidget: null
@@ -12,7 +12,7 @@ PopupCard {
     bar: hostWidget ? hostWidget.bar : null
     owner: hostWidget || root
     open: hostWidget ? hostWidget.cardOpen === true : false
-    triggerMode: "click"
+    focusTarget: keyCatcher
 
     readonly property color fg: Color.foreground
     readonly property color bg: Color.background
@@ -283,6 +283,21 @@ PopupCard {
         root.selectedGroupId = ""
     }
 
+    function openChatForPublicKey(publicKey) {
+        if (!publicKey) return false
+        var list = root.friendsList()
+        for (var i = 0; i < list.length; i++) {
+            if (list[i].public_key === publicKey) {
+                root.chooseFriend(list[i])
+                root.tab = "chats"
+                return true
+            }
+        }
+        root.tab = "world"
+        root.showNotice("Friend not found. Choose them in World to connect.")
+        return false
+    }
+
     function friendActionLabel(peer) {
         var friendship = root.friendshipFor(peer && peer.public_key)
         if (friendship && friendship.status === "friends") return "Chat"
@@ -531,6 +546,7 @@ PopupCard {
     }
 
     Item {
+        id: keyCatcher
         width: 1
         height: 1
         visible: false
@@ -1331,7 +1347,7 @@ PopupCard {
                                 }
 
                                 Text {
-                                    text: "Hide"
+                                    text: "Block"
                                     color: muted
                                     font.family: Style.font.family
                                     font.pixelSize: Style.font.caption
@@ -1569,8 +1585,15 @@ PopupCard {
                             height: Style.space(32)
                             radius: height / 2
                             color: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? Qt.rgba(accent.r, accent.g, accent.b, 0.18) : soft
+                            activeFocusOnTab: true
+                            Accessible.role: Accessible.Button
+                            Accessible.name: "Toggle group member " + (modelData.handle || "friend")
                             Text { anchors.centerIn: parent; text: (root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓ " : "") + (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.toggleGroupMember(modelData.public_key) }
+                            Keys.onReturnPressed: root.toggleGroupMember(modelData.public_key)
+                            Keys.onEnterPressed: root.toggleGroupMember(modelData.public_key)
+                            Keys.onSpacePressed: root.toggleGroupMember(modelData.public_key)
+                            Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: accent; z: 5 }
                         }
                     }
                     Rectangle {
@@ -1578,8 +1601,15 @@ PopupCard {
                         height: Style.space(32)
                         radius: height / 2
                         color: accent
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: "Create private group"
+                        Keys.onReturnPressed: root.createGroup()
+                        Keys.onEnterPressed: root.createGroup()
+                        Keys.onSpacePressed: root.createGroup()
                         Text { anchors.centerIn: parent; text: "Create private group"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.createGroup() }
+                        Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: bg; z: 5 }
                     }
                 }
             }
@@ -1590,8 +1620,14 @@ PopupCard {
                     height: Style.space(52)
                     radius: Style.space(9)
                     color: root.selectedGroupId === modelData.id ? Qt.rgba(accent.r, accent.g, accent.b, 0.12) : soft
-                    border.width: root.selectedGroupId === modelData.id ? 1 : 0
-                    border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    border.width: activeFocus ? 2 : (root.selectedGroupId === modelData.id ? 1 : 0)
+                    border.color: activeFocus ? accent : Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Open group " + (modelData.name || "Private group")
+                    Keys.onReturnPressed: root.chooseGroup(modelData)
+                    Keys.onEnterPressed: root.chooseGroup(modelData)
+                    Keys.onSpacePressed: root.chooseGroup(modelData)
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseGroup(modelData) }
                     Row {
                         anchors.fill: parent
@@ -1670,8 +1706,14 @@ PopupCard {
                     height: Style.space(56)
                     radius: Style.space(9)
                     color: root.selectedFriendKey === modelData.public_key ? Qt.rgba(accent.r, accent.g, accent.b, 0.12) : soft
-                    border.width: root.selectedFriendKey === modelData.public_key ? 1 : 0
-                    border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    border.width: activeFocus ? 2 : (root.selectedFriendKey === modelData.public_key ? 1 : 0)
+                    border.color: activeFocus ? accent : Qt.rgba(accent.r, accent.g, accent.b, 0.35)
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Open chat with " + (modelData.handle || "friend")
+                    Keys.onReturnPressed: root.chooseFriend(modelData)
+                    Keys.onEnterPressed: root.chooseFriend(modelData)
+                    Keys.onSpacePressed: root.chooseFriend(modelData)
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
                     Row {
                         anchors.fill: parent

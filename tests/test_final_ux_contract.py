@@ -136,6 +136,27 @@ class FinalUxContractTests(unittest.TestCase):
             self.assertIn("Qt.Key_Enter", text, path)
             self.assertIn("Qt.Key_Space", text, path)
             self.assertIn("root.forceActiveFocus()", text, path)
+            self.assertIn("Accessible.role: Accessible.Button", text, path)
+            self.assertIn("Accessible.name:", text, path)
+
+    def test_popup_surfaces_prime_keyboard_focus_for_every_fallback(self):
+        targets = {
+            "FriendsPanelV3.qml": "chatsNav",
+            "FriendsPanelV2.qml": "chatsNav",
+            "Panel.qml": "keyCatcher",
+            "BuildNetworkPanelV3.qml": "syncButton",
+        }
+        for path, target in targets.items():
+            panel = read(path)
+            self.assertTrue(panel.startswith("import QtQuick"), path)
+            self.assertIn("KeyboardPanel {", panel, path)
+            self.assertIn(f"focusTarget: {target}", panel, path)
+            self.assertNotIn("triggerMode:", panel, path)
+            self.assertNotRegex(panel, r"(?m)^    Keys\.onEscapePressed:", path)
+            if path == "Panel.qml":
+                self.assertIn("Keys.onPressed: function(event)", panel)
+            else:
+                self.assertIn(f"id: {target}\n                            Keys.onEscapePressed:", panel, path)
 
     def test_keyboard_focus_has_visible_feedback(self):
         button = read("GlassButton.qml")
@@ -156,6 +177,26 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("text: modelData.label", tab_bar)
         self.assertIn("onClicked: root.tab = modelData.id", tab_bar)
         self.assertNotIn("TapHandler { onTapped: root.tab = modelData.id }", tab_bar)
+
+    def test_helper_availability_inputs_are_labeled(self):
+        build = read("BuildNetworkPanelV3.qml")
+        self.assertIn('placeholderText: "Skills, tools or topics"', build)
+        self.assertIn('Accessible.name: "Skills, tools or topics"', build)
+        self.assertIn('placeholderText: "Short note for other builders"', build)
+        self.assertIn('Accessible.name: "Short note for other builders"', build)
+        avail = build.split("id: availabilityColumn", 1)[1].split("Text { text: \"Availability expires automatically.\"", 1)[0]
+        self.assertIn("TextField {", avail)
+        self.assertNotIn("TextInput {", avail)
+
+    def test_shared_glass_field_names_both_editors_accessibly(self):
+        field = read("GlassField.qml")
+        accessible_name = 'Accessible.name: root.accessibleName || root.placeholder || "Text field"'
+        self.assertIn('property string accessibleName: ""', field)
+        self.assertEqual(field.count(accessible_name), 2)
+        single_line = field.split("TextInput {", 1)[1].split("TextArea {", 1)[0]
+        multiline = field.split("TextArea {", 1)[1]
+        self.assertIn(accessible_name, single_line)
+        self.assertIn(accessible_name, multiline)
 
     def test_no_one_shot_write_patchers_remain(self):
         forbidden = (

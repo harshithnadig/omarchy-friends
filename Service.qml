@@ -32,7 +32,7 @@ Item {
         project_url: "",
         interests: [],
         room: "",
-        privacy: { share_window: true, share_music: true, share_lan: true, share_project: true, share_theme: false, share_interests: true, share_room: true, share_global: true }
+        privacy: { share_window: false, share_music: false, share_lan: true, share_project: false, share_theme: false, share_interests: false, share_room: false, share_global: true }
     })
     property var matchedPeer: null
     property var friends: []

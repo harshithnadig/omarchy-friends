@@ -1,6 +1,6 @@
 # Omarchy Friends v4.15.0 — Public Beta
 
-**Release posture:** Public Beta. The feature scope is frozen and the build has passed the final real-Omarchy release gate.
+**Release posture:** Public Beta. The final real-Omarchy release-gate statement below applies to the tagged v4.15.0 build only; it is not a certification of later hotfix or uncommitted changes. Current candidate status is tracked in `FINAL_RELEASE_STATUS.md`.
 
 v4.15 turns Omarchy Friends from the old experimental/demo experience into a real Omarchy-native social and collaboration plugin with a hardened runtime, modern private messaging, a clearer Friends information architecture, and the Build Network.
 
