@@ -34,7 +34,7 @@ PopupCard {
     property string urlDraft: ""
     property string tagsDraft: ""
     property string extraDraft: ""
-    property string pendingCreateSnapshot: ""
+    property bool createSubmitting: false
     property string updateResult: "working"
     property string notice: ""
     property bool useDetectedEnvironment: true
@@ -60,8 +60,9 @@ PopupCard {
             root.notice = message || (ok ? "Done" : "Build Network action failed")
             noticeTimer.restart()
         }
-        onCreateResult: function(ok, message) {
-            if (ok && root.pendingCreateSnapshot === root.createDraftSnapshot()) root.clearDrafts()
+        onCreateResult: function(ok, message, submittedSnapshot) {
+            root.createSubmitting = false
+            if (ok && submittedSnapshot === root.createDraftSnapshot()) root.clearDrafts()
         }
         onShareTextReady: function(text) {
             root.copyText(text, "Share text copied")
@@ -201,22 +202,24 @@ PopupCard {
         var url = root.urlDraft.trim()
         var tags = root.csv(root.tagsDraft)
         var extra = root.extraDraft.trim()
-        root.pendingCreateSnapshot = root.createDraftSnapshot()
         if (root.createKind !== "update" && !title) {
             root.notice = "Give it a title first"
             noticeTimer.restart()
             return
         }
-        if (root.createKind === "idea") build.createIdea(title, body, tags)
-        else if (root.createKind === "room") build.createRoom(title, body, url, tags, [], "")
-        else if (root.createKind === "setup") build.createSetup(title || "My Omarchy setup", url, "", body, true)
-        else if (root.createKind === "test") build.createTest(title, url, extra, tags, body, "")
-        else if (root.createKind === "help") build.createHelp(title, body, extra, tags, root.useDetectedEnvironment)
-        else if (root.createKind === "solution") build.createSolution(title, extra, body, tags, url)
-        else if (root.createKind === "ship") build.ship(title, body, url, tags, "")
-        else if (root.createKind === "update") build.reportUpdate(extra || title, root.updateResult, tags, body, root.useDetectedEnvironment)
-        else if (root.createKind === "event") build.createEvent(title, extra, root.tagsDraft.trim(), url, body)
-        else if (root.createKind === "challenge") build.createChallenge(title, body, extra, url, tags)
+        if (root.createSubmitting) return
+        var submittedSnapshot = root.createDraftSnapshot()
+        root.createSubmitting = true
+        if (root.createKind === "idea") build.createIdea(title, body, tags, submittedSnapshot)
+        else if (root.createKind === "room") build.createRoom(title, body, url, tags, [], "", submittedSnapshot)
+        else if (root.createKind === "setup") build.createSetup(title || "My Omarchy setup", url, "", body, true, submittedSnapshot)
+        else if (root.createKind === "test") build.createTest(title, url, extra, tags, body, "", submittedSnapshot)
+        else if (root.createKind === "help") build.createHelp(title, body, extra, tags, root.useDetectedEnvironment, submittedSnapshot)
+        else if (root.createKind === "solution") build.createSolution(title, extra, body, tags, url, submittedSnapshot)
+        else if (root.createKind === "ship") build.ship(title, body, url, tags, "", submittedSnapshot)
+        else if (root.createKind === "update") build.reportUpdate(extra || title, root.updateResult, tags, body, root.useDetectedEnvironment, submittedSnapshot)
+        else if (root.createKind === "event") build.createEvent(title, extra, root.tagsDraft.trim(), url, body, submittedSnapshot)
+        else if (root.createKind === "challenge") build.createChallenge(title, body, extra, url, tags, submittedSnapshot)
     }
 
     function kindLabel(kind) {
@@ -1261,7 +1264,7 @@ PopupCard {
                             Text { text: "Public Build Network"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                             Text { text: "Signed metadata · relay readable"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                         }
-                        GlassPill { id: publishButton; text: build.busy ? "Publishing…" : "Publish ↗"; strong: true; enabled: !build.busy; onClicked: root.submitCreate() }
+                        GlassPill { id: publishButton; text: build.busy || root.createSubmitting ? "Publishing…" : "Publish ↗"; strong: true; enabled: !build.busy && !root.createSubmitting; onClicked: root.submitCreate() }
                     }
                 }
             }

@@ -265,7 +265,11 @@ PopupCard {
         root.selectedGroupId = ""
         root.page = "chats"
         root.newChatOpen = false
-        Qt.callLater(function() { messageInput.forceActiveFocus() })
+        var focusKey = root.draftConversationKey
+        Qt.callLater(function() {
+            if (root.visible && root.page === "chats" && root.draftConversationKey === focusKey && messageInput)
+                messageInput.forceActiveFocus()
+        })
     }
 
     function chooseGroup(group) {
@@ -274,7 +278,11 @@ PopupCard {
         root.selectedFriendKey = ""
         root.page = "chats"
         root.newChatOpen = false
-        Qt.callLater(function() { messageInput.forceActiveFocus() })
+        var focusKey = root.draftConversationKey
+        Qt.callLater(function() {
+            if (root.visible && root.page === "chats" && root.draftConversationKey === focusKey && messageInput)
+                messageInput.forceActiveFocus()
+        })
     }
 
     function openChatForPublicKey(publicKey) {

@@ -113,10 +113,19 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("if (ok && root.communityDraft.trim() === text)", circle_send)
         self.assertIn("if (ok && root.communityDraft.trim() === text) root.communityDraft = \"\"", circle_send)
         self.assertIn("onCreateResult", build)
-        self.assertIn("if (ok && root.pendingCreateSnapshot === root.createDraftSnapshot()) root.clearDrafts()", build)
+        self.assertIn("if (ok && submittedSnapshot === root.createDraftSnapshot()) root.clearDrafts()", build)
         self.assertNotIn("root.clearDrafts()", create_submit)
-        self.assertIn("createAction: createAction === true", build_service)
-        self.assertIn("if (next.createAction) root.createResult(ok, message)", build_service)
+        self.assertIn("if (root.createSubmitting) return", create_submit)
+        self.assertIn("submittedSnapshot: submittedSnapshot || \"\"", build_service)
+        self.assertIn("root.createResult(ok, message, next.submittedSnapshot)", build_service)
+
+    def test_v2_fallback_scopes_drafts_and_clears_only_after_success(self):
+        v2 = read("FriendsPanelV2.qml")
+        self.assertIn('root.prepareDraftForConversation("friend:"', v2)
+        self.assertIn('root.prepareDraftForConversation("group:"', v2)
+        self.assertIn("if (!ok || root.draftConversationKey !== conversationKey) return", v2)
+        self.assertIn("if (ok && root.communityDraft.trim() === text)", v2)
+        self.assertIn("if (!ok || root.groupNameDraft.trim() !== name", v2)
 
     def test_primary_glass_actions_are_keyboard_reachable(self):
         for path in ("GlassButton.qml", "GlassNavItem.qml", "GlassPill.qml"):

@@ -51,7 +51,7 @@ Item {
     property string lastNotice: ""
 
     signal actionResult(bool ok, string message)
-    signal createResult(bool ok, string message)
+    signal createResult(bool ok, string message, string submittedSnapshot)
     signal shareTextReady(string text)
     signal githubSnapshotReady(var snapshot)
 
@@ -100,9 +100,9 @@ Item {
         try { return JSON.parse(output || "{}") } catch (e) { return ({ ok: false, message: "Build Network returned invalid data" }) }
     }
 
-    function run(command, payload, fallback, createAction) {
+    function run(command, payload, fallback, createAction, submittedSnapshot) {
         var queue = root.actionQueue.slice()
-        queue.push({ command: command, payload: payload, fallback: fallback || "", createAction: createAction === true })
+        queue.push({ command: command, payload: payload, fallback: fallback || "", createAction: createAction === true, submittedSnapshot: submittedSnapshot || "" })
         root.actionQueue = queue
         root.processActionQueue()
     }
@@ -122,7 +122,7 @@ Item {
         if (!proc) {
             root.busy = false
             root.actionResult(false, "Build Network could not start")
-            if (next.createAction) root.createResult(false, "Build Network could not start")
+            if (next.createAction) root.createResult(false, "Build Network could not start", next.submittedSnapshot)
             Qt.callLater(root.processActionQueue)
             return
         }
@@ -137,7 +137,7 @@ Item {
             var message = data.message || next.fallback || (ok ? "Done" : "Build Network action failed")
             root.lastNotice = message
             root.actionResult(ok, message)
-            if (next.createAction) root.createResult(ok, message)
+            if (next.createAction) root.createResult(ok, message, next.submittedSnapshot)
             Qt.callLater(root.processActionQueue)
         })
         proc.running = true
@@ -158,29 +158,29 @@ Item {
     function inspectSetup() { run("inspect-setup", null, "Setup inspected") }
     function inspectEnvironment() { run("inspect-environment", null, "Environment inspected") }
     function compareSetup(setupId) { run("compare-setup", { setup_id: setupId }, "Setup comparison ready") }
-    function createIdea(title, summary, tags) { run("create-idea", { title: title, summary: summary, tags: tags || [] }, "Idea shared", true) }
+    function createIdea(title, summary, tags, snapshot) { run("create-idea", { title: title, summary: summary, tags: tags || [] }, "Idea shared", true, snapshot) }
     function markInterested(ideaId, note) { run("interest", { idea_id: ideaId, note: note || "" }, "Marked interested") }
-    function createRoom(title, goal, repoUrl, roles, tasks, sourceIdeaId) { run("create-room", { title: title, goal: goal, repo_url: repoUrl || "", roles_needed: roles || [], tasks: tasks || [], source_idea_id: sourceIdeaId || "" }, "Build Room opened", true) }
+    function createRoom(title, goal, repoUrl, roles, tasks, sourceIdeaId, snapshot) { run("create-room", { title: title, goal: goal, repo_url: repoUrl || "", roles_needed: roles || [], tasks: tasks || [], source_idea_id: sourceIdeaId || "" }, "Build Room opened", true, snapshot) }
     function buildIdea(ideaId, repoUrl, roles) { run("room-from-idea", { idea_id: ideaId, repo_url: repoUrl || "", roles_needed: roles || [] }, "Idea promoted to Build Room") }
     function joinRoom(roomId, role, note) { run("join-room", { room_id: roomId, role: role || "Builder", note: note || "" }, "Joined Build Room") }
     function taskUpdate(roomId, task, status, note) { run("task-update", { room_id: roomId, task: task, status: status || "doing", note: note || "" }, "Task updated") }
     function updateRoom(roomId, status, repoUrl) { run("update-room", { room_id: roomId, status: status || "building", repo_url: repoUrl || "" }, "Build Room updated") }
-    function createSetup(title, repoUrl, wallpaperUrl, notes, useDetected) { run("create-setup", { title: title, repo_url: repoUrl || "", wallpaper_url: wallpaperUrl || "", notes: notes || "", use_detected: useDetected !== false }, "Setup shared", true) }
+    function createSetup(title, repoUrl, wallpaperUrl, notes, useDetected, snapshot) { run("create-setup", { title: title, repo_url: repoUrl || "", wallpaper_url: wallpaperUrl || "", notes: notes || "", use_detected: useDetected !== false }, "Setup shared", true, snapshot) }
     function shareComponent(type, name, sourceUrl, setupId, tags, notes) { run("share-component", { component_type: type || "other", name: name, source_url: sourceUrl || "", setup_id: setupId || "", tags: tags || [], notes: notes || "" }, "Component shared") }
-    function createTest(title, artifactUrl, version, requestedTags, notes, roomId) { run("create-test", { title: title, artifact_url: artifactUrl || "", version: version || "", requested_tags: requestedTags || [], notes: notes || "", build_room_id: roomId || "" }, "Test request shared", true) }
+    function createTest(title, artifactUrl, version, requestedTags, notes, roomId, snapshot) { run("create-test", { title: title, artifact_url: artifactUrl || "", version: version || "", requested_tags: requestedTags || [], notes: notes || "", build_room_id: roomId || "" }, "Test request shared", true, snapshot) }
     function submitTestResult(requestId, result, tags, note) { run("test-result", { request_id: requestId, result: result, environment_tags: tags || [], note: note || "" }, "Test result shared") }
-    function createHelp(title, problem, tried, environmentTags, useDetected) { run("create-help", { title: title, problem: problem, tried: tried || "", environment_tags: environmentTags || [], use_detected: useDetected === true }, "Help request shared", true) }
+    function createHelp(title, problem, tried, environmentTags, useDetected, snapshot) { run("create-help", { title: title, problem: problem, tried: tried || "", environment_tags: environmentTags || [], use_detected: useDetected === true }, "Help request shared", true, snapshot) }
     function offerHelp(helpId, note, useDetected) { run("offer-help", { help_id: helpId, note: note || "", use_detected: useDetected !== false }, "Offered to help") }
     function resolveHelp(helpId, status) { run("resolve-help", { help_id: helpId, status: status || "solved" }, "Help request updated") }
     function setAvailability(mode, skills, note, minutes, status) { run("set-availability", { mode: mode || "can_help", skills: skills || [], note: note || "", available_minutes: minutes || 30, status: status || "active", use_detected: true }, "Availability shared") }
-    function createSolution(title, problem, solution, environmentTags, sourceUrl) { run("create-solution", { title: title, problem: problem || "", solution: solution, environment_tags: environmentTags || [], source_url: sourceUrl || "" }, "Solution saved", true) }
+    function createSolution(title, problem, solution, environmentTags, sourceUrl, snapshot) { run("create-solution", { title: title, problem: problem || "", solution: solution, environment_tags: environmentTags || [], source_url: sourceUrl || "" }, "Solution saved", true, snapshot) }
     function solutionFromHelp(helpId, solution, title, sourceUrl) { run("solution-from-help", { help_id: helpId, solution: solution, title: title || "", source_url: sourceUrl || "" }, "Help converted to solution") }
     function verifySolution(solutionId, result, note, useDetected) { run("verify-solution", { solution_id: solutionId, result: result || "worked", note: note || "", use_detected: useDetected !== false }, "Verification shared") }
-    function ship(title, summary, artifactUrl, tags, roomId) { run("ship", { title: title, summary: summary || "", artifact_url: artifactUrl || "", tags: tags || [], build_room_id: roomId || "" }, "Ship post shared", true) }
-    function reportUpdate(version, result, environmentTags, note, useDetected) { run("report-update", { version: version, result: result, environment_tags: environmentTags || [], note: note || "", use_detected: useDetected !== false }, "Update report shared") }
-    function createEvent(title, whenText, location, eventUrl, notes) { run("create-event", { title: title, when_text: whenText || "", location: location || "", event_url: eventUrl || "", notes: notes || "" }, "Event shared", true) }
+    function ship(title, summary, artifactUrl, tags, roomId, snapshot) { run("ship", { title: title, summary: summary || "", artifact_url: artifactUrl || "", tags: tags || [], build_room_id: roomId || "" }, "Ship post shared", true, snapshot) }
+    function reportUpdate(version, result, environmentTags, note, useDetected, snapshot) { run("report-update", { version: version, result: result, environment_tags: environmentTags || [], note: note || "", use_detected: useDetected !== false }, "Update report shared", true, snapshot) }
+    function createEvent(title, whenText, location, eventUrl, notes, snapshot) { run("create-event", { title: title, when_text: whenText || "", location: location || "", event_url: eventUrl || "", notes: notes || "" }, "Event shared", true, snapshot) }
     function rsvpEvent(eventId, response, note) { run("rsvp-event", { event_id: eventId, response: response || "interested", note: note || "" }, "RSVP shared") }
-    function createChallenge(title, prompt, deadlineText, rulesUrl, tags) { run("create-challenge", { title: title, prompt: prompt || "", deadline_text: deadlineText || "", rules_url: rulesUrl || "", tags: tags || [] }, "Challenge shared", true) }
+    function createChallenge(title, prompt, deadlineText, rulesUrl, tags, snapshot) { run("create-challenge", { title: title, prompt: prompt || "", deadline_text: deadlineText || "", rules_url: rulesUrl || "", tags: tags || [] }, "Challenge shared", true, snapshot) }
     function joinChallenge(challengeId, teamName, repoUrl, note) { run("join-challenge", { challenge_id: challengeId, team_name: teamName || "", repo_url: repoUrl || "", note: note || "" }, "Joined challenge") }
     function publishProjectActivity(type, title, url, roomId, repoUrl, state, reference) { run("project-activity", { activity_type: type || "discussion", title: title, url: url || "", room_id: roomId || "", repo_url: repoUrl || "", state: state || "info", reference: reference || "" }, "Project activity shared") }
     function loadGithubSnapshot(repoUrl) { run("github-snapshot", { repo_url: repoUrl }, "GitHub activity loaded") }

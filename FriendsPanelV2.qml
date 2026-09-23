@@ -42,6 +42,10 @@ PopupCard {
     property string worldQuery: ""
     property string selectedFriendKey: ""
     property string selectedGroupId: ""
+    property string draftConversationKey: ""
+    property bool sendingMessage: false
+    property bool sendingCommunity: false
+    property bool creatingGroup: false
     property string messageDraft: ""
     property string mediaDraft: ""
     property string communityDraft: ""
@@ -153,13 +157,23 @@ PopupCard {
     }
 
     function chooseFriend(friend) {
+        root.prepareDraftForConversation("friend:" + (friend && friend.public_key ? friend.public_key : ""))
         root.selectedFriendKey = friend && friend.public_key ? friend.public_key : ""
         root.selectedGroupId = ""
     }
 
     function chooseGroup(group) {
+        root.prepareDraftForConversation("group:" + (group && group.id ? group.id : ""))
         root.selectedGroupId = group && group.id ? group.id : ""
         root.selectedFriendKey = ""
+    }
+
+    function prepareDraftForConversation(key) {
+        if (root.draftConversationKey && root.draftConversationKey !== key) {
+            root.messageDraft = ""
+            root.mediaDraft = ""
+        }
+        root.draftConversationKey = key
     }
 
     function ensureConversation() {
@@ -170,23 +184,35 @@ PopupCard {
     }
 
     function sendMessage() {
+        if (root.sendingMessage) return
         var friend = root.selectedFriend()
         var group = root.selectedGroup()
         var text = root.messageDraft.trim()
         var media = root.mediaDraft.trim()
         if (!root.service || (!friend && !group)) { root.showNotice("Choose a conversation first"); return }
         if (!text && !media) return
-        if (group) root.service.sendGroupMessage(group.id, text, media)
-        else root.service.sendDm(friend.public_key, text, media)
-        root.messageDraft = ""
-        root.mediaDraft = ""
+        var conversationKey = root.draftConversationKey
+        root.sendingMessage = true
+        function finishSend(ok) {
+            root.sendingMessage = false
+            if (!ok || root.draftConversationKey !== conversationKey) return
+            if (root.messageDraft.trim() !== text || root.mediaDraft.trim() !== media) return
+            root.messageDraft = ""
+            root.mediaDraft = ""
+        }
+        if (group) root.service.sendGroupMessage(group.id, text, media, finishSend)
+        else root.service.sendDm(friend.public_key, text, media, finishSend)
     }
 
     function sendCommunity() {
+        if (root.sendingCommunity) return
         var text = root.communityDraft.trim()
         if (!text || !root.service) return
-        root.service.sendCommunity(text)
-        root.communityDraft = ""
+        root.sendingCommunity = true
+        root.service.sendCommunity(text, function(ok) {
+            root.sendingCommunity = false
+            if (ok && root.communityDraft.trim() === text) root.communityDraft = ""
+        })
     }
 
     function visibleWorld() {
@@ -232,6 +258,7 @@ PopupCard {
         var req = root.requestFor(peer.public_key)
         if (req) {
             root.service.acceptFriendRequest(req.id)
+            root.prepareDraftForConversation("friend:" + peer.public_key)
             root.selectedFriendKey = peer.public_key
             root.page = "chats"
             return
@@ -248,15 +275,21 @@ PopupCard {
     }
 
     function createGroup() {
+        if (root.creatingGroup) return
         var name = root.groupNameDraft.trim()
         if (!root.service || !name || root.groupMemberKeys.length < 2) {
             root.showNotice("Name the group and choose at least two friends")
             return
         }
-        root.service.createGroup(name, root.groupMemberKeys)
-        root.groupNameDraft = ""
-        root.groupMemberKeys = []
-        root.groupCreateOpen = false
+        var members = root.groupMemberKeys.slice()
+        root.creatingGroup = true
+        root.service.createGroup(name, members, function(ok) {
+            root.creatingGroup = false
+            if (!ok || root.groupNameDraft.trim() !== name || JSON.stringify(root.groupMemberKeys) !== JSON.stringify(members)) return
+            root.groupNameDraft = ""
+            root.groupMemberKeys = []
+            root.groupCreateOpen = false
+        })
     }
 
     function openProfile() {
@@ -637,6 +670,7 @@ PopupCard {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         onClicked: {
                                                             if (root.service) root.service.acceptFriendRequest(modelData.id)
+                                                            root.prepareDraftForConversation("friend:" + (modelData.public_key || ""))
                                                             root.selectedFriendKey = modelData.public_key || ""
                                                         }
                                                     }
