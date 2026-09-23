@@ -16,7 +16,7 @@ Item {
 
     implicitHeight: Style.space(42)
     opacity: root.enabled ? 1 : 0.45
-    activeFocusOnTab: root.enabled
+    activeFocusOnTab: root.enabled || root.activeFocus
     Accessible.role: Accessible.Button
     Accessible.name: root.accessibleName || root.text
 

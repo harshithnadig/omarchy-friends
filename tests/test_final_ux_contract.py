@@ -130,7 +130,7 @@ class FinalUxContractTests(unittest.TestCase):
     def test_primary_glass_actions_are_keyboard_reachable(self):
         for path in ("GlassButton.qml", "GlassNavItem.qml", "GlassPill.qml"):
             text = read(path)
-            self.assertIn("activeFocusOnTab: root.enabled", text, path)
+            self.assertIn("activeFocusOnTab: root.enabled || root.activeFocus", text, path)
             self.assertIn("Keys.onPressed", text, path)
             self.assertIn("Qt.Key_Return", text, path)
             self.assertIn("Qt.Key_Enter", text, path)
