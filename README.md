@@ -99,7 +99,7 @@ wss://relay.damus.io
 
 Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
 
-The generated pseudonym is visible globally by default because discovery is the point of the plugin. You can disable global visibility immediately from **Me → Privacy**.
+New profiles are globally visible by default. Their signed World presence can include the generated handle, avatar/status/focus time, active-app name, music, project name/description/URL, interests and room. These presence events are readable by the configured public relays. The **Me → Privacy** controls let you turn off global visibility and each activity/profile field; disabling them stops future sharing but cannot guarantee removal of events already received or retained by relays. Review these defaults before using Friends, and do not publish sensitive project details or links.
 
 ## Direct invites
 

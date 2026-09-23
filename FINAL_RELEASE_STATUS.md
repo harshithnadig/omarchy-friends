@@ -56,27 +56,37 @@ Feature scope is frozen. Repository-side v4.15 work is complete; do not add anot
 - no silent background updater; updates remain explicit user actions;
 - release CI is read-only and one-shot patcher workflows/scripts are absent.
 
-## Final validation completed
+## Validation record
 
-The final Public Beta validation was run on the real Omarchy machine at commit `7c2792123304e1cf8a88b29675790ebe634f7426`:
+The earlier Public Beta validation was run at commit `7c2792123304e1cf8a88b29675790ebe634f7426`. Its two-instance relay and Build Network results below are historical evidence for that commit, not a fresh pass on the current hotfix:
 
 - `bash scripts/release-gate.sh` — PASS, 139 tests;
 - `omarchy plugin validate .` — PASS;
 - installed-Omarchy `qmllint` for active Friends, Build Network, service and shared-glass QML — PASS;
-- source and installed checkout — exact commit match at `7c2792123304e1cf8a88b29675790ebe634f7426`;
+- source and installed checkout matched at `7c2792123304e1cf8a88b29675790ebe634f7426`;
 - one shell restart and Friends popup open — Friends rendered and no new Friends/Build runtime warnings;
 - real two-instance messaging, NIP-17/NIP-59 delivery, signed kind-10050 routing, private group delivery, restart persistence, Build retry, helper expiry and block filtering — PASS;
 - `relay.damus.io` returned an HTTP 503 during one probe; other configured inbox relays delivered normally, so this was non-blocking.
 
-The release-gate run above is the current verification record; the documentation changes in this commit do not alter runtime code, protocol behavior or the installed plugin.
+The current hotfix was re-audited on the real Omarchy machine at runtime commit `86406fe665c8ca2335c1f7214818a9c6c91a8c4e`:
+
+- `bash scripts/release-gate.sh` — PASS, 159 tests;
+- installed `omarchy plugin validate` — PASS;
+- installed-Omarchy `qmllint` for active Friends, Build Network, services, fallbacks and shared glass QML — PASS;
+- source and installed checkout matched at the runtime commit above;
+- Friends popup opened and visually rendered; it was closed normally afterward;
+- no Friends/Build QML warnings appeared in the inspected shell logs;
+- Build Network was deliberately not opened during this check because the previous live Build popup had captured/blurred the desktop;
+- two-instance relay delivery and fallback UI were not freshly exercised on this hotfix commit.
 
 ## Public Beta limitations
 
 - Private messaging has not had an independent external security audit.
 - Public relay availability can vary, including intermittent relay timeouts or rejection.
 - Exhaustive automated interaction testing of the native Omarchy layer-shell popup is limited.
+- World presence and several activity/profile fields are opt-out on new profiles; see the disclosure in README and decide whether those defaults are acceptable before broad distribution.
 
-The release is ready for owner merge/tag as Public Beta. Do not merge `main` automatically.
+**Release posture: not yet cleared for all-user rollout.** Repeat the two-instance relay smoke and safe Build Network/fallback interaction checks on the exact candidate commit, and resolve the opt-out privacy-default decision. Do not merge `main` automatically.
 
 ## Stop condition
 
