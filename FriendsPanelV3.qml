@@ -48,6 +48,8 @@ KeyboardPanel {
     property var messageIndexSnapshot: null
     property var messagesByConversation: ({})
     property var latestMessageIndices: ({})
+    property var chatFriendRows: []
+    property var chatGroupRows: []
     readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: false, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
     readonly property string globalConnectionText: !root.worldStatus.last_error ? "Connected" : ((root.worldStatus.relay_count || 0) > 0 ? "Presence not accepted" : "Offline")
     readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.16.0", latest: "4.16.0" })
@@ -118,14 +120,44 @@ KeyboardPanel {
         root.serviceSignalsConnected = true
     }
 
-    onServiceChanged: connectServiceSignals()
+    onServiceChanged: {
+        connectServiceSignals()
+        rebuildMessageSearchIndex()
+        Qt.callLater(rebuildConversationRows)
+    }
+    onFriendshipsChanged: rebuildConversationRows()
+    onMemoryChanged: rebuildConversationRows()
+    onGroupsChanged: rebuildConversationRows()
+    onPinnedConversationsChanged: rebuildConversationRows()
+    onMutedConversationsChanged: rebuildConversationRows()
+    onSelectedFriendKeyChanged: rebuildConversationRows()
+    onSelectedGroupIdChanged: rebuildConversationRows()
     onCommunityChanged: updateCommunityMessageItems()
-    onMessagesChanged: rebuildMessageIndex()
-    onProfileChanged: rebuildMessageIndex()
+    onMessagesChanged: {
+        rebuildMessageIndex()
+        rebuildMessageSearchIndex()
+        rebuildConversationRows()
+    }
+    onProfileChanged: {
+        rebuildMessageIndex()
+        rebuildMessageSearchIndex()
+        rebuildConversationRows()
+    }
     Component.onCompleted: {
         connectServiceSignals()
         rebuildMessageIndex()
+        rebuildMessageSearchIndex()
+        rebuildConversationRows()
         updateCommunityMessageItems()
+    }
+
+    Connections {
+        target: root.service
+        ignoreUnknownSignals: true
+        function onGlobalSearchResultsChanged() {
+            root.rebuildMessageSearchIndex()
+            root.rebuildConversationRows()
+        }
     }
 
     function updateCommunityMessageItems() {
@@ -322,30 +354,36 @@ KeyboardPanel {
         return parts.join(" ").toLowerCase()
     }
 
-    function messageSearchIndex() {
+    // Called only from property/signal handlers. QML bindings in the chat
+    // Repeater must never write back into properties while deriving its model.
+    function rebuildMessageSearchIndex() {
         var query = root.chatQuery.trim().toLowerCase()
         var messages = root.messages
-        if (!query) return ({})
         var remoteResults = root.service && root.service.globalSearchResults ? root.service.globalSearchResults : []
         if (root.indexedSearchQuery === query && root.indexedSearchMessages === messages && root.indexedSearchResults === remoteResults) return root.indexedSearchMatches
         var matches = ({})
-        for (var r = 0; r < remoteResults.length; r++) {
-            var result = remoteResults[r]
-            if (!result || !result.id || root.searchableMessageText(result).indexOf(query) < 0) continue
-            var resultKey = result.group_id ? "group:" + result.group_id : (result.legacy_unlinked === true ? "unlinked:local" : "friend:" + (result.conversation_key || result.public_key))
-            if (!matches[resultKey]) matches[resultKey] = result
-        }
-        for (var i = root.messages.length - 1; i >= 0; i--) {
-            var message = root.messages[i]
-            if (!message || !message.id || root.searchableMessageText(message).indexOf(query) < 0) continue
-            var key = message.group_id ? "group:" + message.group_id : (message.legacy_unlinked === true ? "unlinked:local" : "friend:" + (message.conversation_key || message.public_key))
-            if (!matches[key]) matches[key] = message
+        if (query) {
+            for (var r = 0; r < remoteResults.length; r++) {
+                var result = remoteResults[r]
+                if (!result || !result.id || root.searchableMessageText(result).indexOf(query) < 0) continue
+                var resultKey = result.group_id ? "group:" + result.group_id : (result.legacy_unlinked === true ? "unlinked:local" : "friend:" + (result.conversation_key || result.public_key))
+                if (!matches[resultKey]) matches[resultKey] = result
+            }
+            for (var i = root.messages.length - 1; i >= 0; i--) {
+                var message = root.messages[i]
+                if (!message || !message.id || root.searchableMessageText(message).indexOf(query) < 0) continue
+                var key = message.group_id ? "group:" + message.group_id : (message.legacy_unlinked === true ? "unlinked:local" : "friend:" + (message.conversation_key || message.public_key))
+                if (!matches[key]) matches[key] = message
+            }
         }
         root.indexedSearchQuery = query
         root.indexedSearchMessages = messages
         root.indexedSearchResults = remoteResults
         root.indexedSearchMatches = matches
-        return matches
+    }
+
+    function messageSearchIndex() {
+        return root.indexedSearchMatches || ({})
     }
 
     function latestMessageMatchForFriend(publicKey) {
@@ -359,6 +397,10 @@ KeyboardPanel {
     }
 
     function conversationFriends() {
+        return root.chatFriendRows || []
+    }
+
+    function buildConversationFriends() {
         var q = root.chatQuery.trim().toLowerCase()
         var out = []
         var list = root.friendsList()
@@ -383,6 +425,10 @@ KeyboardPanel {
     }
 
     function conversationGroups() {
+        return root.chatGroupRows || []
+    }
+
+    function buildConversationGroups() {
         var q = root.chatQuery.trim().toLowerCase()
         var out = []
         var list = root.groupsList()
@@ -398,6 +444,11 @@ KeyboardPanel {
             return aPinned !== bPinned ? (aPinned ? -1 : 1) : root.lastMessageIndexForGroup(b.id) - root.lastMessageIndexForGroup(a.id)
         })
         return out
+    }
+
+    function rebuildConversationRows() {
+        root.chatFriendRows = root.buildConversationFriends()
+        root.chatGroupRows = root.buildConversationGroups()
     }
 
     function selectedFriend() {
@@ -1144,9 +1195,13 @@ KeyboardPanel {
     }
 
     onOpenChanged: if (root.open) Qt.callLater(root.restoreConversationAfterStatusRefresh)
-    onServiceStatusRevisionChanged: Qt.callLater(root.restoreConversationAfterStatusRefresh)
+    onServiceStatusRevisionChanged: {
+        Qt.callLater(root.rebuildConversationRows)
+        Qt.callLater(root.restoreConversationAfterStatusRefresh)
+    }
     onChatQueryChanged: {
-        root.indexedSearchQuery = ""
+        root.rebuildMessageSearchIndex()
+        root.rebuildConversationRows()
         if (root.chatQuery.trim()) chatSearchTimer.restart()
         else {
             chatSearchTimer.stop()

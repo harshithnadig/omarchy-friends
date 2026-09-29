@@ -16,7 +16,9 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("property int statusRevision: 0", service)
         self.assertIn("root.statusRevision += 1", service)
         self.assertIn("property int serviceStatusRevision: root.service ? root.service.statusRevision : 0", friends)
-        self.assertIn("onServiceStatusRevisionChanged: Qt.callLater(root.restoreConversationAfterStatusRefresh)", friends)
+        status_revision = friends[friends.index("onServiceStatusRevisionChanged:"):friends.index("onChatQueryChanged:")]
+        self.assertIn("Qt.callLater(root.rebuildConversationRows)", status_revision)
+        self.assertIn("Qt.callLater(root.restoreConversationAfterStatusRefresh)", status_revision)
         restore = friends[friends.index("function restoreConversationAfterStatusRefresh()"):friends.index("function sendMessage()")]
         self.assertIn('if (!root.open || root.page !== "chats"', restore)
         self.assertIn("root.selectedFriendKey = fs[0].public_key", restore)
@@ -224,14 +226,32 @@ class FinalUxContractTests(unittest.TestCase):
     def test_message_views_use_cached_per_conversation_index(self):
         friends = read("FriendsPanelV3.qml")
         self.assertIn("function rebuildMessageIndex()", friends)
-        self.assertIn("onMessagesChanged: rebuildMessageIndex()", friends)
-        self.assertIn("onProfileChanged: rebuildMessageIndex()", friends)
+        self.assertIn("onMessagesChanged: {", friends)
+        self.assertIn("onProfileChanged: {", friends)
+        self.assertIn("root.rebuildMessageSearchIndex()", friends)
         self.assertNotIn("ensureMessageIndex()", friends)
         self.assertIn("root.messagesByConversation = byConversation", friends)
         self.assertIn("root.latestMessageIndices = lastIndex", friends)
         conversation = friends[friends.index("function conversationMessages()"):friends.index("function lastMessagePreview(")]
         self.assertIn("root.messagesForConversation(historyKind, historyId)", conversation)
         self.assertIn('friend.legacy_archive ? "unlinked" : "friend"', conversation)
+
+    def test_chat_list_bindings_only_read_a_search_index_built_by_change_handlers(self):
+        friends = read("FriendsPanelV3.qml")
+        getter = friends[friends.index("function messageSearchIndex()") : friends.index("function latestMessageMatchForFriend(")]
+        builder = friends[friends.index("function rebuildMessageSearchIndex()") : friends.index("function messageSearchIndex()")]
+        friend_rows = friends[friends.index("function conversationFriends()") : friends.index("function buildConversationFriends()")]
+        group_rows = friends[friends.index("function conversationGroups()") : friends.index("function buildConversationGroups()")]
+        self.assertIn("return root.indexedSearchMatches", getter)
+        self.assertNotRegex(getter, r"root\.indexedSearch\w*\s*=")
+        self.assertIn("root.indexedSearchMatches = matches", builder)
+        self.assertIn("return root.chatFriendRows", friend_rows)
+        self.assertIn("return root.chatGroupRows", group_rows)
+        self.assertIn("function rebuildConversationRows()", friends)
+        self.assertIn("onServiceStatusRevisionChanged:", friends)
+        self.assertIn("Qt.callLater(root.rebuildConversationRows)", friends)
+        self.assertIn("onChatQueryChanged:", friends)
+        self.assertIn("onGlobalSearchResultsChanged()", friends)
 
     def test_v2_fallback_scopes_drafts_and_clears_only_after_success(self):
         v2 = read("FriendsPanelV2.qml")
