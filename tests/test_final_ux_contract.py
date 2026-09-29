@@ -121,6 +121,10 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('"directory": dbus.Boolean(folder_mode)', picker_command)
         self.assertIn('"org.freedesktop.portal.FileChooser"', picker_command)
         self.assertIn('selected.startswith("file://")', picker_command)
+        picker_flow = friends[friends.index("function openAttachmentBrowser("):friends.index("function syncEarlierMessages(")]
+        self.assertIn("root.suspendedForSystemDialog = true", picker_flow)
+        self.assertLess(picker_flow.index("root.suspendedForSystemDialog = true"), picker_flow.index("root.service.pickAttachment("))
+        self.assertIn("root.suspendedForSystemDialog = false", picker_flow)
         self.assertIn('layerNamespace: "omarchy-friends"', friends)
         self.assertIn("Up to 16 KiB sends directly; larger files need Me → Large files (up to 100 MiB).", friends)
         picker_flow = friends[friends.index("function openAttachmentBrowser("):friends.index("function openPrivateSafetyCode(")]
