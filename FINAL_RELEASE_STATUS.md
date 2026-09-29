@@ -43,7 +43,7 @@ The active v4.16.0 candidate extends the historical v4.15.1 scope; release remai
 - Build Network backend: complete.
 - Friends V3 is the preferred shell; Friends V2 is the compatibility fallback; `Panel.qml` is the final legacy fallback.
 - Build Network uses `BuildNetworkPanelV3.qml -> BuildNetworkService.qml -> bin/build_network_app_v4.py` and is now **lazy-loaded only when opened** so normal Friends use does not start its Python/network work unnecessarily.
-- `manifest.json` and the current Friends engine advertise `4.16.0`; the candidate is local and unpublished.
+- `manifest.json` and the installed Friends engine advertise `4.16.0`. The source is pushed to GitHub; marketplace verification/publication is pending.
 - The shared glass primitives now expose visible keyboard focus and keyboard activation for primary buttons, navigation items and pills, so the main product is not mouse-only.
 - The latest release prep includes `SECURITY.md` and `RELEASE_NOTES_v4.15.md`.
 - Private inbox listening fans in all configured NIP-17 inbox relays, so one silent relay cannot park the listener indefinitely.
