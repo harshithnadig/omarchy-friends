@@ -43,9 +43,9 @@ def _point_add(left, right):
     if x1 == x2:
         if (y1 + y2) % FIELD_P == 0:
             return None
-        slope = (3 * x1 * x1) * pow(2 * y1, FIELD_P - 2, FIELD_P) % FIELD_P
+        slope = (3 * x1 * x1) * pow(2 * y1, -1, FIELD_P) % FIELD_P
     else:
-        slope = (y2 - y1) * pow(x2 - x1, FIELD_P - 2, FIELD_P) % FIELD_P
+        slope = (y2 - y1) * pow(x2 - x1, -1, FIELD_P) % FIELD_P
     x3 = (slope * slope - x1 - x2) % FIELD_P
     y3 = (slope * (x1 - x3) - y1) % FIELD_P
     return x3, y3
@@ -61,6 +61,14 @@ def _point_mul(scalar, point=GENERATOR):
         addend = _point_add(addend, addend)
         scalar >>= 1
     return result
+
+
+@lru_cache(maxsize=16)
+def _generator_multiple(scalar):
+    """Cache generator multiples used to sign frequent local presence heartbeats."""
+    if not isinstance(scalar, int) or not 0 <= scalar < CURVE_N:
+        raise ValueError("invalid secp256k1 scalar")
+    return _point_mul(scalar)
 
 
 @lru_cache(maxsize=32)
@@ -160,7 +168,7 @@ def schnorr_sign(message_hash, secret_key):
         # This is astronomically unlikely; using fresh auxiliary randomness is
         # the correct recovery rather than emitting an invalid signature.
         return schnorr_sign(message_hash, secret)
-    nonce_point = _point_mul(nonce)
+    nonce_point = _generator_multiple(nonce)
     effective_nonce = nonce if nonce_point[1] % 2 == 0 else CURVE_N - nonce
     challenge = int.from_bytes(
         _tagged_hash(
@@ -197,7 +205,7 @@ def schnorr_verify(message_hash, public_key, signature):
             "big",
         ) % CURVE_N
         # s*G - e*P, expressed with the inverse scalar modulo the group order.
-        candidate = _point_add(_point_mul(s_value), _point_mul(CURVE_N - challenge, public_point))
+        candidate = _point_add(_generator_multiple(s_value), _point_mul(CURVE_N - challenge, public_point))
         return candidate is not None and candidate[1] % 2 == 0 and candidate[0] == r_value
     except (TypeError, ValueError, OverflowError):
         return False

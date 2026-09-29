@@ -11,9 +11,11 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import struct
 import time
+import urllib.parse
 
 from omarchy_friends_global import (
     CURVE_N,
@@ -27,6 +29,9 @@ from omarchy_friends_global import (
 NIP44_VERSION = 2
 NIP59_SEAL_KIND = 13
 NIP17_MESSAGE_KIND = 14
+NIP17_REACTION_KIND = 7
+NIP17_DELETE_KIND = 5
+NIP17_FILE_KIND = 15
 NIP59_GIFT_WRAP_KIND = 1059
 NIP44_SALT = b"nip44-v2"
 NIP59_RANDOM_WINDOW_SECONDS = 2 * 24 * 60 * 60
@@ -300,8 +305,10 @@ def _random_past_timestamp(now=None):
     return max(1, now - secrets.randbelow(NIP59_RANDOM_WINDOW_SECONDS + 1))
 
 
-def create_nip17_rumor(sender_secret_key, receiver_public_keys, content, *, subject="", app_envelope=None, created_at=None):
-    """Create one unsigned kind-14 rumor shared by all wrappers for a message."""
+def create_nip17_rumor(sender_secret_key, receiver_public_keys, content, *, subject="", app_envelope=None, reply_to="", referenced_pubkey="", file_metadata=None, kind=NIP17_MESSAGE_KIND, created_at=None):
+    """Create one unsigned NIP-17 message, file, reaction, or deletion rumor."""
+    if kind not in (NIP17_MESSAGE_KIND, NIP17_REACTION_KIND, NIP17_DELETE_KIND, NIP17_FILE_KIND):
+        raise ValueError("unsupported NIP-17 rumor kind")
     sender = generate_keypair(sender_secret_key)["public_key"]
     receivers = []
     for value in receiver_public_keys or []:
@@ -313,6 +320,55 @@ def create_nip17_rumor(sender_secret_key, receiver_public_keys, content, *, subj
         raise ValueError("NIP-17 message needs at least one receiver")
     created_at = int(time.time()) if created_at is None else int(created_at)
     tags = [["p", value] for value in receivers]
+    reply_to = str(reply_to or "").lower()
+    if reply_to:
+        if len(reply_to) != 64 or any(character not in "0123456789abcdef" for character in reply_to):
+            raise ValueError("invalid NIP-17 reply event id")
+        tags.append(["e", reply_to])
+    referenced_pubkey = str(referenced_pubkey or "").lower()
+    if referenced_pubkey:
+        _public_point(referenced_pubkey)
+        if referenced_pubkey not in receivers:
+            tags.append(["p", referenced_pubkey])
+    if kind == NIP17_FILE_KIND:
+        if not isinstance(file_metadata, dict):
+            raise ValueError("NIP-17 file messages require encrypted file metadata")
+        url = str(file_metadata.get("url", ""))
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
+            raise ValueError("NIP-17 file message requires a safe HTTPS URL")
+        content_type = str(file_metadata.get("content_type", "application/octet-stream"))[:100]
+        key = str(file_metadata.get("key", ""))
+        nonce = str(file_metadata.get("nonce", ""))
+        checksum = str(file_metadata.get("sha256", "")).lower()
+        plain_checksum = str(file_metadata.get("plain_sha256", "")).lower()
+        size = file_metadata.get("cipher_size")
+        if not content_type or any(ord(character) < 32 for character in content_type):
+            raise ValueError("invalid NIP-17 file type")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", key) or not re.fullmatch(r"[A-Za-z0-9_-]{16}", nonce):
+            raise ValueError("invalid NIP-17 file decryption metadata")
+        try:
+            key_bytes = base64.urlsafe_b64decode(key + "=" * (-len(key) % 4))
+            nonce_bytes = base64.urlsafe_b64decode(nonce + "=" * (-len(nonce) % 4))
+        except (ValueError, base64.binascii.Error):
+            raise ValueError("invalid NIP-17 file decryption metadata")
+        if len(key_bytes) != 32 or len(nonce_bytes) != 12 or not re.fullmatch(r"[0-9a-f]{64}", checksum):
+            raise ValueError("invalid NIP-17 file decryption metadata")
+        if plain_checksum and not re.fullmatch(r"[0-9a-f]{64}", plain_checksum):
+            raise ValueError("invalid NIP-17 original file hash")
+        if not isinstance(size, int) or isinstance(size, bool) or not 1 <= size <= 100 * 1024 * 1024 + 16:
+            raise ValueError("invalid NIP-17 encrypted file size")
+        content = url
+        tags.extend([
+            ["file-type", content_type],
+            ["encryption-algorithm", "aes-gcm"],
+            ["decryption-key", key],
+            ["decryption-nonce", nonce],
+            ["x", checksum],
+            ["size", str(size)],
+        ])
+        if plain_checksum:
+            tags.append(["ox", plain_checksum])
     if subject:
         tags.append(["subject", str(subject)[:128]])
     tags.append(["client", "omarchy-friends"])
@@ -325,7 +381,7 @@ def create_nip17_rumor(sender_secret_key, receiver_public_keys, content, *, subj
     rumor = {
         "pubkey": sender,
         "created_at": created_at,
-        "kind": NIP17_MESSAGE_KIND,
+        "kind": kind,
         "tags": _clean_tags(tags),
         "content": plain,
     }
@@ -337,7 +393,7 @@ def wrap_nip17_rumor(sender_secret_key, recipient_public_key, rumor):
     """Seal a rumor with the sender key, then gift-wrap it with a one-time key."""
     recipient_public_key = str(recipient_public_key).lower()
     _public_point(recipient_public_key)
-    if not isinstance(rumor, dict) or rumor.get("kind") != NIP17_MESSAGE_KIND:
+    if not isinstance(rumor, dict) or rumor.get("kind") not in (NIP17_MESSAGE_KIND, NIP17_REACTION_KIND, NIP17_DELETE_KIND, NIP17_FILE_KIND):
         raise ValueError("invalid NIP-17 rumor")
     sender_public_key = generate_keypair(sender_secret_key)["public_key"]
     if rumor.get("pubkey") != sender_public_key:
@@ -353,7 +409,7 @@ def wrap_nip17_rumor(sender_secret_key, recipient_public_key, rumor):
 
 
 def unwrap_nip17_gift_wrap(recipient_secret_key, event):
-    """Validate and unwrap a NIP-59 gift wrap into a NIP-17 kind-14 rumor."""
+    """Validate and unwrap a NIP-59 gift wrap into a supported NIP-17 rumor."""
     if not verify_event(event) or int(event.get("kind", -1)) != NIP59_GIFT_WRAP_KIND:
         raise ValueError("invalid NIP-59 gift wrap")
     recipient_public_key = generate_keypair(recipient_secret_key)["public_key"]
@@ -368,7 +424,7 @@ def unwrap_nip17_gift_wrap(recipient_secret_key, event):
     rumor = json.loads(nip44_decrypt(recipient_secret_key, seal.get("pubkey", ""), seal.get("content", "")))
     if not isinstance(rumor, dict) or rumor.get("sig") is not None:
         raise ValueError("invalid NIP-17 rumor")
-    if int(rumor.get("kind", -1)) != NIP17_MESSAGE_KIND:
+    if int(rumor.get("kind", -1)) not in (NIP17_MESSAGE_KIND, NIP17_REACTION_KIND, NIP17_DELETE_KIND, NIP17_FILE_KIND):
         raise ValueError("unsupported NIP-17 rumor kind")
     if rumor.get("pubkey") != seal.get("pubkey"):
         raise ValueError("NIP-17 sender mismatch")

@@ -28,9 +28,11 @@ class FakeRelay:
         self.dm_sub = ""
         self.delivered = False
         self.closed = False
+        self.sent_json = []
         self.__class__.instances.append(self)
 
     def send_json(self, message):
+        self.sent_json.append(message)
         if (
             isinstance(message, list)
             and len(message) >= 3
@@ -50,6 +52,28 @@ class FakeRelay:
             self.delivered = True
             return ["EVENT", self.dm_sub, self.gift]
         return None
+
+    def close(self):
+        self.closed = True
+
+
+class SelectableFakeRelay(FakeRelay):
+    socket_pairs = {}
+
+    def __init__(self, url, timeout=4.0):
+        super().__init__(url, timeout)
+        self.sock = self.socket_pairs[url][0]
+
+    def recv_json(self, timeout=None):
+        if (
+            self.url in self.delivery_urls
+            and self.dm_sub
+            and not self.delivered
+            and self.gift is not None
+        ):
+            self.delivered = True
+            return ["EVENT", self.dm_sub, self.gift]
+        raise AssertionError("selectable relay was read without socket readiness")
 
     def close(self):
         self.closed = True
@@ -105,6 +129,50 @@ class MultiRelayListenerTests(unittest.TestCase):
         self.assertEqual(len(incoming), 1)
         self.assertEqual(incoming[0]["text"], "hello across the second inbox relay")
         self.assertEqual({instance.url for instance in FakeRelay.instances}, {first, second})
+        self.assertTrue(all(
+            not any(
+                message[0] == "EVENT" and len(message) > 1
+                and isinstance(message[1], dict)
+                and message[1].get("kind") == friends.GLOBAL_PRESENCE_KIND
+                for message in instance.sent_json
+            )
+            for instance in FakeRelay.instances
+        ))
+
+    def test_selectable_relay_sockets_block_until_inbox_is_ready(self):
+        import socket
+
+        first, second = friends.NIP17_DM_RELAYS[:2]
+        pairs = {url: socket.socketpair() for url in friends.NIP17_DM_RELAYS[:2]}
+        left, right = pairs[second]
+        SelectableFakeRelay.socket_pairs = {url: pair for url, pair in pairs.items()}
+        SelectableFakeRelay.gift = self.gift
+        SelectableFakeRelay.fail_urls = set()
+        SelectableFakeRelay.delivery_urls = {second}
+        SelectableFakeRelay.instances = []
+
+        def ready_only_second(sockets, _write, _exceptional, timeout):
+            self.assertEqual(set(sockets), {pair[0] for pair in pairs.values()})
+            self.assertGreater(timeout, 10.0)
+            self.assertLessEqual(timeout, 30.0)
+            right.send(b"inbox event")
+            return [left], [], []
+
+        try:
+            with patch.object(friends, "WebSocketClient", SelectableFakeRelay), patch.object(
+                friends.select, "select", side_effect=ready_only_second
+            ) as selector:
+                self.bob._listen_on_relays(friends.NIP17_DM_RELAYS[:2], max_cycles=1)
+            selector.assert_called_once()
+            incoming = [
+                message for message in self.bob.state["global"]["messages"]
+                if message.get("incoming")
+            ]
+            self.assertEqual(len(incoming), 1)
+        finally:
+            for pair in pairs.values():
+                pair[0].close()
+                pair[1].close()
 
     def test_failed_first_relay_does_not_block_healthy_second_relay(self):
         first, second = friends.NIP17_DM_RELAYS[:2]
@@ -146,8 +214,8 @@ class MultiRelayListenerTests(unittest.TestCase):
         sender_key = self.alice.state["global_identity"]["public_key"]
         now = friends.now_seconds()
         self.bob.state["global"]["incoming_receipts"] = [
-            {"public_key": sender_key, "timestamp": now}
-            for _ in range(friends.MAX_INCOMING_SIGNALS_PER_MINUTE)
+            {"public_key": sender_key, "timestamp": now, "category": "private"}
+            for _ in range(friends.MAX_INCOMING_PRIVATE_MESSAGES_PER_MINUTE)
         ]
 
         self.assertFalse(self.bob._ingest_global_dm(self.gift))

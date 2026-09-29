@@ -16,9 +16,80 @@ friends_module = SourceFileLoader(
 
 
 class TestFriendsEngine(unittest.TestCase):
+    def test_quickshell_worker_parent_check_detects_supervisor_exit_and_pid_reuse(self):
+        proc_root = Path(tempfile.mkdtemp())
+        try:
+            pid_dir = proc_root / "4321"
+            pid_dir.mkdir()
+            (pid_dir / "cmdline").write_bytes(b"/usr/bin/quickshell\0-n\0-p\0/shell\0")
+
+            def write_stat(start_time):
+                suffix = ["S"] + ["0"] * 18 + [str(start_time)]
+                (pid_dir / "stat").write_text(
+                    "4321 (quickshell) " + " ".join(suffix), encoding="ascii"
+                )
+
+            write_stat(100)
+            with patch.object(friends_module.os, "getppid", return_value=4321):
+                snapshot = friends_module.FriendsEngine._quickshell_parent_snapshot(proc_root)
+                self.assertEqual(snapshot, (4321, "100"))
+                self.assertTrue(friends_module.FriendsEngine._quickshell_parent_alive(snapshot, proc_root))
+
+                write_stat(101)
+                self.assertFalse(friends_module.FriendsEngine._quickshell_parent_alive(snapshot, proc_root))
+
+                write_stat(100)
+                with patch.object(friends_module.os, "getppid", return_value=1):
+                    self.assertFalse(friends_module.FriendsEngine._quickshell_parent_alive(snapshot, proc_root))
+        finally:
+            shutil.rmtree(proc_root, ignore_errors=True)
+
+    def test_background_world_sync_uses_coarse_idle_cadence(self):
+        self.assertGreaterEqual(friends_module.GLOBAL_SYNC_INTERVAL_SECONDS, 60)
+        self.assertGreaterEqual(friends_module.LAN_DAEMON_STATE_REFRESH_SECONDS, 5)
+        self.assertGreaterEqual(friends_module.GLOBAL_PRESENCE_REFRESH_SECONDS, 45)
+
+    def test_fresh_global_presence_only_updates_timestamp_and_signature(self):
+        original = self.engine._global_presence_event()
+        time.sleep(1.05)
+        refreshed = self.engine._fresh_global_presence_event(original)
+        self.assertNotEqual(original["id"], refreshed["id"])
+        self.assertTrue(friends_module.verify_event(refreshed))
+        old_content = json.loads(original["content"])
+        new_content = json.loads(refreshed["content"])
+        old_timestamp = old_content.pop("timestamp")
+        new_timestamp = new_content.pop("timestamp")
+        self.assertGreaterEqual(new_timestamp, old_timestamp)
+        self.assertEqual(new_content, old_content)
+
+    def test_full_status_is_cached_and_returned_as_an_independent_snapshot(self):
+        with patch.object(friends_module, "get_current_theme", return_value="Theme") as theme, patch.object(
+            friends_module, "get_current_wallpaper", return_value="Wallpaper"
+        ):
+            first = self.engine.get_full_status()
+            handle = first["profile"]["handle"]
+            first["profile"]["handle"] = "mutated"
+            second = self.engine.get_full_status()
+            self.engine.set_handle("Changed")
+            third = self.engine.get_full_status()
+        self.assertEqual(second["profile"]["handle"], handle)
+        self.assertEqual(third["profile"]["handle"], "Changed")
+        self.assertEqual(theme.call_count, 2)
+
+    def test_concurrent_read_cursor_merges_never_move_backwards(self):
+        merge = friends_module.FriendsEngine._merge_concurrent_value
+        self.assertEqual(
+            merge(100, 300, 200, "global.read_cursors.friend:abc"),
+            300,
+        )
+
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.engine = friends_module.FriendsEngine(state_dir=self.test_dir)
+        # Most engine tests exercise World requests/public posts, so act as an
+        # explicitly opted-in user. The dedicated default test below covers
+        # the fresh-profile privacy posture separately.
+        self.engine.toggle_privacy("share_global")
 
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
@@ -693,11 +764,15 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertNotIn("interests", private_payload)
 
     def test_new_profile_detail_sharing_is_opt_in_and_migration_preserves_choices(self):
-        profile = self.engine.state["profile"]
+        fresh_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, fresh_dir, ignore_errors=True)
+        fresh_engine = friends_module.FriendsEngine(state_dir=fresh_dir)
+        profile = fresh_engine.state["profile"]
+        self.assertFalse(profile["privacy"]["share_lan"])
         for key in ("share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertFalse(profile["privacy"][key])
-        self.assertTrue(profile["privacy"]["share_global"])
-        public_event = self.engine._global_presence_content()
+        self.assertFalse(profile["privacy"]["share_global"])
+        public_event = fresh_engine._global_presence_content()
         for key in ("activity", "music", "project_name", "project_desc", "project_url", "interests", "room"):
             self.assertNotIn(key, public_event)
 
@@ -705,6 +780,44 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertTrue(migrated["profile"]["privacy"]["share_window"])
         self.assertFalse(migrated["profile"]["privacy"]["share_music"])
         self.assertFalse(migrated["profile"]["privacy"]["share_project"])
+        self.assertFalse(migrated["profile"]["privacy"]["share_lan"])
+        self.assertFalse(migrated["profile"]["privacy"]["share_global"])
+        opted_in = self.engine._migrate_state({"profile": {"privacy": {"share_lan": True}}})
+        self.assertTrue(opted_in["profile"]["privacy"]["share_lan"])
+        explicitly_visible = self.engine._migrate_state({"profile": {"privacy": {"share_global": True}}})
+        self.assertTrue(explicitly_visible["profile"]["privacy"]["share_global"])
+
+    def test_new_profile_does_not_send_lan_signals_until_opted_in(self):
+        self.prime_peer()
+        self.engine.match_next()
+        with patch.object(self.engine, "_send_udp_packet", return_value=True) as send_packet:
+            ok, message = self.engine.interact("OMAR-1111-AAA", "high-five")
+        self.assertFalse(ok)
+        self.assertIn("Enable LAN sharing", message)
+        send_packet.assert_not_called()
+
+    def test_hidden_profile_can_sync_world_without_publishing_presence(self):
+        self.engine.toggle_privacy("share_global")
+        remote_dir = tempfile.mkdtemp()
+        remote = friends_module.FriendsEngine(state_dir=remote_dir)
+        self.addCleanup(shutil.rmtree, remote_dir, ignore_errors=True)
+        peer_event = remote._global_presence_event()
+        result = {
+            "published": False,
+            "acknowledged": False,
+            "dm_relay_published": False,
+            "presence": [peer_event],
+            "pings": [],
+            "messages": [],
+            "community": [],
+        }
+        with patch.object(self.engine, "_global_relay_sync", return_value=result) as relay_sync:
+            ok, message = self.engine.sync_global()
+        self.assertTrue(ok, message)
+        self.assertIn("hidden from discovery", message)
+        self.assertIsNone(relay_sync.call_args.args[1])
+        self.assertFalse(self.engine.get_full_status()["global_status"]["visible"])
+        self.assertIn(peer_event["pubkey"], self.engine.state["global"]["peers"])
 
     def test_privacy_migration_parses_legacy_string_booleans_safely(self):
         migrated = self.engine._migrate_state({"profile": {"privacy": {
@@ -733,6 +846,8 @@ class TestFriendsEngine(unittest.TestCase):
         receiver = friends_module.FriendsEngine(state_dir=receiver_dir)
         try:
             receiver_code = receiver.state["profile"]["code"]
+            self.engine.toggle_privacy("share_lan")
+            receiver.toggle_privacy("share_lan")
             self.prime_peer(self.engine, receiver_code, "Receiver")
             self.prime_peer(receiver, self.engine.state["profile"]["code"], "Sender")
             self.engine.match_next()
@@ -761,6 +876,8 @@ class TestFriendsEngine(unittest.TestCase):
         receiver = friends_module.FriendsEngine(state_dir=receiver_dir)
         try:
             receiver_code = receiver.state["profile"]["code"]
+            self.engine.toggle_privacy("share_lan")
+            receiver.toggle_privacy("share_lan")
             sender_code = self.engine.state["profile"]["code"]
             self.engine.set_interests(["linux"])
             self.prime_peer(self.engine, receiver_code, "Receiver", interests=["linux"])
@@ -817,6 +934,7 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertFalse(ok)
         self.prime_peer()
         self.engine.match_next()
+        self.engine.toggle_privacy("share_lan")
         with patch.object(self.engine, "_send_udp_packet", return_value=True), patch.object(
             friends_module, "get_current_theme", return_value="Aether"
         ), patch.object(
@@ -834,6 +952,7 @@ class TestFriendsEngine(unittest.TestCase):
 
         self.prime_peer()
         self.engine.match_next()
+        self.engine.toggle_privacy("share_lan")
         with patch.object(self.engine, "_send_udp_packet", return_value=True):
             ok, message = self.engine.start_cowork(25, "OMAR-1111-AAA")
         self.assertTrue(ok, message)
@@ -846,6 +965,8 @@ class TestFriendsEngine(unittest.TestCase):
         receiver = friends_module.FriendsEngine(state_dir=receiver_dir)
         try:
             receiver_code = receiver.state["profile"]["code"]
+            self.engine.toggle_privacy("share_lan")
+            receiver.toggle_privacy("share_lan")
             self.prime_peer(self.engine, receiver_code, "Receiver")
             self.prime_peer(receiver, self.engine.state["profile"]["code"], "Sender")
             self.engine.match_next()
@@ -1093,12 +1214,12 @@ class TestFriendsEngine(unittest.TestCase):
         ok, _ = self.engine.block_global(peer_key)
         self.assertTrue(ok)
         self.assertNotIn(peer_key, self.engine.state["global"]["friendships"])
-        self.assertEqual(self.engine.state["global"]["messages"], [])
+        self.assertEqual(len(self.engine.state["global"]["messages"]), 1)
         # A late-arriving DM or Circles note from them is dropped silently.
         fake_dm = {"id": "d" * 64, "public_key": peer_key, "handle": "Spammer", "text": "hi", "media": [], "timestamp": int(time.time()), "incoming": True}
         with patch.object(self.engine, "_global_dm_from_event", return_value=fake_dm):
             self.assertFalse(self.engine._ingest_global_dm({"id": "raw"}))
-        self.assertEqual(self.engine.state["global"]["messages"], [])
+        self.assertEqual(len(self.engine.state["global"]["messages"]), 1)
         fake_room = {"id": "e" * 64, "public_key": peer_key, "handle": "Spammer", "avatar": "🦊", "text": "spam", "timestamp": int(time.time()), "incoming": True}
         with patch.object(self.engine, "_global_community_from_event", return_value=fake_room):
             self.assertFalse(self.engine._ingest_global_community({"id": "raw"}))
@@ -1185,7 +1306,7 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(reloaded.state["global"]["friendships"][public_key]["status"], "friends")
         self.assertEqual(reloaded.state["profile"]["handle"], "Local edit")
 
-    def test_stale_process_cannot_restore_messages_for_newly_blocked_peer(self):
+    def test_blocking_a_peer_preserves_local_message_history(self):
         other = friends_module.FriendsEngine(state_dir=self.test_dir)
         blocked_key = friends_module.generate_keypair()["public_key"]
         self.engine.block_global(blocked_key)
@@ -1193,7 +1314,7 @@ class TestFriendsEngine(unittest.TestCase):
         other.save_state()
         reloaded = friends_module.FriendsEngine(state_dir=self.test_dir)
         self.assertIn(blocked_key, reloaded.state["global"]["blocked_pubkeys"])
-        self.assertFalse(any(item.get("public_key") == blocked_key for item in reloaded.state["global"]["messages"]))
+        self.assertTrue(any(item.get("public_key") == blocked_key for item in reloaded.state["global"]["messages"]))
 
     def test_corrupt_state_is_quarantined_before_defaults_are_written(self):
         state_file = self.engine.state_file
@@ -1204,7 +1325,7 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(len(quarantined), 1)
         self.assertEqual(quarantined[0].read_text(encoding="utf-8"), invalid)
         self.assertTrue(friends_module.is_valid_public_key(recovered.state["global_identity"]["public_key"]))
-        self.assertEqual(json.loads(state_file.read_text(encoding="utf-8"))["global_identity"], recovered.state["global_identity"])
+        self.assertEqual(recovered._read_state_file()["global_identity"], recovered.state["global_identity"])
 
     def test_non_object_global_identity_is_quarantined_before_migration(self):
         state_file = self.engine.state_file

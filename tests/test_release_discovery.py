@@ -38,16 +38,22 @@ class ReleaseDiscoveryTests(unittest.TestCase):
     def manifest(self, version):
         return json.dumps({"id": "community.omarchy-friends", "version": version}).encode("utf-8")
 
+    def test_readme_documents_required_arch_dependencies_and_opt_in_world_visibility(self):
+        readme = (BIN_DIR.parent / "README.md").read_text(encoding="utf-8")
+        self.assertIn("sudo pacman -S python-cryptography python-dbus python-gobject", readme)
+        self.assertIn("New profiles are hidden from global discovery by default", readme)
+        self.assertNotIn("New profiles are globally discoverable", readme)
+
     def test_official_manifest_can_raise_update_banner_state(self):
-        response = FakeResponse(self.manifest("4.16.0"))
+        response = FakeResponse(self.manifest("4.16.1"))
         with patch.object(friends_module, "now_seconds", return_value=100_000), patch.object(
             friends_module.urllib.request, "urlopen", return_value=response
         ) as opener:
             self.assertTrue(self.engine._refresh_update_status())
 
-        self.assertEqual(self.engine.state["global"]["latest_version"], "4.16.0")
+        self.assertEqual(self.engine.state["global"]["latest_version"], "4.16.1")
         self.assertTrue(self.engine.state["global"]["update_available"])
-        self.assertEqual(self.engine.state["global"]["official_latest_version"], "4.16.0")
+        self.assertEqual(self.engine.state["global"]["official_latest_version"], "4.16.1")
         self.assertEqual(opener.call_count, 1)
         request = opener.call_args.args[0]
         self.assertEqual(request.full_url, friends_module.OFFICIAL_MANIFEST_URL)

@@ -50,6 +50,10 @@ The Build Network is the workshop layer:
 
 Public World / Circles / Build Network data is intentionally public and relay-readable. Do not put passwords, private URLs, secrets, personal addresses or sensitive logs into public cards.
 
+New profiles start hidden from World. A user must turn on **Visible in World** in Me before their pseudonymous public key appears in discovery; saved visibility choices are preserved when upgrading.
+
+Hiding your own beacon does not turn off World browsing or your private inbox. Friends continues syncing incoming messages and connection events while hidden; only your periodic discovery presence stops.
+
 Friends deliberately applies several hard boundaries:
 
 - shared URLs must be HTTP(S);
@@ -75,6 +79,16 @@ Friends publishes a signed inbox-relay list and listens on those inbox relays. A
 
 During the upgrade window, a current client can still **read the historical Friends ciphertext format** and can send the historical kind-4 format to a friend that has never advertised the complete modern capability set. Once a friendship has advertised the modern protocol, that upgrade is remembered across stale presence and restarts rather than silently downgrading later.
 
+Current Friends clients support NIP-17 replies, reactions, author-checked encrypted edits for text-only messages within 15 minutes, and encrypted kind-5 deletion for messages you sent. Edits use a Friends envelope extension: older Friends clients keep the original message, while unrelated NIP-17 clients may show an edit as a separate message. The legacy Friends compatibility path carries edits inside its existing encrypted envelope. Deletion is best effort: a relay acknowledgement is not proof that every recipient received it, and it cannot erase copies a client, export, backup or relay already retained.
+
+Encrypted read receipts are optional and disabled by default. When enabled, opening a direct chat or group sends an encrypted receipt to compatible Friends peers; other NIP-17 clients may display the receipt as an ordinary short message.
+
+Chat rows show per-conversation unread counts using encrypted local read cursors. Opening a chat marks its current messages read on this device. This local unread tracking is separate from the optional encrypted read receipts described above.
+
+Pin up to 20 direct or group conversations from the chat header. Pins are stored in the encrypted local state and sort ahead of recent conversations; they are not synced to other devices.
+
+Mute a direct or group conversation from its header to suppress new-message notifications on this device. Messages remain in the chat and still count as unread; mute preferences stay in encrypted local state and are not synced.
+
 Friends deliberately caps a NIP-44 plaintext at **65,535 bytes** as an application resource/DoS bound. That is a Friends limit, not the NIP-44 protocol maximum; normal chat envelopes are far smaller.
 
 The dependency-free WebSocket transport also bounds individual frame size, cumulative fragmented-message size, fragment count and one overall receive deadline so a relay cannot keep a client busy indefinitely with tiny continuation frames. Those limits have dedicated regression tests.
@@ -82,6 +96,18 @@ The dependency-free WebSocket transport also bounds individual frame size, cumul
 CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey, WebSocket fragmentation limits, Friends V3 information-architecture contracts and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
 
 The compatibility/design record is in `docs/private-messaging-security-migration.md`.
+
+Direct chats also expose **Verify security code** in the chat's More menu. Compare the pairwise account-key fingerprint with the other person through a separate trusted channel to detect a changed or mismatched identity key. This does not verify a real-world identity by itself and does not add forward secrecy.
+
+## Large files and local history
+
+Files and folders can be sent up to 100 MiB through a user-configured HTTPS Blossom server. Friends encrypts file bytes with streaming AES-256-GCM before upload; only the encrypted pointer and decryption metadata are placed in the end-to-end encrypted message. The server must accept a 100 MiB upload and retain the blob for recipients to fetch. Install `python-cryptography` on the host for encrypted local history and large-file encryption/decryption.
+
+Peers that advertise Friends' `nip17-file-kind15-v1` capability receive Blossom attachments as encrypted NIP-17 kind-15 file messages with the standard file type, AES-GCM key/nonce, ciphertext hash and size fields. Older NIP-17 peers continue to receive the existing kind-14 Friends envelope.
+
+Friends stores the local message journal as individually authenticated encrypted records, with a separate local key restricted to the current user. Writes use SQLite full synchronization under the plugin's private state directory. Outgoing messages are durably recorded before network delivery is attempted; failed delivery stays marked as unconfirmed. The journal has no message-count pruning limit.
+
+When a DM activity record exists but its message bodies are missing locally, the empty thread offers an explicit **Check inbox relays for history** action. It queries the configured NIP-17 inbox relays for up to 500 gift-wrapped messages per page, validates and decrypts matching messages locally, and saves them in the encrypted journal without generating new-message notifications. If a relay has more pages, the conversation header keeps an **Older** action available and advances a local per-relay timestamp cursor. Relay retention is outside Friends' control, so messages no longer retained there cannot be recovered.
 
 ## Global discovery
 
@@ -99,7 +125,9 @@ wss://relay.damus.io
 
 Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
 
-New profiles are globally discoverable by their generated pseudonymous handle by default; basic avatar/status/focus metadata and the signed inbox-relay list are also public. Active-app name, music, project details/URL, interests and room are **off until explicitly enabled** in **Me → Privacy**. Presence events are readable by configured public relays when shared. Previously saved privacy choices are preserved during migration. Turning sharing off stops future publication but cannot guarantee removal of information already received or retained by relays; do not publish sensitive project details or links.
+New profiles are hidden from global discovery by default. After **Visible in World** is explicitly enabled, the generated pseudonymous handle, basic avatar/status/focus metadata and signed inbox-relay list are public to configured relays. Active-app name, music, project details/URL, interests and room remain **off until separately enabled** in **Me → Privacy**. Previously saved privacy choices are preserved during migration. Turning sharing off stops future publication but cannot guarantee removal of information already received or retained by relays; do not publish sensitive project details or links.
+
+Local Radar/LAN presence is **off on new profiles** because discovery uses unauthenticated UDP broadcast visible to devices on the local network. Enable **Me → Privacy → LAN sharing** only on networks where you want nearby Omarchy users to discover this profile. Existing saved LAN-sharing choices are preserved during migration.
 
 ## Direct invites
 
@@ -114,6 +142,14 @@ The URI handler validates the invite key and starts a friend request immediately
 Direct invite links can start the connection flow even when World has not cached the peer yet.
 
 ## Install
+
+Encrypted local chat history requires Arch's `python-cryptography` package. The file and folder chooser also requires the Python D-Bus and GLib bindings; a working desktop file-chooser portal must be available in the Omarchy session. Install the bindings before using Friends:
+
+```bash
+sudo pacman -S python-cryptography python-dbus python-gobject
+```
+
+Without `python-cryptography`, Friends cannot open its encrypted local state. Without the D-Bus/GLib bindings or a file-chooser portal backend, file and folder selection is unavailable. These are host dependencies and are not installed automatically by the plugin manager.
 
 ```bash
 omarchy plugin add https://github.com/harshithnadig/omarchy-friends.git --enable

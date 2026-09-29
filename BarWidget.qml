@@ -32,13 +32,21 @@ BarWidget {
                         if (tapAnimation) tapAnimation.restart()
                     })
                 })
+                root.syncServiceVisibility()
             }
         }
         return service
     }
 
-    onBarChanged: resolveService()
-    Component.onCompleted: resolveService()
+    function syncServiceVisibility() {
+        if (root.service && typeof root.service.setUiOpen === "function")
+            root.service.setUiOpen(root.opened)
+    }
+
+    onBarChanged: { resolveService(); syncServiceVisibility() }
+    onCardOpenChanged: syncServiceVisibility()
+    onBuildCardOpenChanged: syncServiceVisibility()
+    Component.onCompleted: { resolveService(); syncServiceVisibility() }
 
     Timer {
         interval: 400

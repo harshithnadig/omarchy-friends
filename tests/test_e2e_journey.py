@@ -162,13 +162,13 @@ class TwoUserJourney(unittest.TestCase):
         self.assertTrue(summary["familiar"])
         self.assertGreater(summary["exchanges"], 0)
 
-        # 8. Parting: Alice blocks Bob — everything vanishes, late mail drops.
+        # 8. Parting: Alice blocks Bob — profile is blocked, local history remains.
         ok, _ = alice.block_global(self.bkey)
         self.assertTrue(ok)
         for store in ("peers", "friendships", "memory"):
             self.assertNotIn(self.bkey, alice.state["global"][store])
-        self.assertEqual([m for m in alice.state["global"]["messages"]
-                          if m["public_key"] == self.bkey], [])
+        self.assertTrue([m for m in alice.state["global"]["messages"]
+                         if m["public_key"] == self.bkey])
 
     @staticmethod
     def _targets(event, public_key):

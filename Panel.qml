@@ -21,7 +21,7 @@ KeyboardPanel {
     readonly property color soft: Qt.rgba(fg.r, fg.g, fg.b, 0.055)
     readonly property color line: Qt.rgba(fg.r, fg.g, fg.b, 0.11)
     readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : null
-    readonly property var profile: service && service.profile ? service.profile : ({ handle: "quiet-builder", avatar: "👾", status: "coding", status_name: "In The Zone", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({ share_global: true }) })
+    readonly property var profile: service && service.profile ? service.profile : ({ handle: "quiet-builder", avatar: "👾", status: "coding", status_name: "In The Zone", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({ share_global: false }) })
     readonly property var world: service && service.globalPeers ? service.globalPeers : []
     readonly property var nearby: service && service.lanPeers ? service.lanPeers : []
     readonly property var pulse: service && service.worldPulse ? service.worldPulse : []
@@ -30,7 +30,7 @@ KeyboardPanel {
     readonly property var messages: service && service.globalMessages ? service.globalMessages : []
     readonly property var groups: service && service.globalGroups ? service.globalGroups : []
     readonly property var community: service && service.globalCommunity ? service.globalCommunity : []
-    readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: true, last_error: "" })
+    readonly property var worldStatus: service && service.globalStatus ? service.globalStatus : ({ visible: false, last_error: "" })
 
     property string tab: "chats"
     property string worldQuery: ""

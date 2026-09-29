@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +10,31 @@ def read(path):
 
 
 class FinalUxContractTests(unittest.TestCase):
+    def test_chat_selection_waits_for_saved_status_without_marking_read(self):
+        friends = read("FriendsPanelV3.qml")
+        service = read("Service.qml")
+        self.assertIn("property int statusRevision: 0", service)
+        self.assertIn("root.statusRevision += 1", service)
+        self.assertIn("property int serviceStatusRevision: root.service ? root.service.statusRevision : 0", friends)
+        self.assertIn("onServiceStatusRevisionChanged: Qt.callLater(root.restoreConversationAfterStatusRefresh)", friends)
+        restore = friends[friends.index("function restoreConversationAfterStatusRefresh()"):friends.index("function sendMessage()")]
+        self.assertIn('if (!root.open || root.page !== "chats"', restore)
+        self.assertIn("root.selectedFriendKey = fs[0].public_key", restore)
+        self.assertIn("root.selectedGroupId = gs[0].id", restore)
+        self.assertNotIn("markConversationRead", restore)
+
+    def test_omarchy_popup_exposes_a_configurable_layer_namespace(self):
+        omarchy_path = os.environ.get("OMARCHY_PATH", "")
+        base_popup = Path(omarchy_path) / "shell" / "Ui" / "KeyboardPanel.qml"
+        if not base_popup.is_file():
+            self.skipTest("OMARCHY_PATH must point at an Omarchy checkout for this integration contract")
+
+        popup = base_popup.read_text(encoding="utf-8")
+        friends = read("FriendsPanelV3.qml")
+        self.assertIn('property string layerNamespace: "omarchy-keyboard-panel"', popup)
+        self.assertIn("WlrLayershell.namespace: root.layerNamespace", popup)
+        self.assertIn('layerNamespace: "omarchy-friends"', friends)
+
     def test_build_network_chat_opens_existing_friend_conversation(self):
         bar = read("BarWidget.qml")
         friends = read("FriendsPanelV3.qml")
@@ -49,10 +75,11 @@ class FinalUxContractTests(unittest.TestCase):
         friends = read("FriendsPanelV3.qml")
         service = read("Service.qml")
         engine = read("bin/omarchy-friends")
-        header = friends[friends.index("id: closeChatButton"):friends.index("id: reportChatButton")]
-        self.assertIn('text: "Close"', header)
-        self.assertIn("root.closeConversation()", header)
-        self.assertNotIn("blockGlobal", header)
+        header = friends[friends.index("id: chatMoreButton"):friends.index("id: conversationDivider")]
+        actions = friends[friends.index("id: chatActionsMenu"):friends.index("Dialog {\n            id: forwardDialog")]
+        self.assertIn('text: "Close chat"', actions)
+        self.assertIn("root.closeConversation()", actions)
+        self.assertNotIn("blockGlobal", header + actions)
         self.assertIn('text: "Block"', friends)
         self.assertIn('text: "Blocked people"', friends)
         self.assertIn('text: "Unblock"', friends)
@@ -75,6 +102,33 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("parent.width - sentRequestActions.width - Style.space(60)", friends)
         self.assertIn('text: "Pending"', friends)
         self.assertIn('text: "Cancel"', friends)
+
+    def test_chat_composer_and_attachment_picker_stay_inside_panel(self):
+        friends = read("FriendsPanelV3.qml")
+        bar = read("BarWidget.qml")
+        chat_pane = friends[friends.index("GlassSurface {\n                            // Never force"):friends.index("// REQUESTS")]
+        self.assertIn("width: Math.max(0, parent.width - conversationListSurface.width - parent.spacing)", chat_pane)
+        self.assertIn("width: Math.max(0, parent.width - sendButton.width - attachmentButton.width - parent.spacing * 2)", chat_pane)
+        self.assertIn("parent: contentArea\n            x: Math.max(Style.space(8), Math.min(contentArea.width - width - Style.space(8)", friends)
+        self.assertNotIn("FileDialog {", friends)
+        self.assertNotIn("FolderDialog {", friends)
+        self.assertIn("function pickAttachment(folderMode, callback)", read("Service.qml"))
+        self.assertIn('"pick-attachment"', read("Service.qml"))
+        picker_command = read("bin/omarchy-friends")
+        self.assertIn("def pick_attachment_from_portal(folder_mode=False):", picker_command)
+        self.assertIn('"directory": dbus.Boolean(folder_mode)', picker_command)
+        self.assertIn('"org.freedesktop.portal.FileChooser"', picker_command)
+        self.assertIn('selected.startswith("file://")', picker_command)
+        self.assertIn('layerNamespace: "omarchy-friends"', friends)
+        self.assertIn("Up to 16 KiB sends directly; larger files need Me → Large files (up to 100 MiB).", friends)
+        picker_flow = friends[friends.index("function openAttachmentBrowser("):friends.index("function openPrivateSafetyCode(")]
+        self.assertIn("root.suspendedForSystemDialog = true", picker_flow)
+        self.assertIn("root.service.pickAttachment(folderMode", picker_flow)
+        self.assertIn("root.suspendedForSystemDialog = false", picker_flow)
+        self.assertNotIn("attachmentDialogLaunchTimer", friends)
+        self.assertNotIn("onRejected:", friends)
+        self.assertIn("id: modernPanelLoader\n        active: true", bar)
+        self.assertNotIn("FolderListModel", friends)
 
     def test_private_groups_remain_visible_before_first_message(self):
         friends = read("FriendsPanelV3.qml")
@@ -102,6 +156,23 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("cardOpen = false", close_body)
         self.assertIn("buildCardOpen = false", close_body)
 
+    def test_full_status_refresh_runs_only_while_friends_ui_is_open(self):
+        service = read("Service.qml")
+        bar = read("BarWidget.qml")
+        timer = service[service.index("id: statusRefreshTimer"):service.index("// Retry one previously saved private message")]
+        self.assertIn("property bool uiOpen: false", service)
+        self.assertIn("function setUiOpen(open)", service)
+        self.assertIn("if (next) root.refresh()", service)
+        self.assertIn("interval: 8000", timer)
+        self.assertIn("running: root.uiOpen", timer)
+        self.assertIn("onCardOpenChanged: syncServiceVisibility()", bar)
+        self.assertIn("onBuildCardOpenChanged: syncServiceVisibility()", bar)
+        self.assertIn("root.service.setUiOpen(root.opened)", bar)
+        retry_timer = service[service.index("// Retry one previously saved private message"):service.index("// Event poll timer")]
+        event_timer = service[service.index("// Event poll timer"):service.index("Component.onCompleted")]
+        self.assertIn("running: true", retry_timer)
+        self.assertIn("running: true", event_timer)
+
     def test_async_send_and_create_failures_preserve_user_drafts(self):
         friends = read("FriendsPanelV3.qml")
         service = read("Service.qml")
@@ -118,6 +189,49 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("if (root.createSubmitting) return", create_submit)
         self.assertIn("submittedSnapshot: submittedSnapshot || \"\"", build_service)
         self.assertIn("root.createResult(ok, message, next.submittedSnapshot)", build_service)
+        send = friends[friends.index("function sendMessage()"):friends.index("function sendCommunity()")]
+        conversation = friends[friends.index("function conversationMessages()"):friends.index("function lastMessagePreview(")]
+        self.assertIn('sendState: "Sending…"', send)
+        self.assertIn("root.optimisticMessages = root.optimisticMessages.concat([optimistic])", send)
+        self.assertIn('media: media ? [{ url: media, kind: "link" }] : []', send)
+        self.assertIn("root.optimisticMessages", conversation)
+        self.assertIn('var sentId = local.serverMessageId ? String(local.serverMessageId) : ""', conversation)
+        self.assertIn("savedById[sentId]", conversation)
+
+    def test_world_empty_state_invites_and_explains_connectivity(self):
+        friends = read("FriendsPanelV3.qml")
+        world = friends.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
+        self.assertIn('text: "Copy invite"', world)
+        self.assertIn('onClicked: root.copyInvite()', world)
+        self.assertIn('root.service.refreshGlobal()', world)
+        self.assertIn("root.worldStatus.last_error", world)
+
+    def test_conversations_remain_listed_from_persistent_dm_memory(self):
+        friends = read("FriendsPanelV3.qml")
+        self.assertIn('readonly property var memory: service && service.globalMemory', friends)
+        friend_list = friends[friends.index("function friendsList()"):friends.index("function incomingFriendRequests()")]
+        self.assertIn("var ownKey = root.profile && root.profile.public_key", friend_list)
+        self.assertIn("for (var i = root.messages.length - 1; i >= 0; i--)", friend_list)
+        self.assertIn("savedItem.saved_history_only = true", friend_list)
+        self.assertIn("function directHasConversationRecord(publicKey)", friends)
+        self.assertIn("root.directHasConversationRecord(friend.public_key)", friends)
+        self.assertIn("Older chat history is missing on this device", friends)
+        engine = read("bin/omarchy-friends")
+        self.assertIn("is_message_history", engine)
+        self.assertIn("MAX_REMOTE_ATTACHMENT_BYTES = 100 * 1024 * 1024", engine)
+        self.assertIn("MAX_RELAY_DM_MESSAGES = 500", engine)
+
+    def test_message_views_use_cached_per_conversation_index(self):
+        friends = read("FriendsPanelV3.qml")
+        self.assertIn("function rebuildMessageIndex()", friends)
+        self.assertIn("onMessagesChanged: rebuildMessageIndex()", friends)
+        self.assertIn("onProfileChanged: rebuildMessageIndex()", friends)
+        self.assertNotIn("ensureMessageIndex()", friends)
+        self.assertIn("root.messagesByConversation = byConversation", friends)
+        self.assertIn("root.latestMessageIndices = lastIndex", friends)
+        conversation = friends[friends.index("function conversationMessages()"):friends.index("function lastMessagePreview(")]
+        self.assertIn("root.messagesForConversation(historyKind, historyId)", conversation)
+        self.assertIn('friend.legacy_archive ? "unlinked" : "friend"', conversation)
 
     def test_v2_fallback_scopes_drafts_and_clears_only_after_success(self):
         v2 = read("FriendsPanelV2.qml")

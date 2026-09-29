@@ -1,8 +1,8 @@
-# Codex real-system validation — Omarchy Friends v4.15 RC
+# Codex real-system validation — Omarchy Friends v4.16.0 RC
 
 Branch: `feature/build-network`
 
-This is **not** a feature-building task. Repository-side v4.15 work is complete and feature scope is frozen. Your job is to validate and fix only issues that require the actual Omarchy machine / public relay behavior / rendered QML.
+This checklist validates the v4.16.0 candidate, including the previous v4.15 feature set. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
 
 Do not merge into `main` unless Harshu explicitly asks.
 
@@ -70,7 +70,9 @@ This is a release gate, not cosmetic preference.
 - Incoming requests appear under Received with an Accept action.
 - Pending outgoing requests appear under Sent and do not clutter Chats.
 - Accepting a request opens that person's private chat after state refresh.
-- Message composer is one primary field; the optional HTTPS link field appears only when Link is toggled.
+- Message composer has one primary field and one attachment icon. Opening it offers file, folder and link choices; file/folder selections come from the system picker and appear staged in the composer before sending.
+- In a direct chat, **More → Verify security code** displays a stable pairwise code; independently open it on both sides and confirm it matches through a separate trusted channel. Changing either identity key must change the code.
+- Separate `Link`, `File` and `Folder` buttons are absent from the chat composer; the input expands to use their freed space.
 - Focus and Build-together actions stay in the selected conversation header, not repeated on every World card.
 
 ### 3.2 World
@@ -157,7 +159,7 @@ python3 bin/build_network_app_v4.py register-uri | python3 -m json.tool
 
 ## 6. Two-current-client private messaging / inbox-relay test — REQUIRED
 
-Use two isolated v4.15 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
+Use two isolated v4.16.0 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
 
 ### 6.1 Prove NIP-17 inbox metadata on real relays
 
@@ -182,6 +184,8 @@ If the selected public relays reject these event kinds or demand authentication 
 7. Inspect only the outer gift-wrap event. It must not contain the plaintext or A's true public key. The intended routing identity is B's `p` tag plus the one-time wrapper public key.
 8. Tamper with a captured ciphertext/wrapper copy in an isolated test; it must fail closed instead of producing a message.
 9. Construct/capture an outer gift wrap decryptable by B whose inner kind-14 rumor addresses only another key; B must reject it.
+10. A deletes a confirmed message A sent. Confirm the deletion is a kind-5 rumor inside a per-recipient kind-1059 gift wrap, B replaces the original content with a tombstone, and A cannot delete a message authored by B.
+11. Deliver the deletion before the original in an isolated event replay; confirm the bounded pending-deletion path applies it when the referenced original arrives.
 
 ### 6.3 Restart / anti-downgrade
 
@@ -198,6 +202,21 @@ If the selected public relays reject these event kinds or demand authentication 
 3. Confirm each recipient gets an individually wrapped kind-1059 event on that recipient's inbox relays.
 4. Inspect the outer wrapper: group id/name, plaintext, true sender public key and other group-member public keys must not be visible there.
 5. A sent message must not duplicate locally when the sender copy returns through the relay.
+6. A deletes one of A's group messages; B/C remove that content while messages with similar text in other conversations remain unchanged.
+
+### 6.5 Encrypted attachments
+
+Use disposable files in isolated state homes. Do not upload personal files or folders to a public Blossom server.
+
+1. Send a small file inline and verify the receiver saves identical bytes with the expected filename.
+2. With a test Blossom server, send a file larger than 16 KiB; inspect only the public event envelope and verify it contains no plaintext bytes or decryption key outside the end-to-end encrypted message.
+   - For a peer advertising `nip17-file-kind15-v1`, inspect the decrypted kind-15 rumor in the isolated test harness and confirm the standard file metadata matches the encrypted attachment envelope.
+   - For a modern peer without that capability, confirm the message falls back to the compatible kind-14 envelope.
+3. Download and verify size/hash/authentication before the receiver saves the file.
+4. Verify an altered ciphertext, mismatched size/hash, unsafe URL, or server limit failure is rejected without leaving a partial final file.
+5. Verify folder attachments arrive as ZIP and are not extracted automatically.
+
+Do not mark the v4.16 attachment path interoperable based on unit tests alone; this two-client test is required.
 
 Do **not** replace the implementation or invent another crypto scheme. Fix only a concrete interoperability/runtime bug.
 

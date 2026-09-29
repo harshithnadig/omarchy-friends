@@ -13,6 +13,17 @@ from omarchy_friends_global import generate_keypair, schnorr_sign, verify_event 
 
 
 class TestPrivateMessagingStandards(unittest.TestCase):
+    def test_generator_multiplication_cache_matches_curve_and_is_bounded(self):
+        import omarchy_friends_global as global_crypto
+
+        global_crypto._generator_multiple.cache_clear()
+        self.assertEqual(global_crypto._generator_multiple(1), global_crypto.GENERATOR)
+        self.assertIs(
+            global_crypto._generator_multiple(1),
+            global_crypto._generator_multiple(1),
+        )
+        self.assertLessEqual(global_crypto._generator_multiple.cache_info().maxsize, 32)
+
     def signed_event_with_fields(self, **overrides):
         identity = generate_keypair("0" * 63 + "1")
         fields = {
