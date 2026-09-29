@@ -51,6 +51,15 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         )
         self.assertNotIn('Math.max(Style.space(72), parent.height - conversationHeader.height', panel)
 
+    def test_v3_loader_connections_are_nested_under_item(self):
+        panel = self.read("FriendsPanelV3.qml")
+        self.assertIn(
+            "// KeyboardPanel's default contentItem accepts QQuickItems only.\n"
+            "        // Connections is a QObject, so keep it under a real Item",
+            panel,
+        )
+        self.assertIn("Connections {", panel.split("// KeyboardPanel's default contentItem", 1)[1].split("function updateCommunityMessageItems", 1)[0])
+
     def test_requests_are_not_mixed_into_chat_list_and_are_manageable(self):
         panel = self.read("FriendsPanelV3.qml")
         service = self.read("Service.qml")
@@ -197,7 +206,13 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('attachmentButton.mapToItem(contentArea, 0, attachmentButton.height).y', panel)
         self.assertNotIn('listAttachmentDirectory', service)
         self.assertNotIn('"browse-files"', service)
-        self.assertIn('MenuItem { text: "Share a link…"; onTriggered: root.mediaComposerOpen = true }', panel)
+        self.assertIn('text: "Share a link…"', panel)
+        self.assertIn('Paste or type the link in the message box', panel)
+        self.assertNotIn('root.mediaComposerOpen', panel)
+        self.assertNotIn('placeholder: "Optional https:// link"', panel)
+        composer = panel.split('id: messageComposer', 1)[1].split('// REQUESTS', 1)[0]
+        self.assertNotIn('Optional https:// link', composer)
+        self.assertIn('accessibleName: "Attach a file, folder, or link"', composer)
         self.assertIn('"save-attachment"', self.read("bin/omarchy-friends"))
         self.assertIn("root.service.createGroup(name, selectedMembers, function(ok)", create_group)
         self.assertIn("if (root.creatingGroup) return", create_group)

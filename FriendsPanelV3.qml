@@ -88,7 +88,6 @@ KeyboardPanel {
     property int pendingSendCount: 0
     property var optimisticMessages: []
     property bool creatingGroup: false
-    property bool mediaComposerOpen: false
     property string communityDraft: ""
     property bool sendingCommunity: false
     property string notice: ""
@@ -149,15 +148,6 @@ KeyboardPanel {
         rebuildMessageSearchIndex()
         rebuildConversationRows()
         updateCommunityMessageItems()
-    }
-
-    Connections {
-        target: root.service
-        ignoreUnknownSignals: true
-        function onGlobalSearchResultsChanged() {
-            root.rebuildMessageSearchIndex()
-            root.rebuildConversationRows()
-        }
     }
 
     function updateCommunityMessageItems() {
@@ -594,7 +584,7 @@ KeyboardPanel {
 
     function beginMessageEdit(message) {
         if (!root.canEditMessage(message)) return
-        if (root.messageDraft.trim() || root.mediaDraft.trim() || root.attachmentDraftPath || root.replyDraft) {
+        if (root.messageDraft.trim() || root.attachmentDraftPath || root.replyDraft) {
             root.showNotice("Finish or clear your current draft before editing")
             return
         }
@@ -637,7 +627,6 @@ KeyboardPanel {
             root.attachmentDraftIsFolder = false
             root.replyDraft = null
             root.editingMessage = null
-            root.mediaComposerOpen = false
         }
         root.draftConversationKey = key
     }
@@ -980,7 +969,6 @@ KeyboardPanel {
             root.attachmentDraftPath = ""
             root.attachmentDraftIsFolder = false
             root.replyDraft = null
-            root.mediaComposerOpen = false
         }
         function clearSentDraft(ok) {
             var result = arguments.length > 1 ? arguments[1] : null
@@ -1011,7 +999,6 @@ KeyboardPanel {
                     root.attachmentDraftPath = attachmentPath
                     root.attachmentDraftIsFolder = attachmentIsFolder
                     root.replyDraft = reply
-                    root.mediaComposerOpen = !!media
                     root.showNotice("Message was not confirmed; your draft was restored")
                 } else root.showNotice("Message was not confirmed; check the chat before retrying")
             }
@@ -1185,6 +1172,17 @@ KeyboardPanel {
         width: 0
         height: 0
         visible: false
+        // KeyboardPanel's default contentItem accepts QQuickItems only.
+        // Connections is a QObject, so keep it under a real Item to avoid
+        // Loader.Error and the user-visible V2 fallback.
+        Connections {
+            target: root.service
+            ignoreUnknownSignals: true
+            function onGlobalSearchResultsChanged() {
+                root.rebuildMessageSearchIndex()
+                root.rebuildConversationRows()
+            }
+        }
         Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
         Timer {
             id: chatSearchTimer
@@ -1808,7 +1806,7 @@ KeyboardPanel {
                                 GlassSurface {
                                     id: messageComposer
                                     width: parent.width
-                                    height: (root.replyDraft || root.editingMessage) && (root.mediaComposerOpen || root.attachmentDraftPath) ? Style.space(174) : ((root.mediaComposerOpen || root.attachmentDraftPath || root.replyDraft || root.editingMessage) ? Style.space(132) : Style.space(70))
+                                    height: (root.replyDraft || root.editingMessage) && root.attachmentDraftPath ? Style.space(174) : ((root.attachmentDraftPath || root.replyDraft || root.editingMessage) ? Style.space(132) : Style.space(70))
                                     radius: Style.space(16)
                                     fillOpacity: 0.78
                                     borderOpacity: 0.10
@@ -1837,7 +1835,6 @@ KeyboardPanel {
                                             GlassField { id: messageInput; width: Math.max(0, parent.width - sendButton.width - attachmentButton.width - parent.spacing * 2); placeholder: root.selectedFriend() && root.selectedFriend().legacy_archive ? "Recovered archive is read-only" : (root.editingMessage ? "Edit message…" : (root.selectedFriend() || root.selectedGroup() ? "Message…" : "Choose a chat first")); enabled: (root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null; text: root.messageDraft; onTextChanged: root.messageDraft = text; onAccepted: root.sendMessage() }
                                             GlassButton { id: sendButton; text: root.editingMessage ? (root.savingMessageEdit ? "Saving…" : "Save") : "Send"; icon: root.editingMessage ? "✓" : "➤"; primary: true; enabled: !root.savingMessageEdit && ((root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null) && (!!root.messageDraft.trim() || (!root.editingMessage && (!!root.mediaDraft.trim() || !!root.attachmentDraftPath))); onClicked: root.sendMessage() }
                                         }
-                                        GlassField { visible: root.mediaComposerOpen && !root.attachmentDraftPath; enabled: !(root.selectedFriend() && root.selectedFriend().legacy_archive); width: parent.width; placeholder: "Optional https:// link"; text: root.mediaDraft; onTextChanged: root.mediaDraft = text }
                                         Row {
                                             visible: !!root.attachmentDraftPath
                                             width: parent.width
@@ -2714,7 +2711,13 @@ KeyboardPanel {
             }
             MenuItem { text: "Choose file…"; onTriggered: root.openAttachmentBrowser(false) }
             MenuItem { text: "Choose folder…"; onTriggered: root.openAttachmentBrowser(true) }
-            MenuItem { text: "Share a link…"; onTriggered: root.mediaComposerOpen = true }
+            MenuItem {
+                text: "Share a link…"
+                onTriggered: {
+                    if (messageInput) messageInput.forceActiveFocus()
+                    root.showNotice("Paste or type the link in the message box")
+                }
+            }
         }
 
         Menu {
