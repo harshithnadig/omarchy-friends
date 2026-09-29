@@ -34,9 +34,18 @@ class FakeBus:
         self.receiver = None
         self.receiver_options = None
 
-    def add_signal_receiver(self, callback, **kwargs):
+    # Match dbus-python's supported options. In particular it accepts
+    # path_keyword but not path_namespace; keeping this strict catches
+    # runtime-only API mismatches that a permissive mock would hide.
+    def add_signal_receiver(
+        self, callback, signal_name=None, dbus_interface=None, path_keyword=None
+    ):
         self.receiver = callback
-        self.receiver_options = kwargs
+        self.receiver_options = {
+            "signal_name": signal_name,
+            "dbus_interface": dbus_interface,
+            "path_keyword": path_keyword,
+        }
 
     def get_object(self, *_args):
         return object()
@@ -125,6 +134,10 @@ class AttachmentPickerPortalTests(unittest.TestCase):
         self.assertTrue(seen["options"]["directory"])
         self.assertEqual(seen["options"].signature, "sv")
         self.assertEqual(bus.receiver_options["path_keyword"], "signal_path")
+        self.assertEqual(bus.receiver_options["signal_name"], "Response")
+        self.assertEqual(
+            bus.receiver_options["dbus_interface"], "org.freedesktop.portal.Request"
+        )
 
     def test_file_uses_file_mode_and_ignores_other_portal_requests(self):
         result, seen, _bus = self.run_picker(

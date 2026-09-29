@@ -8061,7 +8061,6 @@ def pick_attachment_from_portal(folder_mode=False):
             on_response,
             signal_name="Response",
             dbus_interface="org.freedesktop.portal.Request",
-            path_namespace=portal_path + "/request",
             path_keyword="signal_path",
         )
         token = "omarchy_friends_" + uuid.uuid4().hex
