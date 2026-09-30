@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
+import "."
 
 KeyboardPanel {
     id: root
@@ -32,12 +33,17 @@ KeyboardPanel {
     readonly property color warning: "#fbbf24"
     readonly property color danger: "#fb7185"
 
-    readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : null
+    // Resolve the canonical service from the shell when available. A private
+    // fallback is only for panel hosts that don't expose plugin services.
+    readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : panelFallbackService
     readonly property var profile: service && service.profile ? service.profile : ({ handle: "Omarchy Builder", avatar: "👾", status_name: "Ready", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({}) })
     readonly property var world: service && service.globalPeers ? service.globalPeers : []
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
     readonly property var messages: service && service.globalMessages ? service.globalMessages : []
+    // Durable per-conversation counts are authoritative for chat existence;
+    // latest-message summaries are intentionally compact and can be delayed.
+    readonly property var messageCounts: service && service.globalMessageCounts ? service.globalMessageCounts : ({})
     readonly property var unreadCounts: service && service.globalUnreadCounts ? service.globalUnreadCounts : ({})
     readonly property var pinnedConversations: service && service.globalPinnedConversations ? service.globalPinnedConversations : []
     readonly property var mutedConversations: service && service.globalMutedConversations ? service.globalMutedConversations : []
@@ -102,7 +108,9 @@ KeyboardPanel {
     property string blossomServerDraft: ""
     property var interestsDraft: []
     property bool serviceSignalsConnected: false
-    property int serviceStatusRevision: root.service ? root.service.statusRevision : 0
+    // Keep this as a binding. A value captured when the panel first loads
+    // misses status updates if the shell service becomes available afterward.
+    readonly property int serviceStatusRevision: root.service ? root.service.statusRevision : 0
 
     contentWidth: root.fittedContentWidth(Style.space(820))
     contentHeight: root.fittedContentHeight(Style.space(690))
@@ -136,6 +144,10 @@ KeyboardPanel {
         rebuildMessageIndex()
         rebuildMessageSearchIndex()
         rebuildConversationRows()
+    }
+    onMessageCountsChanged: {
+        rebuildConversationRows()
+        Qt.callLater(restoreConversationAfterStatusRefresh)
     }
     onProfileChanged: {
         rebuildMessageIndex()
@@ -207,6 +219,16 @@ KeyboardPanel {
             })
             included[ownKey] = true
         }
+        if (Number(root.messageCounts["unlinked:local"] || 0) > 0 && ownKey && !included[ownKey]) {
+            out.push({
+                public_key: ownKey,
+                handle: "Recovered messages",
+                avatar: "🗃",
+                legacy_archive: true,
+                saved_history_only: true
+            })
+            included[ownKey] = true
+        }
         for (var i = root.messages.length - 1; i >= 0; i--) {
             var message = root.messages[i]
             if (!message || message.group_id) continue
@@ -223,6 +245,42 @@ KeyboardPanel {
             savedItem.saved_history_only = true
             out.push(savedItem)
             included[peerKey] = true
+        }
+
+        // Recover chat rows directly from the journal index so a partial or
+        // late latest-message summary can never make a saved conversation
+        // disappear from Chats.
+        for (var conversationKey in root.messageCounts) {
+            if (conversationKey.indexOf("friend:") !== 0) continue
+            var indexedPeerKey = conversationKey.slice(7)
+            if (!/^[0-9a-f]{64}$/i.test(indexedPeerKey)
+                || indexedPeerKey === ownKey
+                || included[indexedPeerKey]
+                || Number(root.messageCounts[conversationKey] || 0) <= 0) continue
+
+            var indexedFriend = root.friendships[indexedPeerKey] || ({})
+            var indexedMemory = root.memory[indexedPeerKey] || ({})
+            var indexedSummary = null
+            for (var summaryIndex = 0; summaryIndex < root.messages.length; summaryIndex++) {
+                var summary = root.messages[summaryIndex]
+                if (summary && String(summary.conversation_key || summary.public_key || "") === indexedPeerKey) {
+                    indexedSummary = summary
+                    break
+                }
+            }
+            var recoveredFriend = Object.assign({}, indexedFriend)
+            recoveredFriend.public_key = indexedPeerKey
+            recoveredFriend.handle = recoveredFriend.handle
+                || indexedMemory.handle
+                || (indexedSummary && indexedSummary.handle)
+                || "Saved conversation"
+            recoveredFriend.avatar = recoveredFriend.avatar
+                || indexedMemory.avatar
+                || (indexedSummary && indexedSummary.avatar)
+                || "👾"
+            recoveredFriend.saved_history_only = recoveredFriend.status !== "friends"
+            out.push(recoveredFriend)
+            included[indexedPeerKey] = true
         }
         return out
     }
@@ -295,6 +353,7 @@ KeyboardPanel {
 
     function directHasConversationRecord(publicKey) {
         if (root.directHasHistory(publicKey)) return true
+        if (Number(root.messageCounts["friend:" + String(publicKey || "")] || 0) > 0) return true
         var item = root.memory[publicKey] || ({})
         return Number(item.dms_sent || 0) > 0 || Number(item.dms_received || 0) > 0
     }
@@ -387,12 +446,16 @@ KeyboardPanel {
     }
 
     function conversationFriends() {
-        return root.chatFriendRows || []
+        // Derive the visible model from the current service snapshot. A
+        // cached array can stay empty if the shared service registers or
+        // publishes its first status after this panel's change handlers ran.
+        return root.buildConversationFriends()
     }
 
     function buildConversationFriends() {
         var q = root.chatQuery.trim().toLowerCase()
         var out = []
+        var included = ({})
         var list = root.friendsList()
         for (var i = 0; i < list.length; i++) {
             var friend = list[i]
@@ -404,7 +467,38 @@ KeyboardPanel {
             var active = friend.legacy_archive === true || root.directHasConversationRecord(friend.public_key) || root.selectedFriendKey === friend.public_key
             if (!active) continue
             var hay = ((friend.handle || "") + " " + root.lastMessagePreview(friend.public_key)).toLowerCase()
-            if (!q || hay.indexOf(q) >= 0 || root.latestMessageMatchForFriend(friend.public_key)) out.push(friend)
+            if (!q || hay.indexOf(q) >= 0 || root.latestMessageMatchForFriend(friend.public_key)) {
+                out.push(friend)
+                included[String(friend.public_key)] = true
+            }
+        }
+        // The encrypted journal index is the durable source of truth. Keep
+        // those threads visible even if friendship metadata or message
+        // summaries are temporarily unavailable during startup/reload.
+        var ownKey = String(root.profile && root.profile.public_key || "")
+        for (var conversationKey in root.messageCounts) {
+            if (conversationKey.indexOf("friend:") !== 0) continue
+            var peerKey = conversationKey.slice(7)
+            if (!/^[0-9a-f]{64}$/i.test(peerKey) || peerKey === ownKey
+                || included[peerKey] || Number(root.messageCounts[conversationKey] || 0) <= 0) continue
+            var saved = root.friendships[peerKey] || ({})
+            var savedMemory = root.memory[peerKey] || ({})
+            var preview = null
+            for (var j = 0; j < root.messages.length; j++) {
+                var candidate = root.messages[j]
+                if (candidate && String(candidate.conversation_key || candidate.public_key || "") === peerKey) {
+                    preview = candidate
+                    break
+                }
+            }
+            var recovered = Object.assign({}, saved)
+            recovered.public_key = peerKey
+            recovered.handle = recovered.handle || savedMemory.handle || (preview && preview.handle) || "Saved conversation"
+            recovered.avatar = recovered.avatar || savedMemory.avatar || (preview && preview.avatar) || "👾"
+            recovered.saved_history_only = recovered.status !== "friends"
+            var recoveredHay = (recovered.handle + " " + root.lastMessagePreview(peerKey)).toLowerCase()
+            if (!q || recoveredHay.indexOf(q) >= 0 || root.latestMessageMatchForFriend(peerKey)) out.push(recovered)
+            included[peerKey] = true
         }
         out.sort(function(a, b) {
             var aPinned = root.isConversationPinned("friend", a.public_key)
@@ -415,18 +509,30 @@ KeyboardPanel {
     }
 
     function conversationGroups() {
-        return root.chatGroupRows || []
+        return root.buildConversationGroups()
     }
 
     function buildConversationGroups() {
         var q = root.chatQuery.trim().toLowerCase()
         var out = []
+        var included = ({})
         var list = root.groupsList()
         for (var i = 0; i < list.length; i++) {
             var group = list[i]
             // A private group is itself a conversation. Keep joined/created
             // groups visible even before anyone sends the first message.
-            if (!q || (group.name || "Private group").toLowerCase().indexOf(q) >= 0 || root.latestMessageMatchForGroup(group.id)) out.push(group)
+            if (!q || (group.name || "Private group").toLowerCase().indexOf(q) >= 0 || root.latestMessageMatchForGroup(group.id)) {
+                out.push(group)
+                included[String(group.id)] = true
+            }
+        }
+        for (var conversationKey in root.messageCounts) {
+            if (conversationKey.indexOf("group:") !== 0) continue
+            var groupId = conversationKey.slice(6)
+            if (!groupId || included[groupId] || Number(root.messageCounts[conversationKey] || 0) <= 0) continue
+            var summary = root.latestMessageMatchForGroup(groupId)
+            var recoveredGroup = { id: groupId, name: summary && summary.group_name ? summary.group_name : "Saved group", saved_history_only: true }
+            if (!q || recoveredGroup.name.toLowerCase().indexOf(q) >= 0 || summary) out.push(recoveredGroup)
         }
         out.sort(function(a, b) {
             var aPinned = root.isConversationPinned("group", a.id)
@@ -1169,9 +1275,12 @@ KeyboardPanel {
     }
 
     Item {
-        width: 0
-        height: 0
-        visible: false
+        id: supportObjects
+        width: 1
+        height: 1
+        opacity: 0
+        enabled: false
+        ServiceModern { id: panelFallbackService; uiOnlyFallback: true }
         // KeyboardPanel's default contentItem accepts QQuickItems only.
         // Connections is a QObject, so keep it under a real Item to avoid
         // Loader.Error and the user-visible V2 fallback.
@@ -1192,7 +1301,10 @@ KeyboardPanel {
         }
     }
 
-    onOpenChanged: if (root.open) Qt.callLater(root.restoreConversationAfterStatusRefresh)
+    onOpenChanged: {
+        if (root.service && typeof root.service.setUiOpen === "function") root.service.setUiOpen(root.open)
+        if (root.open) Qt.callLater(root.restoreConversationAfterStatusRefresh)
+    }
     onServiceStatusRevisionChanged: {
         Qt.callLater(root.rebuildConversationRows)
         Qt.callLater(root.restoreConversationAfterStatusRefresh)

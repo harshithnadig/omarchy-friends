@@ -88,6 +88,10 @@ Item {
     property var availableInterests: []
     property string lastNotice: ""
     property bool retryingPendingMessages: false
+    // A bar-provided fallback instance serves one visible UI only. It must not
+    // start a second LAN daemon, relay listener, retry loop, or event poller;
+    // the host's canonical service remains responsible for those workers.
+    property bool uiOnlyFallback: false
     property bool uiOpen: false
     property int statusRevision: 0
 
@@ -133,6 +137,26 @@ Item {
             var savedCount = Number(root.globalMessageCounts[root.activeHistoryKey] || 0)
             root.activeHistoryHasEarlier = savedCount > root.activeHistoryMessages.length
         }
+    }
+
+    // Chat existence is sticky for the lifetime of the plugin. A transient
+    // status response (for example while the journal index is rebuilding)
+    // must not replace a previously discovered conversation with an empty
+    // list. Message history remains authoritative in the encrypted journal;
+    // this only preserves list membership in the UI.
+    function retainKnownConversationCounts(incoming) {
+        if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) return
+        var retained = Object.assign({}, root.globalMessageCounts || ({}))
+        for (var key in incoming) {
+            var count = Number(incoming[key])
+            if (!isFinite(count) || count <= 0) continue
+            var validFriend = key.indexOf("friend:") === 0 && /^[0-9a-f]{64}$/i.test(key.slice(7))
+            var validGroup = key.indexOf("group:") === 0 && key.length > 6
+            var validArchive = key === "unlinked:local"
+            if (!validFriend && !validGroup && !validArchive) continue
+            retained[key] = Math.max(Number(retained[key] || 0), Math.floor(count))
+        }
+        root.globalMessageCounts = retained
     }
 
     function loadConversationHistory(kind, identifier, offset, callback) {
@@ -789,10 +813,12 @@ Item {
                     if (data.global_peers) root.globalPeers = data.global_peers
                     if (data.global_pings) root.globalPings = data.global_pings
                     if (data.global_friendships) root.globalFriendships = data.global_friendships
-                    if (data.global_messages) {
+                    if (Array.isArray(data.global_messages)) {
                         root.globalMessageSummaries = data.global_messages
-                        if (data.global_message_counts) root.globalMessageCounts = data.global_message_counts
                         root.rebuildGlobalMessageCache()
+                    }
+                    if (data.global_message_counts) {
+                        root.retainKnownConversationCounts(data.global_message_counts)
                     }
                     if (data.global_unread_counts) root.globalUnreadCounts = data.global_unread_counts
                     if (data.global_pinned_conversations) root.globalPinnedConversations = data.global_pinned_conversations
@@ -858,30 +884,30 @@ Item {
     Process {
         id: daemonProc
         command: [root.binPath, "daemon"]
-        running: true
-        onExited: daemonRestartTimer.restart()
+        running: !root.uiOnlyFallback
+        onExited: if (!root.uiOnlyFallback) daemonRestartTimer.restart()
     }
 
     Timer {
         id: daemonRestartTimer
         interval: 3000
         repeat: false
-        onTriggered: daemonProc.running = true
+        onTriggered: if (!root.uiOnlyFallback) daemonProc.running = true
     }
 
     // Persistent relay listener: DMs, waves, and community notes arrive instantly
     Process {
         id: listenProc
         command: [root.binPath, "listen-global"]
-        running: true
-        onExited: listenRestartTimer.restart()
+        running: !root.uiOnlyFallback
+        onExited: if (!root.uiOnlyFallback) listenRestartTimer.restart()
     }
 
     Timer {
         id: listenRestartTimer
         interval: 15000
         repeat: false
-        onTriggered: listenProc.running = true
+        onTriggered: if (!root.uiOnlyFallback) listenProc.running = true
     }
 
     // Status refresh timer (every 8 seconds)
@@ -897,7 +923,7 @@ Item {
     // its persisted exponential backoff and republishes the same event IDs.
     Timer {
         interval: 5000
-        running: true
+        running: !root.uiOnlyFallback
         repeat: true
         onTriggered: root.retryPendingMessages()
     }
@@ -905,13 +931,17 @@ Item {
     // Event poll timer (every 5 seconds)
     Timer {
         interval: 5000
-        running: true
+        running: !root.uiOnlyFallback
         repeat: true
         onTriggered: root.pollEvents()
     }
 
     Component.onCompleted: {
-        if (root.uiOpen) root.refresh()
-        root.pollEvents()
+        // Load saved profile, friendships and chat-index counts as soon as the
+        // shared service starts. The panel can be opened before its first
+        // open-state signal reaches this long-lived service; relying on that
+        // signal leaves the initial Chats page bound to empty defaults.
+        root.refresh()
+        if (!root.uiOnlyFallback) root.pollEvents()
     }
 }
