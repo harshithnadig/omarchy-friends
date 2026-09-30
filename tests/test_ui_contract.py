@@ -60,6 +60,14 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         )
         self.assertIn("Connections {", panel.split("// KeyboardPanel's default contentItem", 1)[1].split("function updateCommunityMessageItems", 1)[0])
 
+    def test_v3_service_change_handler_is_unique(self):
+        panel = self.read("FriendsPanelV3.qml")
+        self.assertEqual(
+            panel.count("onServiceChanged:"),
+            1,
+            "duplicate service handlers make the V3 Loader fail and hide Chats",
+        )
+
     def test_requests_are_not_mixed_into_chat_list_and_are_manageable(self):
         panel = self.read("FriendsPanelV3.qml")
         service = self.read("Service.qml")
@@ -96,6 +104,23 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn("Full friend list lives here instead of cluttering Chats", panel)
         self.assertIn('text: "New chat"', panel)
         self.assertIn('text: "Create private group"', panel)
+
+    def test_saved_chat_rows_recover_from_durable_message_counts(self):
+        panel = self.read("FriendsPanelV3.qml")
+        service = self.read("Service.qml")
+        self.assertIn("service.globalMessageCounts", panel)
+        self.assertIn('for (var conversationKey in root.messageCounts)', panel)
+        self.assertIn('conversationKey.indexOf("friend:") !== 0', panel)
+        self.assertIn('root.messageCounts["friend:" + String(publicKey || "")]', panel)
+        self.assertIn("onMessageCountsChanged:", panel)
+        self.assertIn("Qt.callLater(restoreConversationAfterStatusRefresh)", panel)
+        self.assertIn("ServiceModern {", panel)
+        self.assertIn("uiOnlyFallback: true", panel)
+        self.assertIn("property bool uiOnlyFallback: false", service)
+        self.assertIn("running: !root.uiOnlyFallback", service)
+        self.assertIn("function retainKnownConversationCounts(incoming)", service)
+        self.assertIn("Math.max(Number(retained[key] || 0), Math.floor(count))", service)
+        self.assertIn("root.retainKnownConversationCounts(data.global_message_counts)", service)
 
     def test_missing_dm_history_offers_explicit_relay_recovery(self):
         panel = self.read("FriendsPanelV3.qml")

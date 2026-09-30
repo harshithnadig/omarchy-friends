@@ -15,7 +15,11 @@ class FinalUxContractTests(unittest.TestCase):
         service = read("Service.qml")
         self.assertIn("property int statusRevision: 0", service)
         self.assertIn("root.statusRevision += 1", service)
-        self.assertIn("property int serviceStatusRevision: root.service ? root.service.statusRevision : 0", friends)
+        self.assertIn("readonly property int serviceStatusRevision: root.service ? root.service.statusRevision : 0", friends)
+        completed = service[service.index("Component.onCompleted:"):]
+        self.assertIn("root.refresh()", completed)
+        self.assertNotIn("if (root.uiOpen) root.refresh()", completed)
+        self.assertIn("onServiceChanged: {", friends)
         status_revision = friends[friends.index("onServiceStatusRevisionChanged:"):friends.index("onChatQueryChanged:")]
         self.assertIn("Qt.callLater(root.rebuildConversationRows)", status_revision)
         self.assertIn("Qt.callLater(root.restoreConversationAfterStatusRefresh)", status_revision)
@@ -176,8 +180,9 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("root.service.setUiOpen(root.opened)", bar)
         retry_timer = service[service.index("// Retry one previously saved private message"):service.index("// Event poll timer")]
         event_timer = service[service.index("// Event poll timer"):service.index("Component.onCompleted")]
-        self.assertIn("running: true", retry_timer)
-        self.assertIn("running: true", event_timer)
+        self.assertIn("running: !root.uiOnlyFallback", retry_timer)
+        self.assertIn("running: !root.uiOnlyFallback", event_timer)
+        self.assertIn("property bool uiOnlyFallback: false", service)
 
     def test_async_send_and_create_failures_preserve_user_drafts(self):
         friends = read("FriendsPanelV3.qml")
@@ -249,8 +254,8 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("return root.indexedSearchMatches", getter)
         self.assertNotRegex(getter, r"root\.indexedSearch\w*\s*=")
         self.assertIn("root.indexedSearchMatches = matches", builder)
-        self.assertIn("return root.chatFriendRows", friend_rows)
-        self.assertIn("return root.chatGroupRows", group_rows)
+        self.assertIn("return root.buildConversationFriends()", friend_rows)
+        self.assertIn("return root.buildConversationGroups()", group_rows)
         self.assertIn("function rebuildConversationRows()", friends)
         self.assertIn("onServiceStatusRevisionChanged:", friends)
         self.assertIn("Qt.callLater(root.rebuildConversationRows)", friends)
