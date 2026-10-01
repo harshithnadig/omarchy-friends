@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import qs.Commons
 import qs.Ui
+import "."
 
 KeyboardPanel {
     id: root
@@ -416,14 +417,14 @@ KeyboardPanel {
                         width: Style.space(220)
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
-                        Text {
+                        PlainText {
                             text: "Omarchy Friends"
                             color: root.ink
                             font.family: Style.font.family
                             font.pixelSize: Style.font.subtitle
                             font.bold: true
                         }
-                        Text {
+                        PlainText {
                             text: "Build together · share more · go further"
                             color: root.mutedInk
                             font.family: Style.font.family
@@ -470,7 +471,7 @@ KeyboardPanel {
                     anchors.fill: parent
                     anchors.margins: Style.space(9)
                     spacing: Style.space(10)
-                    Text {
+                    PlainText {
                         width: parent.width - updateButton.width - Style.space(12)
                         anchors.verticalCenter: parent.verticalCenter
                         text: "A newer Friends build is available · update to keep modern DMs and Build Network compatible."
@@ -520,7 +521,7 @@ KeyboardPanel {
                         anchors.bottomMargin: Style.space(10)
                         spacing: Style.space(3)
 
-                        Text {
+                        PlainText {
                             text: "WORKSPACE"
                             color: root.faintInk
                             font.family: Style.font.family
@@ -545,7 +546,7 @@ KeyboardPanel {
                         GlassNavItem { width: parent.width; text: "Me"; icon: "◇"; selected: root.page === "profile"; onClicked: root.openProfile() }
 
                         Item { width: 1; height: Style.space(12) }
-                        Text {
+                        PlainText {
                             text: "QUICK ACTIONS"
                             color: root.faintInk
                             font.family: Style.font.family
@@ -570,14 +571,14 @@ KeyboardPanel {
                                 anchors.fill: parent
                                 anchors.margins: Style.space(9)
                                 spacing: 2
-                                Text {
+                                PlainText {
                                     text: root.worldStatus.last_error ? "World reconnecting" : "Connected"
                                     color: root.worldStatus.last_error ? root.warning : root.success
                                     font.family: Style.font.family
                                     font.pixelSize: Style.font.caption
                                     font.bold: true
                                 }
-                                Text {
+                                PlainText {
                                     text: (root.worldStatus.relay_count || 0) + "/" + (root.worldStatus.relay_total || 0) + " relays · " + (root.worldStatus.last_sync_age || "never")
                                     color: root.mutedInk
                                     font.family: Style.font.family
@@ -585,7 +586,7 @@ KeyboardPanel {
                                     elide: Text.ElideRight
                                     width: parent.width
                                 }
-                                Text {
+                                PlainText {
                                     text: "v" + root.formatVersion()
                                     color: root.faintInk
                                     font.family: Style.font.family
@@ -623,7 +624,7 @@ KeyboardPanel {
 
                                 Row {
                                     width: parent.width
-                                    Text {
+                                    PlainText {
                                         width: parent.width - newGroupButton.width
                                         text: "Messages"
                                         color: root.ink
@@ -677,8 +678,8 @@ KeyboardPanel {
                                                     Column {
                                                         width: parent.width - acceptButton.width - Style.space(48)
                                                         anchors.verticalCenter: parent.verticalCenter
-                                                        Text { width: parent.width; text: modelData.handle || "New builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                                        Text { width: parent.width; text: "Wants to connect"; color: root.cyan; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                                        PlainText { width: parent.width; text: modelData.handle || "New builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                        PlainText { width: parent.width; text: "Wants to connect"; color: root.cyan; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                     GlassButton {
                                                         id: acceptButton
@@ -719,8 +720,8 @@ KeyboardPanel {
                                                     Column {
                                                         width: parent.width - Style.space(48)
                                                         anchors.verticalCenter: parent.verticalCenter
-                                                        Text { width: parent.width; text: modelData.name || "Private group"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                                        Text { width: parent.width; text: ((modelData.members || []).length || 0) + " people · encrypted"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                                        PlainText { width: parent.width; text: modelData.name || "Private group"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                        PlainText { width: parent.width; text: ((modelData.members || []).length || 0) + " people · encrypted"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                 }
                                                 Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
@@ -750,15 +751,15 @@ KeyboardPanel {
                                                     Column {
                                                         width: parent.width - Style.space(48)
                                                         anchors.verticalCenter: parent.verticalCenter
-                                                        Text { width: parent.width; text: modelData.handle || "Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                                        Text { width: parent.width; text: root.lastMessagePreview(modelData.public_key); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                                        PlainText { width: parent.width; text: modelData.handle || "Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                        PlainText { width: parent.width; text: root.lastMessagePreview(modelData.public_key); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                     }
                                                 }
                                                 Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                             }
                                         }
 
-                                        Text {
+                                        PlainText {
                                             visible: root.friendsList().length === 0 && root.groupsList().length === 0 && root.incomingFriendRequests().length === 0
                                             width: parent.width
                                             text: "No conversations yet.\nOpen World and meet a builder."
@@ -804,8 +805,8 @@ KeyboardPanel {
                                         Column {
                                             width: parent.width - focusButton.width - buildTogetherButton.width - Style.space(66)
                                             anchors.verticalCenter: parent.verticalCenter
-                                            Text { width: parent.width; text: parent.parent.group ? (parent.parent.group.name || "Private group") : (parent.parent.friend ? (parent.parent.friend.handle || "Builder") : "Choose a conversation"); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                                            Text { width: parent.width; text: parent.parent.group ? "Private group · modern encrypted transport" : (parent.parent.friend ? ((parent.parent.friend.activity || "Friend") + (parent.parent.friend.online ? " · online" : "")) : "Your chats stay here"); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                            PlainText { width: parent.width; text: parent.parent.group ? (parent.parent.group.name || "Private group") : (parent.parent.friend ? (parent.parent.friend.handle || "Builder") : "Choose a conversation"); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                                            PlainText { width: parent.width; text: parent.parent.group ? "Private group · modern encrypted transport" : (parent.parent.friend ? ((parent.parent.friend.activity || "Friend") + (parent.parent.friend.online ? " · online" : "")) : "Your chats stay here"); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                         }
                                         GlassButton {
                                             id: focusButton
@@ -868,7 +869,7 @@ KeyboardPanel {
                                                             anchors.fill: parent
                                                             anchors.margins: Style.space(10)
                                                             spacing: Style.space(5)
-                                                            Text {
+                                                            PlainText {
                                                                 id: messageText
                                                                 width: parent.width
                                                                 text: modelData.text || ""
@@ -878,7 +879,7 @@ KeyboardPanel {
                                                                 font.pixelSize: Style.font.caption
                                                                 wrapMode: Text.WordWrap
                                                             }
-                                                            Text {
+                                                            PlainText {
                                                                 id: mediaText
                                                                 width: parent.width
                                                                 visible: modelData.media && modelData.media.length > 0
@@ -893,7 +894,7 @@ KeyboardPanel {
                                                 }
                                             }
 
-                                            Text {
+                                            PlainText {
                                                 visible: root.conversationMessages().length === 0
                                                 width: parent.width
                                                 text: root.selectedFriend() || root.selectedGroup() ? "Start the conversation ✦" : "Pick a person or group from the left."
@@ -964,8 +965,8 @@ KeyboardPanel {
                             Column {
                                 width: parent.width - worldRefresh.width
                                 spacing: 1
-                                Text { text: "World"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-                                Text { text: "Live Omarchy builders · projects · status · help"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { text: "World"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+                                PlainText { text: "Live Omarchy builders · projects · status · help"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
                             GlassButton { id: worldRefresh; text: "Refresh"; icon: "↻"; compact: true; onClicked: if (root.service) root.service.refreshGlobal() }
                         }
@@ -978,21 +979,21 @@ KeyboardPanel {
                                 height: Style.space(64)
                                 radius: Style.space(14)
                                 fillOpacity: 0.62
-                                Column { anchors.centerIn: parent; Text { anchors.horizontalCenter: parent.horizontalCenter; text: String(root.world.length); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true } Text { anchors.horizontalCenter: parent.horizontalCenter; text: "builders live"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
+                                Column { anchors.centerIn: parent; PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: String(root.world.length); color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true } PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: "builders live"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
                             }
                             GlassSurface {
                                 width: (parent.width - Style.space(16)) / 3
                                 height: Style.space(64)
                                 radius: Style.space(14)
                                 fillOpacity: 0.62
-                                Column { anchors.centerIn: parent; Text { anchors.horizontalCenter: parent.horizontalCenter; text: (root.worldStatus.relay_count || 0) + "/" + (root.worldStatus.relay_total || 0); color: root.cyan; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true } Text { anchors.horizontalCenter: parent.horizontalCenter; text: "relays healthy"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
+                                Column { anchors.centerIn: parent; PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: (root.worldStatus.relay_count || 0) + "/" + (root.worldStatus.relay_total || 0); color: root.cyan; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true } PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: "relays healthy"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
                             }
                             GlassSurface {
                                 width: (parent.width - Style.space(16)) / 3
                                 height: Style.space(64)
                                 radius: Style.space(14)
                                 fillOpacity: 0.62
-                                Column { anchors.centerIn: parent; Text { anchors.horizontalCenter: parent.horizontalCenter; text: String(root.friendsList().length); color: root.violet; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true } Text { anchors.horizontalCenter: parent.horizontalCenter; text: "friends"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
+                                Column { anchors.centerIn: parent; PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: String(root.friendsList().length); color: root.violet; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true } PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: "friends"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption } }
                             }
                         }
 
@@ -1038,8 +1039,8 @@ KeyboardPanel {
                                                 Column {
                                                     width: parent.width - peerAction.width - Style.space(50)
                                                     anchors.verticalCenter: parent.verticalCenter
-                                                    Text { width: parent.width; text: modelData.handle || "Omarchy builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                                    Text { width: parent.width; text: (modelData.status_emoji || "•") + " " + (modelData.status_name || modelData.activity || "Online"); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                                    PlainText { width: parent.width; text: modelData.handle || "Omarchy builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                    PlainText { width: parent.width; text: (modelData.status_emoji || "•") + " " + (modelData.status_name || modelData.activity || "Online"); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                                 }
                                                 GlassButton {
                                                     id: peerAction
@@ -1051,7 +1052,7 @@ KeyboardPanel {
                                                 }
                                             }
 
-                                            Text {
+                                            PlainText {
                                                 width: parent.width
                                                 text: modelData.project_name ? ("Building · " + modelData.project_name) : (modelData.activity || "Exploring Omarchy")
                                                 color: modelData.project_name ? "#d8d4ff" : root.mutedInk
@@ -1086,8 +1087,8 @@ KeyboardPanel {
                             height: Style.space(44)
                             Column {
                                 width: parent.width
-                                Text { text: "Circles"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-                                Text { text: "The public room for updated Friends clients"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { text: "Circles"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+                                PlainText { text: "The public room for updated Friends clients"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
                         }
 
@@ -1100,8 +1101,8 @@ KeyboardPanel {
                                 anchors.fill: parent
                                 anchors.margins: Style.space(9)
                                 spacing: Style.space(8)
-                                Text { text: "◉"; color: root.success; font.pixelSize: Style.font.caption }
-                                Text { width: parent.width - Style.space(24); text: "Public room · do not share passwords, private links or personal information."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                PlainText { text: "◉"; color: root.success; font.pixelSize: Style.font.caption }
+                                PlainText { width: parent.width - Style.space(24); text: "Public room · do not share passwords, private links or personal information."; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                             }
                         }
 
@@ -1136,8 +1137,8 @@ KeyboardPanel {
                                             Column {
                                                 width: parent.width - Style.space(43)
                                                 spacing: Style.space(3)
-                                                Text { width: parent.width; text: (modelData.handle || modelData.from_name || "Builder") + (modelData.mine ? " · you" : ""); color: modelData.mine ? "#dcd7ff" : root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                                Text { width: parent.width; text: modelData.text || modelData.message || ""; color: "#d7dbea"; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                                PlainText { width: parent.width; text: (modelData.handle || modelData.from_name || "Builder") + (modelData.mine ? " · you" : ""); color: modelData.mine ? "#dcd7ff" : root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                PlainText { width: parent.width; text: modelData.text || modelData.message || ""; color: "#d7dbea"; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                             }
                                         }
                                     }
@@ -1190,9 +1191,9 @@ KeyboardPanel {
                                         width: parent.width - Style.space(205)
                                         anchors.verticalCenter: parent.verticalCenter
                                         spacing: Style.space(3)
-                                        Text { width: parent.width; text: root.profile.handle || "Omarchy Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true; elide: Text.ElideRight }
-                                        Text { width: parent.width; text: (root.profile.status_emoji || "🚀") + " " + (root.profile.status_name || "Ready"); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
-                                        Text { width: parent.width; text: root.profile.project_name ? ("Building · " + root.profile.project_name) : "Add a project so builders know what you care about."; color: root.profile.project_name ? root.cyan : root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                        PlainText { width: parent.width; text: root.profile.handle || "Omarchy Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true; elide: Text.ElideRight }
+                                        PlainText { width: parent.width; text: (root.profile.status_emoji || "🚀") + " " + (root.profile.status_name || "Ready"); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                        PlainText { width: parent.width; text: root.profile.project_name ? ("Building · " + root.profile.project_name) : "Add a project so builders know what you care about."; color: root.profile.project_name ? root.cyan : root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     Column {
                                         width: Style.space(120)
@@ -1218,7 +1219,7 @@ KeyboardPanel {
                                         anchors.fill: parent
                                         anchors.margins: Style.space(12)
                                         spacing: Style.space(8)
-                                        Text { text: "Profile beacon"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                        PlainText { text: "Profile beacon"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                         GlassField { width: parent.width; placeholder: "Display name"; text: root.handleDraft; onTextChanged: root.handleDraft = text }
                                         GlassField { width: parent.width; placeholder: "Project name"; text: root.projectNameDraft; onTextChanged: root.projectNameDraft = text }
                                         GlassField { width: parent.width; placeholder: "Project link https://…"; text: root.projectUrlDraft; onTextChanged: root.projectUrlDraft = text }
@@ -1229,7 +1230,7 @@ KeyboardPanel {
                                             color: Qt.rgba(0.06, 0.08, 0.15, 0.72)
                                             border.width: 1
                                             border.color: Qt.rgba(1, 1, 1, 0.10)
-                                            TextArea {
+                                            TextArea { textFormat: TextEdit.PlainText;
                                                 anchors.fill: parent
                                                 anchors.margins: Style.space(5)
                                                 text: root.projectDescDraft
@@ -1257,8 +1258,8 @@ KeyboardPanel {
                                         anchors.fill: parent
                                         anchors.margins: Style.space(12)
                                         spacing: Style.space(9)
-                                        Text { text: "Interests"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                        Text { text: "Choose up to four"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                        PlainText { text: "Interests"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                        PlainText { text: "Choose up to four"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                         Flow {
                                             width: parent.width
                                             spacing: Style.space(5)
@@ -1272,7 +1273,7 @@ KeyboardPanel {
                                             }
                                         }
                                         Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
-                                        Text { text: "Status"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                        PlainText { text: "Status"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                         Flow {
                                             width: parent.width
                                             spacing: Style.space(5)
@@ -1301,8 +1302,8 @@ KeyboardPanel {
                                     spacing: Style.space(9)
                                     Column {
                                         width: parent.width - updateMe.width - Style.space(10)
-                                        Text { text: root.updateInfo.available ? "Update available" : "Friends is current"; color: root.updateInfo.available ? root.warning : root.success; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                                        Text { width: parent.width; text: "Installed v" + root.formatVersion() + (root.updateInfo.latest ? " · latest " + root.updateInfo.latest : ""); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                        PlainText { text: root.updateInfo.available ? "Update available" : "Friends is current"; color: root.updateInfo.available ? root.warning : root.success; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                        PlainText { width: parent.width; text: "Installed v" + root.formatVersion() + (root.updateInfo.latest ? " · latest " + root.updateInfo.latest : ""); color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     GlassButton { id: updateMe; text: root.updateInfo.available ? "Update now" : "Check update"; icon: "↻"; compact: true; primary: root.updateInfo.available; onClicked: if (root.service) root.service.updatePlugin() }
                                 }
@@ -1331,11 +1332,11 @@ KeyboardPanel {
                             spacing: Style.space(9)
                             Row {
                                 width: parent.width
-                                Text { width: parent.width - closeGroup.width; text: "New private group"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                                PlainText { width: parent.width - closeGroup.width; text: "New private group"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
                                 GlassButton { id: closeGroup; text: "Close"; compact: true; onClicked: root.groupCreateOpen = false }
                             }
                             GlassField { width: parent.width; placeholder: "Group name"; text: root.groupNameDraft; onTextChanged: root.groupNameDraft = text }
-                            Text { text: "Choose at least two friends"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { text: "Choose at least two friends"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             Flickable {
                                 width: parent.width
                                 height: parent.height - Style.space(136)
@@ -1365,8 +1366,8 @@ KeyboardPanel {
                                                 anchors.margins: Style.space(7)
                                                 spacing: Style.space(8)
                                                 GlassAvatar { size: Style.space(30); emoji: modelData.avatar || "👾"; online: modelData.online === true }
-                                                Text { width: parent.width - Style.space(64); anchors.verticalCenter: parent.verticalCenter; text: modelData.handle || "Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
-                                                Text { anchors.verticalCenter: parent.verticalCenter; text: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓" : "+"; color: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? root.success : root.mutedInk; font.pixelSize: Style.font.bodySmall }
+                                                PlainText { width: parent.width - Style.space(64); anchors.verticalCenter: parent.verticalCenter; text: modelData.handle || "Builder"; color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                                PlainText { anchors.verticalCenter: parent.verticalCenter; text: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓" : "+"; color: root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? root.success : root.mutedInk; font.pixelSize: Style.font.bodySmall }
                                             }
                                             Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: root.cyan; z: 5 }
                                         }
@@ -1385,10 +1386,10 @@ KeyboardPanel {
                 x: Style.space(18)
                 height: Style.space(34)
                 spacing: Style.space(10)
-                Text { anchors.verticalCenter: parent.verticalCenter; text: "●"; color: root.worldStatus.last_error ? root.warning : root.success; font.pixelSize: Style.font.caption }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: root.worldStatus.last_error ? "Reconnecting" : "Friends connected"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                PlainText { anchors.verticalCenter: parent.verticalCenter; text: "●"; color: root.worldStatus.last_error ? root.warning : root.success; font.pixelSize: Style.font.caption }
+                PlainText { anchors.verticalCenter: parent.verticalCenter; text: root.worldStatus.last_error ? "Reconnecting" : "Friends connected"; color: root.mutedInk; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                 Item { width: Math.max(0, parent.width - Style.space(390)); height: 1 }
-                Text { anchors.verticalCenter: parent.verticalCenter; text: "People × setups × ideas × builds"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.letterSpacing: 0.6 }
+                PlainText { anchors.verticalCenter: parent.verticalCenter; text: "People × setups × ideas × builds"; color: root.faintInk; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.letterSpacing: 0.6 }
             }
         }
 
@@ -1404,7 +1405,7 @@ KeyboardPanel {
             elevated: true
             selected: true
             z: 100
-            Text {
+            PlainText {
                 id: noticeText
                 anchors.fill: parent
                 anchors.margins: Style.space(10)

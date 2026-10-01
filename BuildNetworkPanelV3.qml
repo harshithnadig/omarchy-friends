@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import qs.Commons
 import qs.Ui
+import "."
 
 KeyboardPanel {
     id: root
@@ -318,14 +319,14 @@ KeyboardPanel {
                             color: Qt.rgba(accent.r, accent.g, accent.b, 0.16)
                             border.width: 1
                             border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.26)
-                            Text { anchors.centerIn: parent; text: "∞"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+                            PlainText { anchors.centerIn: parent; text: "∞"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
                         }
 
                         Column {
                             width: parent.width - syncButton.width - Style.space(60)
                             spacing: 1
-                            Text { text: "Build Network"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
-                            Text { text: "The live workshop for Omarchy"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { text: "Build Network"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.title; font.bold: true }
+                            PlainText { text: "The live workshop for Omarchy"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                         }
 
                         GlassPill {
@@ -338,7 +339,7 @@ KeyboardPanel {
                         }
                     }
 
-                    Text {
+                    PlainText {
                         width: parent.width
                         text: "Find builders. Turn ideas into real projects. Share setups safely. Test on actual machines. Preserve what the community learns."
                         color: Qt.rgba(fg.r, fg.g, fg.b, 0.82)
@@ -349,10 +350,10 @@ KeyboardPanel {
 
                     Row {
                         spacing: Style.space(16)
-                        Text { text: (build.stats.builders || 0) + " builders"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                        Text { text: (build.stats.build_rooms || 0) + " builds"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                        Text { text: (build.stats.ships || 0) + " shipped"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                        Text { text: (build.stats.solutions || 0) + " solutions"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: (build.stats.builders || 0) + " builders"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { text: (build.stats.build_rooms || 0) + " builds"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: (build.stats.ships || 0) + " shipped"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: (build.stats.solutions || 0) + " solutions"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
             }
@@ -396,7 +397,7 @@ KeyboardPanel {
                 color: Qt.rgba(accent.r, accent.g, accent.b, 0.11)
                 border.width: 1
                 border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.20)
-                Text {
+                PlainText {
                     id: noticeText
                     anchors.fill: parent
                     anchors.margins: Style.space(8)
@@ -420,8 +421,8 @@ KeyboardPanel {
                     Column {
                         width: parent.width
                         spacing: 2
-                        Text { text: "What people are making"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                        Text { text: "Recent work, not an engagement feed."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "What people are making"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                        PlainText { text: "Recent work, not an engagement feed."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
@@ -448,12 +449,12 @@ KeyboardPanel {
                                     height: width
                                     radius: Style.space(9)
                                     color: Qt.rgba(accent.r, accent.g, accent.b, 0.13)
-                                    Text { anchors.centerIn: parent; text: root.kindIcon(modelData.type); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                    PlainText { anchors.centerIn: parent; text: root.kindIcon(modelData.type); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                 }
                                 Column {
                                     width: parent.width - discoverActions.width - Style.space(44)
-                                    Text { width: parent.width; text: modelData.title || "Community update"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                                    Text { width: parent.width; text: root.kindLabel(modelData.type) + " · " + (modelData.author || "OmarchyBuilder"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                    PlainText { width: parent.width; text: modelData.title || "Community update"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                                    PlainText { width: parent.width; text: root.kindLabel(modelData.type) + " · " + (modelData.author || "OmarchyBuilder"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                 }
                                 Row {
                                     id: discoverActions
@@ -464,7 +465,7 @@ KeyboardPanel {
                                 }
                             }
 
-                            Text {
+                            PlainText {
                                 width: parent.width
                                 text: modelData.summary || modelData.goal || modelData.problem || modelData.solution || modelData.notes || modelData.prompt || ""
                                 color: Qt.rgba(fg.r, fg.g, fg.b, 0.75)
@@ -494,13 +495,13 @@ KeyboardPanel {
                     Column {
                         anchors.centerIn: parent
                         spacing: Style.space(5)
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "✦"; color: accent; font.pixelSize: Style.font.title }
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Quiet in here — for now"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Share the first idea, build or setup."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: "✦"; color: accent; font.pixelSize: Style.font.title }
+                        PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: "Quiet in here — for now"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        PlainText { anchors.horizontalCenter: parent.horizontalCenter; text: "Share the first idea, build or setup."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
-                Text { visible: build.contributors.length > 0; text: "Builders worth knowing"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { visible: build.contributors.length > 0; text: "Builders worth knowing"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.contributors.slice ? build.contributors.slice(0, 8) : []
                     GlassSurface {
@@ -515,13 +516,13 @@ KeyboardPanel {
                             Rectangle {
                                 width: Style.space(34); height: width; radius: width / 2
                                 color: Qt.rgba(accent.r, accent.g, accent.b, 0.13)
-                                Text { anchors.centerIn: parent; text: "◉"; color: accent; font.pixelSize: Style.font.bodySmall }
+                                PlainText { anchors.centerIn: parent; text: "◉"; color: accent; font.pixelSize: Style.font.bodySmall }
                             }
                             Column {
                                 width: parent.width - contributorButton.width - Style.space(56)
                                 anchors.verticalCenter: parent.verticalCenter
-                                Text { text: modelData.handle || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                Text { text: "🛠 " + (modelData.builds || 0) + "   ↗ " + (modelData.ships || 0) + "   🧪 " + (modelData.tests || 0) + "   ✦ " + (modelData.solutions || 0); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { text: modelData.handle || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                PlainText { text: "🛠 " + (modelData.builds || 0) + "   ↗ " + (modelData.ships || 0) + "   🧪 " + (modelData.tests || 0) + "   ✦ " + (modelData.solutions || 0); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
                             GlassPill { id: contributorButton; text: modelData.public_key === build.profile.public_key ? "You" : root.builderActionLabel(modelData.public_key); enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
                         }
@@ -539,8 +540,8 @@ KeyboardPanel {
                     width: parent.width
                     Column {
                         width: parent.width - newIdeaButton.width
-                        Text { text: "Ideas become teams"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                        Text { text: "Signal interest, open a room, find the people you need."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Ideas become teams"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                        PlainText { text: "Signal interest, open a room, find the people you need."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                     GlassPill { id: newIdeaButton; text: "+ Idea"; strong: true; onClicked: { root.createKind = "idea"; root.tab = "create" } }
                 }
@@ -559,10 +560,10 @@ KeyboardPanel {
                             spacing: Style.space(7)
                             Row {
                                 width: parent.width
-                                Text { width: parent.width - interestCount.width; text: modelData.title || "Idea"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
-                                Text { id: interestCount; text: (modelData.interest_count || 0) + " interested"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { width: parent.width - interestCount.width; text: modelData.title || "Idea"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
+                                PlainText { id: interestCount; text: (modelData.interest_count || 0) + " interested"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
-                            Text { width: parent.width; text: modelData.summary || ""; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { width: parent.width; text: modelData.summary || ""; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                             Row {
                                 spacing: Style.space(7)
                                 GlassPill { text: "I'm interested"; active: true; onClicked: build.markInterested(modelData.id, "") }
@@ -573,7 +574,7 @@ KeyboardPanel {
                     }
                 }
 
-                Text { text: "Build rooms"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { text: "Build rooms"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.buildRooms
                     GlassSurface {
@@ -593,14 +594,14 @@ KeyboardPanel {
                                 width: parent.width
                                 Column {
                                     width: parent.width - roomState.width
-                                    Text { width: parent.width; text: modelData.title || "Build"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
-                                    Text { text: (modelData.join_count || 0) + " builders · " + (modelData.done_count || 0) + " done · " + (modelData.blocked_count || 0) + " blocked"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                    PlainText { width: parent.width; text: modelData.title || "Build"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
+                                    PlainText { text: (modelData.join_count || 0) + " builders · " + (modelData.done_count || 0) + " done · " + (modelData.blocked_count || 0) + " blocked"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                 }
                                 GlassPill { id: roomState; text: modelData.status || "building"; active: true }
                             }
-                            Text { width: parent.width; text: modelData.goal || ""; color: Qt.rgba(fg.r, fg.g, fg.b, 0.74); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                            Text { visible: modelData.roles_needed && modelData.roles_needed.length > 0; width: parent.width; text: "Looking for · " + modelData.roles_needed.join(" · "); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                            Text { visible: modelData.tasks && modelData.tasks.length > 0; width: parent.width; text: "Next · " + modelData.tasks.join("  ·  "); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
+                            PlainText { width: parent.width; text: modelData.goal || ""; color: Qt.rgba(fg.r, fg.g, fg.b, 0.74); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { visible: modelData.roles_needed && modelData.roles_needed.length > 0; width: parent.width; text: "Looking for · " + modelData.roles_needed.join(" · "); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { visible: modelData.tasks && modelData.tasks.length > 0; width: parent.width; text: "Next · " + modelData.tasks.join("  ·  "); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
                             Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
@@ -620,13 +621,13 @@ KeyboardPanel {
                                 visible: !!roomCard.roomItem.repo_url && build.githubSnapshot && build.githubSnapshot.repo_url === roomCard.roomItem.repo_url && build.githubSnapshot.items && build.githubSnapshot.items.length > 0
                                 width: parent.width
                                 spacing: Style.space(5)
-                                Text { text: "Public GitHub pulse"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                PlainText { text: "Public GitHub pulse"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                                 Repeater {
                                     model: build.githubSnapshot && build.githubSnapshot.items ? build.githubSnapshot.items.slice(0, 6) : []
                                     Row {
                                         width: parent.width
                                         spacing: Style.space(7)
-                                        Text {
+                                        PlainText {
                                             width: parent.width - githubPublish.width - Style.space(8)
                                             text: (modelData.reference ? modelData.reference + " · " : "") + (modelData.title || "GitHub activity")
                                             color: muted
@@ -647,10 +648,10 @@ KeyboardPanel {
                                 visible: roomCard.roomItem.project_activity && roomCard.roomItem.project_activity.length > 0
                                 width: parent.width
                                 spacing: Style.space(3)
-                                Text { text: "Shared project activity"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                PlainText { text: "Shared project activity"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                                 Repeater {
                                     model: roomCard.roomItem.project_activity ? roomCard.roomItem.project_activity.slice(0, 5) : []
-                                    Text {
+                                    PlainText {
                                         width: parent.width
                                         text: (modelData.reference ? modelData.reference + " · " : "") + (modelData.title || "Project activity")
                                         color: Qt.rgba(fg.r, fg.g, fg.b, 0.68)
@@ -671,8 +672,8 @@ KeyboardPanel {
                 height: visible ? implicitHeight : 0
                 spacing: Style.space(12)
 
-                Text { text: "Share the good parts"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                Text { width: parent.width; text: "Setups are metadata and review plans — never remote install scripts."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { text: "Share the good parts"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                PlainText { width: parent.width; text: "Setups are metadata and review plans — never remote install scripts."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
                 Repeater {
                     model: build.setups
@@ -692,11 +693,11 @@ KeyboardPanel {
                                 width: parent.width
                                 Column {
                                     width: parent.width
-                                    Text { text: modelData.title || "Setup"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                    Text { text: (modelData.author || "Builder") + " · " + (modelData.theme || "No theme name"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                    PlainText { text: modelData.title || "Setup"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                    PlainText { text: (modelData.author || "Builder") + " · " + (modelData.theme || "No theme name"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                 }
                             }
-                            Text { width: parent.width; text: "Plugins · " + ((modelData.plugins || []).join ? modelData.plugins.join(" · ") : "None shared"); color: Qt.rgba(fg.r, fg.g, fg.b, 0.72); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
+                            PlainText { width: parent.width; text: "Plugins · " + ((modelData.plugins || []).join ? modelData.plugins.join(" · ") : "None shared"); color: Qt.rgba(fg.r, fg.g, fg.b, 0.72); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
                             Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
@@ -712,7 +713,7 @@ KeyboardPanel {
                                 Row {
                                     width: parent.width
                                     spacing: Style.space(7)
-                                    Text {
+                                    PlainText {
                                         width: parent.width - componentOpen.width - Style.space(8)
                                         text: (modelData.component_type || "component") + " · " + (modelData.name || "Shared component")
                                         color: muted
@@ -739,7 +740,7 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(12)
                         spacing: Style.space(7)
-                        Text { text: "Share one piece of this setup"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        PlainText { text: "Share one piece of this setup"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                         Flow {
                             width: parent.width
                             spacing: Style.space(6)
@@ -771,7 +772,7 @@ KeyboardPanel {
                             }
                             GlassPill { text: "Cancel"; onClicked: { root.componentSetupId = ""; root.componentNameDraft = ""; root.componentUrlDraft = "" } }
                         }
-                        Text { text: "Metadata/link only — Friends never installs it automatically."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Metadata/link only — Friends never installs it automatically."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
@@ -787,13 +788,13 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(12)
                         spacing: Style.space(6)
-                        Text { text: "Safe comparison"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                        Text { width: parent.width; text: root.comparisonText(); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                        Text { text: "Nothing has been installed or changed."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Safe comparison"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        PlainText { width: parent.width; text: root.comparisonText(); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                        PlainText { text: "Nothing has been installed or changed."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
-                Text { text: "Test on real Omarchy machines"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { text: "Test on real Omarchy machines"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.tests
                     GlassSurface {
@@ -810,10 +811,10 @@ KeyboardPanel {
                                 width: parent.width
                                 Column {
                                     width: parent.width - testScore.width
-                                    Text { text: modelData.title || "Test request"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                    Text { text: "Needs · " + ((modelData.requested_tags || []).join ? modelData.requested_tags.join(" · ") : "any Omarchy system"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                    PlainText { text: modelData.title || "Test request"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                    PlainText { text: "Needs · " + ((modelData.requested_tags || []).join ? modelData.requested_tags.join(" · ") : "any Omarchy system"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                                 }
-                                Text { id: testScore; text: (modelData.pass_count || 0) + "/" + (modelData.result_count || 0); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.subtitle; font.bold: true }
+                                PlainText { id: testScore; text: (modelData.pass_count || 0) + "/" + (modelData.result_count || 0); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.subtitle; font.bold: true }
                             }
                             Flow {
                                 width: parent.width
@@ -833,8 +834,8 @@ KeyboardPanel {
                 height: visible ? implicitHeight : 0
                 spacing: Style.space(12)
 
-                Text { text: "When AI gets stuck, ask a human"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                Text { width: parent.width; text: "Share only the useful context. Private follow-up stays in Friends chat."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { text: "When AI gets stuck, ask a human"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                PlainText { width: parent.width; text: "Share only the useful context. Private follow-up stays in Friends chat."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
                 GlassSurface {
                     width: parent.width
@@ -846,9 +847,9 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(10)
                         spacing: Style.space(4)
-                        Text { text: "Safe local context"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                        Text { width: parent.width; text: ((build.detectedEnvironment.tags || []).join ? build.detectedEnvironment.tags.join("   ·   ") : "No environment labels detected"); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                        Text { text: "No hostname · IP · username · file contents"; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Safe local context"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { width: parent.width; text: ((build.detectedEnvironment.tags || []).join ? build.detectedEnvironment.tags.join("   ·   ") : "No environment labels detected"); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                        PlainText { text: "No hostname · IP · username · file contents"; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
@@ -862,7 +863,7 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(11)
                         spacing: Style.space(7)
-                        Text { text: "Be available to another builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        PlainText { text: "Be available to another builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                         Flow {
                             width: parent.width
                             spacing: Style.space(6)
@@ -917,11 +918,11 @@ KeyboardPanel {
                             GlassPill { text: "Go live"; strong: true; onClicked: build.setAvailability(root.availabilityMode, root.csv(root.availabilitySkillsDraft), root.availabilityNoteDraft, root.availabilityMinutes, "active") }
                             GlassPill { text: "Stop"; onClicked: build.setAvailability(root.availabilityMode, root.csv(root.availabilitySkillsDraft), root.availabilityNoteDraft, root.availabilityMinutes, "closed") }
                         }
-                        Text { text: "Availability expires automatically."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Availability expires automatically."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
-                Text { visible: build.helpers.length > 0; text: "Builders available now"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { visible: build.helpers.length > 0; text: "Builders available now"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.helpers.slice ? build.helpers.slice(0, 8) : []
                     GlassSurface {
@@ -936,8 +937,8 @@ KeyboardPanel {
                             Column {
                                 width: parent.width - helperChat.width - Style.space(8)
                                 anchors.verticalCenter: parent.verticalCenter
-                                Text { text: modelData.author || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                                Text { width: parent.width; text: (modelData.mode || "can_help") + (modelData.skills && modelData.skills.length ? " · " + modelData.skills.join(" · ") : ""); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                PlainText { text: modelData.author || "Builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                PlainText { width: parent.width; text: (modelData.mode || "can_help") + (modelData.skills && modelData.skills.length ? " · " + modelData.skills.join(" · ") : ""); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                             }
                             GlassPill { id: helperChat; text: modelData.public_key === build.profile.public_key ? "You" : root.builderActionLabel(modelData.public_key); enabled: modelData.public_key !== build.profile.public_key; onClicked: root.connectBuilder(modelData.public_key) }
                         }
@@ -958,12 +959,12 @@ KeyboardPanel {
                             spacing: Style.space(7)
                             Row {
                                 width: parent.width
-                                Text { width: parent.width - offerBadge.width; text: modelData.title || "Need help"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
+                                PlainText { width: parent.width - offerBadge.width; text: modelData.title || "Need help"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
                                 GlassPill { id: offerBadge; text: (modelData.offer_count || 0) + " offers"; active: true }
                             }
-                            Text { width: parent.width; text: modelData.problem || ""; color: Qt.rgba(fg.r, fg.g, fg.b, 0.80); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                            Text { visible: !!modelData.tried; width: parent.width; text: "Already tried · " + modelData.tried; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                            Text { visible: modelData.environment_tags && modelData.environment_tags.length > 0; width: parent.width; text: modelData.environment_tags.join("   ·   "); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { width: parent.width; text: modelData.problem || ""; color: Qt.rgba(fg.r, fg.g, fg.b, 0.80); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { visible: !!modelData.tried; width: parent.width; text: "Already tried · " + modelData.tried; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { visible: modelData.environment_tags && modelData.environment_tags.length > 0; width: parent.width; text: modelData.environment_tags.join("   ·   "); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                             Flow {
                                 visible: modelData.helper_matches && modelData.helper_matches.length > 0
                                 width: parent.width
@@ -998,10 +999,10 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(11)
                         spacing: Style.space(7)
-                        Text { text: "Turn this fix into community memory"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        PlainText { text: "Turn this fix into community memory"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                         GlassSurface {
                             width: parent.width; height: Style.space(92); radius: Style.space(13); fillOpacity: 0.48
-                            TextArea {
+                            TextArea { textFormat: TextEdit.PlainText;
                                 anchors.fill: parent
                                 anchors.margins: Style.space(8)
                                 text: root.solutionDraft
@@ -1028,7 +1029,7 @@ KeyboardPanel {
                             }
                             GlassPill { text: "Cancel"; onClicked: { root.solutionHelpId = ""; root.solutionDraft = "" } }
                         }
-                        Text { text: "Only publish what you are comfortable making public."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Only publish what you are comfortable making public."; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                 }
 
@@ -1042,8 +1043,8 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(11)
                         spacing: Style.space(7)
-                        Text { text: "Help improve Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                        Text { width: parent.width; text: "Something missing or broken? Open a pre-filled GitHub report."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                        PlainText { text: "Help improve Friends"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                        PlainText { width: parent.width; text: "Something missing or broken? Open a pre-filled GitHub report."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                         Flow {
                             width: parent.width
                             spacing: Style.space(7)
@@ -1053,7 +1054,7 @@ KeyboardPanel {
                     }
                 }
 
-                Text { text: "Community memory"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { text: "Community memory"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.solutions
                     GlassSurface {
@@ -1068,10 +1069,10 @@ KeyboardPanel {
                             spacing: Style.space(7)
                             Row {
                                 width: parent.width
-                                Text { width: parent.width - verifyBadge.width; text: modelData.title || "Solution"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                PlainText { width: parent.width - verifyBadge.width; text: modelData.title || "Solution"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                 GlassPill { id: verifyBadge; text: (modelData.worked_count || 0) + "/" + (modelData.verification_count || 0) + " worked"; active: true }
                             }
-                            Text { width: parent.width; text: modelData.solution || ""; color: Qt.rgba(fg.r, fg.g, fg.b, 0.82); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { width: parent.width; text: modelData.solution || ""; color: Qt.rgba(fg.r, fg.g, fg.b, 0.82); font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                             Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
@@ -1092,8 +1093,8 @@ KeyboardPanel {
                 height: visible ? implicitHeight : 0
                 spacing: Style.space(12)
 
-                Text { text: "Community pulse"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                Text { width: parent.width; text: "Voluntary reports, meetups and challenges — no hidden telemetry."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { text: "Community pulse"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                PlainText { width: parent.width; text: "Voluntary reports, meetups and challenges — no hidden telemetry."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
                 Repeater {
                     model: build.updatePulse
@@ -1109,21 +1110,21 @@ KeyboardPanel {
                             spacing: Style.space(6)
                             Row {
                                 width: parent.width
-                                Text { width: parent.width - pulseTotal.width; text: "Omarchy " + modelData.version; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                Text { id: pulseTotal; text: modelData.total + " reports"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { width: parent.width - pulseTotal.width; text: "Omarchy " + modelData.version; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                PlainText { id: pulseTotal; text: modelData.total + " reports"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
                             Row {
                                 spacing: Style.space(14)
-                                Text { text: "✓ " + modelData.working + " working"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                                Text { text: "⚠ " + modelData.minor_issue + " minor"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
-                                Text { text: "↩ " + modelData.rolled_back + " rollback"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { text: "✓ " + modelData.working + " working"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                PlainText { text: "⚠ " + modelData.minor_issue + " minor"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { text: "↩ " + modelData.rolled_back + " rollback"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
-                            Text { visible: modelData.matching_total > 0; width: parent.width; text: "Similar to your machine · " + modelData.matching_total + " reports · " + modelData.matching_working + " working"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { visible: modelData.matching_total > 0; width: parent.width; text: "Similar to your machine · " + modelData.matching_total + " reports · " + modelData.matching_working + " working"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                         }
                     }
                 }
 
-                Text { text: "Events"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { text: "Events"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.events
                     GlassSurface {
@@ -1136,9 +1137,9 @@ KeyboardPanel {
                             anchors.fill: parent
                             anchors.margins: Style.space(11)
                             spacing: Style.space(6)
-                            Text { text: modelData.title || "Event"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                            Text { width: parent.width; text: (modelData.when_text || "Time TBD") + "   ·   " + (modelData.location || "Location TBD"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                            Text { text: (modelData.going_count || 0) + " going   ·   " + (modelData.interested_count || 0) + " interested"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { text: modelData.title || "Event"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                            PlainText { width: parent.width; text: (modelData.when_text || "Time TBD") + "   ·   " + (modelData.location || "Location TBD"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { text: (modelData.going_count || 0) + " going   ·   " + (modelData.interested_count || 0) + " interested"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
@@ -1151,7 +1152,7 @@ KeyboardPanel {
                     }
                 }
 
-                Text { text: "Challenges"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                PlainText { text: "Challenges"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
                 Repeater {
                     model: build.challenges
                     GlassSurface {
@@ -1166,10 +1167,10 @@ KeyboardPanel {
                             spacing: Style.space(6)
                             Row {
                                 width: parent.width
-                                Text { width: parent.width - challengeCount.width; text: modelData.title || "Challenge"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                Text { id: challengeCount; text: (modelData.join_count || 0) + " joined"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                                PlainText { width: parent.width - challengeCount.width; text: modelData.title || "Challenge"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                PlainText { id: challengeCount; text: (modelData.join_count || 0) + " joined"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                             }
-                            Text { width: parent.width; text: modelData.prompt || ""; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                            PlainText { width: parent.width; text: modelData.prompt || ""; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                             Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
@@ -1189,8 +1190,8 @@ KeyboardPanel {
                 height: visible ? implicitHeight : 0
                 spacing: Style.space(12)
 
-                Text { text: "Put something into the world"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                Text { width: parent.width; text: "Public metadata only. Private conversation stays private in Friends."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { text: "Put something into the world"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
+                PlainText { width: parent.width; text: "Public metadata only. Private conversation stays private in Friends."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
                 Flow {
                     width: parent.width
@@ -1208,7 +1209,7 @@ KeyboardPanel {
                 Column {
                     width: parent.width
                     spacing: Style.space(6)
-                    Text { text: root.createKind === "update" ? "Title (optional)" : "Title"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { text: root.createKind === "update" ? "Title (optional)" : "Title"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                     GlassSurface {
                         width: parent.width; height: Style.space(44); radius: Style.space(14); fillOpacity: 0.50
                         TextInput { anchors.fill: parent; anchors.margins: Style.space(12); text: root.titleDraft; onTextChanged: root.titleDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; verticalAlignment: TextInput.AlignVCenter }
@@ -1218,28 +1219,28 @@ KeyboardPanel {
                 Column {
                     width: parent.width
                     spacing: Style.space(6)
-                    Text { text: root.fieldHint(); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { text: root.fieldHint(); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                     GlassSurface {
                         width: parent.width; height: Style.space(106); radius: Style.space(14); fillOpacity: 0.50
-                        TextArea { anchors.fill: parent; anchors.margins: Style.space(8); text: root.bodyDraft; onTextChanged: root.bodyDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: TextEdit.Wrap; background: Item {} }
+                        TextArea { textFormat: TextEdit.PlainText; anchors.fill: parent; anchors.margins: Style.space(8); text: root.bodyDraft; onTextChanged: root.bodyDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: TextEdit.Wrap; background: Item {} }
                     }
                 }
 
                 Column {
                     width: parent.width
                     spacing: Style.space(6)
-                    Text { text: "Link"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { text: "Link"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                     GlassSurface {
                         width: parent.width; height: Style.space(44); radius: Style.space(14); fillOpacity: 0.50
                         TextInput { anchors.fill: parent; anchors.margins: Style.space(12); text: root.urlDraft; onTextChanged: root.urlDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
                     }
-                    Text { text: "Optional HTTPS repo, artifact, event or source URL"; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    PlainText { text: "Optional HTTPS repo, artifact, event or source URL"; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                 }
 
                 Column {
                     width: parent.width
                     spacing: Style.space(6)
-                    Text { text: root.createKind === "event" ? "Location" : "Tags / roles / environments"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { text: root.createKind === "event" ? "Location" : "Tags / roles / environments"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
                     GlassSurface {
                         width: parent.width; height: Style.space(44); radius: Style.space(14); fillOpacity: 0.50
                         TextInput { anchors.fill: parent; anchors.margins: Style.space(12); text: root.tagsDraft; onTextChanged: root.tagsDraft = text; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
@@ -1249,7 +1250,7 @@ KeyboardPanel {
                 Column {
                     width: parent.width
                     spacing: Style.space(6)
-                    Text {
+                    PlainText {
                         text: root.createKind === "help" ? "What you / AI already tried" : root.createKind === "solution" ? "Problem this solves" : root.createKind === "event" ? "When" : root.createKind === "challenge" ? "Deadline" : root.createKind === "test" ? "Version" : root.createKind === "update" ? "Omarchy version" : "Extra"
                         color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true
                     }
@@ -1264,7 +1265,7 @@ KeyboardPanel {
                     width: parent.width
                     spacing: Style.space(9)
                     GlassPill { text: root.useDetectedEnvironment ? "✓ Safe environment included" : "Include environment"; active: root.useDetectedEnvironment; onClicked: root.useDetectedEnvironment = !root.useDetectedEnvironment }
-                    Text { text: "No identifying machine data"; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
+                    PlainText { text: "No identifying machine data"; color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption; anchors.verticalCenter: parent.verticalCenter }
                 }
 
                 Flow {
@@ -1290,8 +1291,8 @@ KeyboardPanel {
                         Column {
                             width: parent.width - publishButton.width - Style.space(10)
                             anchors.verticalCenter: parent.verticalCenter
-                            Text { text: "Public Build Network"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                            Text { text: "Signed metadata · relay readable"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { text: "Public Build Network"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { text: "Signed metadata · relay readable"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                         }
                         GlassPill { id: publishButton; text: build.busy || root.createSubmitting ? "Publishing…" : "Publish ↗"; strong: true; enabled: !build.busy && !root.createSubmitting; onClicked: root.submitCreate() }
                     }
@@ -1310,8 +1311,8 @@ KeyboardPanel {
                     Column {
                         width: parent.width - repairInvite.width - releaseHealth.width - Style.space(16)
                         anchors.verticalCenter: parent.verticalCenter
-                        Text { text: "Release diagnostics"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                        Text { text: "Queued: " + (build.releaseInfo.pending_publish || 0) + " · blocked filtered: " + (build.releaseInfo.blocked_filtered || 0); color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Release diagnostics"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { text: "Queued: " + (build.releaseInfo.pending_publish || 0) + " · blocked filtered: " + (build.releaseInfo.blocked_filtered || 0); color: faint; font.family: Style.font.family; font.pixelSize: Style.font.caption }
                     }
                     GlassPill { id: repairInvite; text: "Repair invites"; onClicked: build.registerInviteLinks() }
                     GlassPill { id: releaseHealth; text: "Health"; onClicked: build.health() }
@@ -1319,7 +1320,7 @@ KeyboardPanel {
             }
 
             Item { width: 1; height: Style.space(3) }
-            Text {
+            PlainText {
                 width: parent.width
                 text: "Built for Omarchy · public cards are signed metadata · private chat stays private · shared setup data is compare/review only"
                 color: faint

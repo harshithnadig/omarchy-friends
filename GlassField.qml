@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import "."
 
 Item {
     id: root
@@ -70,7 +71,7 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         onAccepted: root.accepted()
 
-        Text {
+        PlainText {
             visible: input.text === "" && !input.activeFocus
             anchors.verticalCenter: parent.verticalCenter
             text: root.placeholder
@@ -80,7 +81,7 @@ Item {
         }
     }
 
-    TextArea {
+    TextArea { textFormat: TextEdit.PlainText;
         id: area
         visible: root.multiline
         Accessible.name: root.accessibleName || root.placeholder || "Text field"

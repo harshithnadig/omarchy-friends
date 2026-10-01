@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "."
 
 Item {
     id: root
@@ -102,14 +103,14 @@ Item {
         id: labelRow
         anchors.centerIn: parent
         spacing: Style.space(6)
-        Text {
+        PlainText {
             visible: root.icon !== ""
             text: root.icon
             color: root.primary ? "white" : (root.selected ? "#f1eeff" : "#d9e5ff")
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
         }
-        Text {
+        PlainText {
             text: root.text
             color: root.primary ? "white" : (root.selected ? "#f7f3ff" : "#e7ebf7")
             font.family: Style.font.family

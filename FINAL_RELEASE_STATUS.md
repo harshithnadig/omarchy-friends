@@ -1,5 +1,13 @@
 # Omarchy Friends v4.16.0 — release candidate status
 
+## v4.16.1 hotfix
+
+The v4.16.1 hotfix forces Friends QML labels and editable text areas to plain
+text so peer-controlled messages and profile fields cannot initiate remote
+image requests through Qt's automatic text detection. It does not change chat
+storage. Marketplace review remains tied to the exact published commit and is
+not complete until its automation and maintainer review finish.
+
 This document's historical v4.15.1 sections are retained below for provenance. The active v4.16.0 source is pushed to the public GitHub repository; it is not yet a published marketplace release.
 
 ## v4.16.0 candidate state (2026-09-29)
