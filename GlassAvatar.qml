@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "."
 
 Item {
     id: root
@@ -51,7 +52,7 @@ Item {
         }
     }
 
-    Text {
+    PlainText {
         anchors.centerIn: parent
         text: root.emoji || "👾"
         font.pixelSize: root.size * 0.49

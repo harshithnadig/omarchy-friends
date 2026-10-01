@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "."
 
 Item {
     id: root
@@ -85,7 +86,7 @@ Item {
         }
     }
 
-    Text {
+    PlainText {
         id: label
         anchors.centerIn: parent
         text: root.text

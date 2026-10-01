@@ -30,6 +30,7 @@ required=(
   GlassField.qml
   GlassNavItem.qml
   GlassAvatar.qml
+  PlainText.qml
   bin/build_network_app_v4.py
   bin/omarchy-friends
   bin/omarchy-friends-open
@@ -144,7 +145,7 @@ if [[ "$CI_MODE" -eq 0 ]] && command -v qmllint >/dev/null 2>&1 && [[ -n "${OMAR
     ServiceModern.qml Service.qml \
     BuildNetworkPanelV3.qml BuildNetworkService.qml \
     GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
-    GlassNavItem.qml GlassAvatar.qml
+    GlassNavItem.qml GlassAvatar.qml PlainText.qml
   pass "QML lint against installed Omarchy imports"
 else
   warn "QML/Omarchy runtime lint requires the real machine"

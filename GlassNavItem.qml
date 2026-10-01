@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "."
 
 Item {
     id: root
@@ -85,7 +86,7 @@ Item {
         anchors.rightMargin: Style.space(10)
         spacing: Style.space(9)
 
-        Text {
+        PlainText {
             width: Style.space(20)
             horizontalAlignment: Text.AlignHCenter
             text: root.icon
@@ -94,7 +95,7 @@ Item {
             font.pixelSize: Style.font.bodySmall
         }
 
-        Text {
+        PlainText {
             width: parent.width - Style.space(20) - badgeBox.width - Style.space(18)
             text: root.text
             color: root.selected || root.activeFocus ? "#f7f7ff" : (hover.hovered ? "#e7ebf7" : "#bac0d2")
@@ -116,7 +117,7 @@ Item {
             }
             border.width: 1
             border.color: root.selected ? Qt.rgba(0.82, 0.84, 1.0, 0.50) : Qt.rgba(1, 1, 1, 0.08)
-            Text {
+            PlainText {
                 id: badgeText
                 anchors.centerIn: parent
                 text: root.badge
