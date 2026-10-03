@@ -19,40 +19,12 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Style.space(12)
-        gradient: Gradient {
-            GradientStop {
-                position: 0
-                color: input.activeFocus
-                    ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.13)
-                    : Qt.rgba(0.08, 0.10, 0.18, 0.70)
-            }
-            GradientStop {
-                position: 1
-                color: input.activeFocus
-                    ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.055)
-                    : Qt.rgba(0.035, 0.055, 0.12, 0.58)
-            }
-        }
+        radius: Style.space(10)
+        color: input.activeFocus ? "#18232d" : "#101820"
         border.width: 1
         border.color: input.activeFocus
-            ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.76)
-            : Qt.rgba(1, 1, 1, 0.105)
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: 1
-            anchors.rightMargin: 1
-            anchors.topMargin: 1
-            height: Math.max(1, parent.height * 0.34)
-            radius: parent.radius
-            gradient: Gradient {
-                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, input.activeFocus ? 0.09 : 0.045) }
-                GradientStop { position: 1; color: "transparent" }
-            }
-        }
+            ? root.accentColor
+            : "#2a3641"
     }
 
     TextInput {
@@ -64,7 +36,7 @@ Item {
         color: "#f2f5ff"
         selectionColor: root.accentColor
         selectedTextColor: "white"
-        font.family: Style.font.family
+        font.family: "sans-serif"
         font.pixelSize: Style.font.caption
         readOnly: root.readOnly
         clip: true
@@ -76,7 +48,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: root.placeholder
             color: "#7c859f"
-            font.family: Style.font.family
+            font.family: "sans-serif"
             font.pixelSize: Style.font.caption
         }
     }
@@ -94,7 +66,7 @@ Item {
         placeholderTextColor: "#7c859f"
         wrapMode: TextArea.Wrap
         background: null
-        font.family: Style.font.family
+        font.family: "sans-serif"
         font.pixelSize: Style.font.caption
         readOnly: root.readOnly
     }

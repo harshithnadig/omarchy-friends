@@ -66,7 +66,7 @@ from omarchy_friends_private import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.16.1"
+PLUGIN_VERSION = "4.16.2"
 OFFICIAL_MANIFEST_URL = "https://raw.githubusercontent.com/harshithnadig/omarchy-friends/main/manifest.json"
 OFFICIAL_RELEASE_CHECK_SECONDS = 6 * 60 * 60
 OFFICIAL_RELEASE_RETRY_SECONDS = 30 * 60
@@ -6449,6 +6449,9 @@ class FriendsEngine:
 
         if successes:
             global_state["last_sync"] = now_seconds()
+            # Only sync_global receives relay EVENT acknowledgements. A socket
+            # send from the background listener is not proof that presence was
+            # accepted, so keep this timestamp tied to confirmed publishes.
             global_state["last_publish"] = now_seconds() if published else global_state.get("last_publish", 0)
             if dm_relay_event is not None and dm_relay_published:
                 global_state["dm_relay_list_last_publish"] = now_seconds()
@@ -6664,8 +6667,6 @@ class FriendsEngine:
             raise OSError("no private inbox relay answered")
 
         global_state["last_sync"] = now_seconds()
-        if presence_event is not None:
-            global_state["last_publish"] = now_seconds()
         if dm_relay_event is not None:
             global_state["dm_relay_list_last_publish"] = now_seconds()
         global_state["last_error"] = ""
@@ -6700,7 +6701,6 @@ class FriendsEngine:
                                     relay_state[relay_url] = {"online": False, "error": trim_text(error, 120)}
                                     self._close_global_listener_connection(connection)
                                     connections.pop(relay_url, None)
-                            global_state["last_publish"] = now_seconds()
                         else:
                             previous_id = presence_event.get("id", "")
                             presence_event = None
@@ -6734,7 +6734,6 @@ class FriendsEngine:
                                 }
                                 self._close_global_listener_connection(connection)
                                 connections.pop(relay_url, None)
-                        global_state["last_publish"] = now_seconds()
                     last_presence = monotonic_now
 
                 ready_relays = []

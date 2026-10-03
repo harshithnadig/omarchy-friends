@@ -45,15 +45,15 @@ class ReleaseDiscoveryTests(unittest.TestCase):
         self.assertNotIn("New profiles are globally discoverable", readme)
 
     def test_official_manifest_can_raise_update_banner_state(self):
-        response = FakeResponse(self.manifest("4.16.2"))
+        response = FakeResponse(self.manifest("4.16.3"))
         with patch.object(friends_module, "now_seconds", return_value=100_000), patch.object(
             friends_module.urllib.request, "urlopen", return_value=response
         ) as opener:
             self.assertTrue(self.engine._refresh_update_status())
 
-        self.assertEqual(self.engine.state["global"]["latest_version"], "4.16.2")
+        self.assertEqual(self.engine.state["global"]["latest_version"], "4.16.3")
         self.assertTrue(self.engine.state["global"]["update_available"])
-        self.assertEqual(self.engine.state["global"]["official_latest_version"], "4.16.2")
+        self.assertEqual(self.engine.state["global"]["official_latest_version"], "4.16.3")
         self.assertEqual(opener.call_count, 1)
         request = opener.call_args.args[0]
         self.assertEqual(request.full_url, friends_module.OFFICIAL_MANIFEST_URL)
@@ -62,11 +62,11 @@ class ReleaseDiscoveryTests(unittest.TestCase):
         with patch.object(friends_module, "now_seconds", return_value=200_000), patch.object(
             friends_module.urllib.request,
             "urlopen",
-            return_value=FakeResponse(self.manifest("4.16.1")),
+            return_value=FakeResponse(self.manifest("4.16.3")),
         ):
             self.assertEqual(
                 self.engine._official_latest_version(self.engine.state["global"]),
-                (4, 16, 1),
+                (4, 16, 3),
             )
 
         restarted = friends_module.FriendsEngine(state_dir=self.test_dir)
@@ -75,7 +75,7 @@ class ReleaseDiscoveryTests(unittest.TestCase):
         ) as opener:
             self.assertEqual(
                 restarted._official_latest_version(restarted.state["global"]),
-                (4, 16, 1),
+                (4, 16, 3),
             )
             opener.assert_not_called()
 

@@ -451,7 +451,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
 
     def test_world_cards_keep_one_clear_primary_connection_action(self):
         panel = self.read("FriendsPanelV3.qml")
-        self.assertIn("You’re hidden from World.", panel)
+        self.assertIn("Your hidden setting controls whether others can find you", panel)
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
         self.assertIn('return "Message"', panel)
         self.assertIn('return "Connect"', panel)
@@ -478,7 +478,8 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('text: "Pseudonymous profile · sharing is opt-in."', profile)
         self.assertIn('readonly property string globalConnectionText:', panel)
         self.assertIn('"Presence not accepted"', panel)
-        self.assertNotIn('"Reconnecting"', panel)
+        self.assertIn('"Reconnecting"', panel)
+        self.assertIn('"Relay check failed"', panel)
         for privacy_key in ("share_global", "share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertIn(f'root.service.togglePrivacy("{privacy_key}")', profile)
 

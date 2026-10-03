@@ -75,7 +75,7 @@ Item {
     property var updateInfo: ({ available: false, current: "", latest: "" })
     property bool inviteNudge: false
     property var worldEvent: ({ title: "Ship-It Friday", live: false, label: "" })
-    property var globalStatus: ({ visible: false, online_count: 0, relay_count: 0, relay_total: 0, last_sync_age: "never", last_error: "" })
+    property var globalStatus: ({ visible: false, online_count: 0, relay_count: 0, relay_total: 0, last_sync: 0, last_publish: 0, last_sync_age: "never", last_error: "" })
     property string worldPrompt: "What tiny thing are you making better today?"
     property var globalFocus: ({ status: "idle", active: false, pending: false, buddy_name: "", buddy_avatar: "", remaining_seconds: 0, total_seconds: 0 })
     property var worldPulse: []

@@ -126,15 +126,17 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('"org.freedesktop.portal.FileChooser"', picker_command)
         self.assertIn('selected.startswith("file://")', picker_command)
         picker_flow = friends[friends.index("function openAttachmentBrowser("):friends.index("function syncEarlierMessages(")]
-        self.assertIn("root.suspendedForSystemDialog = true", picker_flow)
-        self.assertLess(picker_flow.index("root.suspendedForSystemDialog = true"), picker_flow.index("root.service.pickAttachment("))
-        self.assertIn("root.suspendedForSystemDialog = false", picker_flow)
+        self.assertIn("root.hostWidget.close()", picker_flow)
+        self.assertLess(picker_flow.index("root.hostWidget.close()"), picker_flow.index("Qt.callLater(function()"))
+        self.assertIn("root.service.pickAttachment(folderMode === true", picker_flow)
+        self.assertIn("root.hostWidget.open()", picker_flow)
+        self.assertNotIn("suspendedForSystemDialog", picker_flow)
         self.assertIn('layerNamespace: "omarchy-friends"', friends)
         self.assertIn("Up to 16 KiB sends directly; larger files need Me → Large files (up to 100 MiB).", friends)
         picker_flow = friends[friends.index("function openAttachmentBrowser("):friends.index("function openPrivateSafetyCode(")]
-        self.assertIn("root.suspendedForSystemDialog = true", picker_flow)
         self.assertIn("root.service.pickAttachment(folderMode", picker_flow)
-        self.assertIn("root.suspendedForSystemDialog = false", picker_flow)
+        self.assertIn("root.hostWidget.close()", picker_flow)
+        self.assertIn("root.hostWidget.open()", picker_flow)
         self.assertNotIn("attachmentDialogLaunchTimer", friends)
         self.assertNotIn("onRejected:", friends)
         self.assertIn("id: modernPanelLoader\n        active: true", bar)
@@ -215,7 +217,14 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('text: "Copy invite"', world)
         self.assertIn('onClicked: root.copyInvite()', world)
         self.assertIn('root.service.refreshGlobal()', world)
-        self.assertIn("root.worldStatus.last_error", world)
+        self.assertIn("root.worldEmptyMessage()", world)
+        self.assertIn('root.globalConnectionText === "Checking relays"', friends)
+        self.assertIn('root.globalConnectionText === "Relay check failed"', friends)
+        self.assertIn('root.globalConnectionText === "Reconnecting"', friends)
+        self.assertIn("does not affect who you can see", friends)
+        presence = friends.split("function selfPresenceIsLive()", 1)[1].split("function worldEmptyMessage()", 1)[0]
+        self.assertIn("root.worldRelaysConnected", presence)
+        self.assertIn("root.worldLastPublish", presence)
 
     def test_conversations_remain_listed_from_persistent_dm_memory(self):
         friends = read("FriendsPanelV3.qml")
@@ -308,7 +317,9 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("root.activeFocus", button)
         self.assertIn("root.activeFocus", nav)
         self.assertIn("root.activeFocus", pill)
-        self.assertIn("border.width: root.activeFocus ? 2 : 1", button)
+        self.assertIn("visible: root.activeFocus", button)
+        self.assertIn("border.width: 2", button)
+        self.assertIn("border.color: root.coolTint", button)
         self.assertIn("border.width: root.activeFocus ? 2 : 1", pill)
 
     def test_build_tabs_use_keyboard_accessible_shared_control(self):
