@@ -113,6 +113,12 @@ When a DM activity record exists but its message bodies are missing locally, the
 
 World presence uses signed Nostr events with a locally generated secp256k1 identity. Presence expires quickly so World behaves like a live lobby rather than a permanent fake-online list.
 
+World only lists people who have Omarchy Friends installed, explicitly enabled
+World visibility, and published a recent presence. New profiles are hidden by
+default. If the directory is empty while relays are healthy, there may simply
+be no other opted-in users online yet; use the invite action to bring someone
+in. You can browse World while keeping your own profile hidden.
+
 Default relays:
 
 ```text

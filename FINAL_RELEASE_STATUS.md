@@ -1,4 +1,27 @@
-# Omarchy Friends v4.16.0 — release candidate status
+# Omarchy Friends v4.16.2 — release candidate status
+
+## v4.16.2 current candidate (2026-10-03)
+
+- World now distinguishes checking, failed/stale relay status, and a healthy
+  relay check with no other opted-in users. Its empty state explains that
+  visibility controls whether others can find you, not whether you can discover
+  other users. It never fabricates people.
+- The profile's green online dot now requires a recent relay-confirmed presence
+  publish and a fresh, healthy relay check. Background listener socket sends
+  no longer count as confirmed publishes.
+- Shared surfaces and controls use flatter fills, quieter borders, and a
+  readable sans-serif font. This affects Friends and Build Network, including
+  compatibility panels.
+- Chat storage, migration, and privacy defaults are unchanged.
+- Saved conversations remain discoverable through the full durable local index,
+  and the desktop file chooser now launches only after the full-screen Friends
+  overlay releases focus. The panel reopens after choosing or cancelling.
+- The CI release gate passes all 326 tests; `qmllint` also passes against the
+  installed Omarchy shell imports. CUA exposed no desktop window for rendered UI
+  verification, so the visual result and live World/relay behavior remain
+  unverified. This candidate is pushed on `fix/accurate-world-status` for
+  review; it has not been installed or published to the marketplace and is not
+  release-cleared.
 
 ## v4.16.1 hotfix
 
@@ -8,7 +31,7 @@ image requests through Qt's automatic text detection. It does not change chat
 storage. Marketplace review remains tied to the exact published commit and is
 not complete until its automation and maintainer review finish.
 
-This document's historical v4.15.1 sections are retained below for provenance. The active v4.16.0 source is pushed to the public GitHub repository; it is not yet a published marketplace release.
+The historical v4.16.0 and v4.15.1 sections are retained below for provenance.
 
 ## v4.16.0 candidate state (2026-09-29)
 

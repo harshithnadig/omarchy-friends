@@ -8,6 +8,7 @@ import "."
 KeyboardPanel {
     id: root
 
+    readonly property string uiFontFamily: "sans-serif"
     property var hostWidget: null
     anchorItem: hostWidget && hostWidget.button ? hostWidget.button : null
     bar: hostWidget ? hostWidget.bar : null
@@ -607,7 +608,7 @@ KeyboardPanel {
                 id: titleText
                 text: "Omarchy Friends"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.title
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
@@ -633,7 +634,7 @@ KeyboardPanel {
                     anchors.centerIn: parent
                     text: "🛠 Build"
                     color: accent
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
                 }
@@ -690,8 +691,8 @@ KeyboardPanel {
                     width: parent.width - updateNowButton.width - Style.space(8)
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Style.space(2)
-                    PlainText { text: "↻ Friends " + (root.service.updateInfo.latest || "") + " is out"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                    PlainText { text: "One tap to update — new chats need it."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                    PlainText { text: "↻ Friends " + (root.service.updateInfo.latest || "") + " is out"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                    PlainText { text: "One tap to update — new chats need it."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                 }
 
                 Rectangle {
@@ -701,7 +702,7 @@ KeyboardPanel {
                     radius: height / 2
                     color: accent
                     anchors.verticalCenter: parent.verticalCenter
-                    PlainText { id: updateNowText; anchors.centerIn: parent; text: "Update"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { id: updateNowText; anchors.centerIn: parent; text: "Update"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
                 }
             }
@@ -722,14 +723,14 @@ KeyboardPanel {
                 anchors.margins: Style.space(9)
                 spacing: Style.space(6)
 
-                PlainText { text: "Quick actions"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                PlainText { text: "Quick actions"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
 
                 Rectangle {
                     width: parent.width
                     height: Style.space(32)
                     radius: height / 2
                     color: accent
-                    PlainText { anchors.centerIn: parent; text: "Update Friends"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { anchors.centerIn: parent; text: "Update Friends"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
@@ -749,7 +750,7 @@ KeyboardPanel {
                         height: Style.space(30)
                         radius: height / 2
                         color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
-                        PlainText { anchors.centerIn: parent; text: "My profile"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { anchors.centerIn: parent; text: "My profile"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.menuOpen = false; root.openProfile() } }
                     }
 
@@ -758,7 +759,7 @@ KeyboardPanel {
                         height: Style.space(30)
                         radius: height / 2
                         color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-                        PlainText { anchors.centerIn: parent; text: "Refresh World"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { anchors.centerIn: parent; text: "Refresh World"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.menuOpen = false; if (root.service) root.service.refreshGlobal() } }
                     }
                 }
@@ -805,7 +806,7 @@ KeyboardPanel {
                 PlainText {
                     text: root.profile.handle || "quiet-builder"
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.subtitle
                     font.bold: true
                     elide: Text.ElideRight
@@ -814,7 +815,7 @@ KeyboardPanel {
                 PlainText {
                     text: (root.profile.status_emoji || "•") + " " + (root.profile.status_name || "Ready")
                     color: muted
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     elide: Text.ElideRight
                 }
@@ -842,12 +843,12 @@ KeyboardPanel {
                 anchors.margins: Style.space(10)
                 spacing: Style.space(6)
 
-                PlainText { text: "How Friends works — press ? to close"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                PlainText { width: parent.width; text: "1 · World shows live builders. Tap Add, they accept, and you are chatting."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                PlainText { width: parent.width; text: "2 · Chats holds every private conversation. Unread counts appear here."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                PlainText { width: parent.width; text: "3 · Circles is the public room. Say hello there before sliding into DMs."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                PlainText { width: parent.width; text: "4 · Me is your beacon: name, project, interests. That is how people find you."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                PlainText { width: parent.width; text: "Keys: 1 Chats · 2 World · 3 Circles · 4 Me · h/l switch · j/k pick in World · Enter wave in World · r refresh World · ? help"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { text: "How Friends works — press ? to close"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+                PlainText { width: parent.width; text: "1 · World shows live builders. Tap Add, they accept, and you are chatting."; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { width: parent.width; text: "2 · Chats holds every private conversation. Unread counts appear here."; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { width: parent.width; text: "3 · Circles is the public room. Say hello there before sliding into DMs."; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { width: parent.width; text: "4 · Me is your beacon: name, project, interests. That is how people find you."; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                PlainText { width: parent.width; text: "Keys: 1 Chats · 2 World · 3 Circles · 4 Me · h/l switch · j/k pick in World · Enter wave in World · r refresh World · ? help"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             }
         }
 
@@ -881,7 +882,7 @@ KeyboardPanel {
                             ? modelData.label + " (" + (root.incomingFriendRequests().length + root.unreadMessageCount()) + ")"
                             : modelData.label)
                         color: root.tab === modelData.id ? accent : muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         font.bold: root.tab === modelData.id
                     }
@@ -926,7 +927,7 @@ KeyboardPanel {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.notice
                 color: accent
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -965,7 +966,7 @@ KeyboardPanel {
                     PlainText {
                         text: root.worldStatus.last_error ? "World is resting" : "Find your people."
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.heading
                         font.bold: true
                     }
@@ -974,7 +975,7 @@ KeyboardPanel {
                         visible: root.service && root.service.worldEvent && root.service.worldEvent.label !== ""
                         text: "🚀 " + root.service.worldEvent.title + " · " + root.service.worldEvent.label
                         color: root.service.worldEvent.live ? accent : muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         font.bold: root.service.worldEvent.live
                         elide: Text.ElideRight
@@ -983,7 +984,7 @@ KeyboardPanel {
                     PlainText {
                         text: root.worldStatus.last_error ? "Refresh in a moment" : (root.worldStatus.visible ? root.world.length + " builders on Omarchy" : "You are hidden from World")
                         color: muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                     }
 
@@ -992,7 +993,7 @@ KeyboardPanel {
                             ? root.worldStatus.last_error
                             : "● " + (root.worldStatus.relay_count || 0) + "/" + (root.worldStatus.relay_total || 0) + " relays · synced " + (root.worldStatus.last_sync_age || "never")
                         color: root.worldStatus.last_error ? "#f59e0b" : muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
                     }
@@ -1011,7 +1012,7 @@ KeyboardPanel {
                         anchors.centerIn: parent
                         text: "Refresh"
                         color: bg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         font.bold: true
                     }
@@ -1035,7 +1036,7 @@ KeyboardPanel {
                     anchors.centerIn: parent
                     text: "✨ Send a World Spark to the best live match"
                     color: accent
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
                 }
@@ -1068,7 +1069,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: modelData.label
                             color: modelData.on ? accent : muted
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: modelData.on
                         }
@@ -1112,7 +1113,7 @@ KeyboardPanel {
                                 ? (root.primaryPing().handle || "Someone") + " invited you to focus"
                             : (root.primaryPing() && root.primaryPing().handle ? root.primaryPing().handle + " waved at you" : "Someone waved at you")
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
                         anchors.verticalCenter: parent.verticalCenter
@@ -1133,7 +1134,7 @@ KeyboardPanel {
                                 : root.primaryPing() && root.primaryPing().action === "focus" ? "Join focus"
                                 : "Wave back"
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -1177,7 +1178,7 @@ KeyboardPanel {
                         width: parent.width
                         text: root.worldStatus.last_error ? "World is taking a break." : (root.worldStatus.visible ? "Builders on Omarchy, making things." : "You are hidden from World.")
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.body
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
@@ -1188,7 +1189,7 @@ KeyboardPanel {
                         width: parent.width
                         text: root.worldStatus.last_error ? "Try again in a moment, or finish your profile while it reconnects." : (root.worldStatus.visible ? "You will appear here when another builder is online." : "Open Profile whenever you are ready to appear.")
                         color: muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
@@ -1206,7 +1207,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: root.worldStatus.last_error ? "Try again" : (root.worldStatus.visible ? "Refresh World" : "Open Profile")
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -1246,8 +1247,8 @@ KeyboardPanel {
                         width: parent.width - updateWorldButton.width - Style.space(34)
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(2)
-                        PlainText { text: root.legacyPeerCount() + " builder" + (root.legacyPeerCount() === 1 ? " runs" : "s run") + " an older Friends without DMs"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                        PlainText { text: "Stay updated yourself so every invite works."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        PlainText { text: root.legacyPeerCount() + " builder" + (root.legacyPeerCount() === 1 ? " runs" : "s run") + " an older Friends without DMs"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        PlainText { text: "Stay updated yourself so every invite works."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                     }
 
                     Rectangle {
@@ -1257,7 +1258,7 @@ KeyboardPanel {
                         radius: height / 2
                         color: accent
                         anchors.verticalCenter: parent.verticalCenter
-                        PlainText { id: updateWorldText; anchors.centerIn: parent; text: "Update"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { id: updateWorldText; anchors.centerIn: parent; text: "Update"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
                     }
                 }
@@ -1279,7 +1280,7 @@ KeyboardPanel {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Search builders or projects"
                     color: muted
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                 }
 
@@ -1288,7 +1289,7 @@ KeyboardPanel {
                     anchors.leftMargin: Style.space(13)
                     anchors.rightMargin: Style.space(13)
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     verticalAlignment: TextInput.AlignVCenter
                     text: root.worldQuery
@@ -1335,7 +1336,7 @@ KeyboardPanel {
                                 PlainText {
                                     text: modelData.handle || "Omarchy builder"
                                     color: fg
-                                    font.family: Style.font.family
+                                    font.family: root.uiFontFamily
                                     font.pixelSize: Style.font.bodySmall
                                     font.bold: true
                                     elide: Text.ElideRight
@@ -1350,7 +1351,7 @@ KeyboardPanel {
                                 PlainText {
                                     text: "Block"
                                     color: muted
-                                    font.family: Style.font.family
+                                    font.family: root.uiFontFamily
                                     font.pixelSize: Style.font.caption
                                     MouseArea {
                                         anchors.fill: parent
@@ -1362,7 +1363,7 @@ KeyboardPanel {
                                 PlainText {
                                     text: "Report"
                                     color: muted
-                                    font.family: Style.font.family
+                                    font.family: root.uiFontFamily
                                     font.pixelSize: Style.font.caption
                                     MouseArea {
                                         anchors.fill: parent
@@ -1376,7 +1377,7 @@ KeyboardPanel {
                                 width: parent.width
                                 text: modelData.project_name || modelData.activity || "Making something on Omarchy"
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 elide: Text.ElideRight
                             }
@@ -1386,7 +1387,7 @@ KeyboardPanel {
                                 width: parent.width
                                 text: "Shared: " + (modelData.common_ground || []).join(" · ")
                                 color: accent
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 elide: Text.ElideRight
                             }
@@ -1396,7 +1397,7 @@ KeyboardPanel {
                                 width: parent.width
                                 text: "↺ " + (modelData.memory.summary || "")
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 elide: Text.ElideRight
                             }
@@ -1415,7 +1416,7 @@ KeyboardPanel {
                                 anchors.centerIn: parent
                                 text: root.friendActionLabel(modelData)
                                 color: root.friendshipFor(modelData.public_key) && root.friendshipFor(modelData.public_key).status === "friends" ? accent : fg
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
                             }
@@ -1435,7 +1436,7 @@ KeyboardPanel {
                 width: parent.width
                 text: "No builders match that search."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 horizontalAlignment: Text.AlignHCenter
             }
@@ -1444,7 +1445,7 @@ KeyboardPanel {
                 visible: root.nearby.length > 0
                 text: "📡 Nearby on this Wi-Fi"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -1479,8 +1480,8 @@ KeyboardPanel {
                             width: parent.width - Style.space(32)
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
-                            PlainText { text: modelData.handle || "Nearby builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                            PlainText { text: (modelData.activity || "Around") + " · tap to wave"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                            PlainText { text: modelData.handle || "Nearby builder"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            PlainText { text: (modelData.activity || "Around") + " · tap to wave"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                         }
                     }
                 }
@@ -1503,8 +1504,8 @@ KeyboardPanel {
                 NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
             }
             Item { width: 1; height: Style.space(18) }
-            PlainText { text: "Chats"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-            PlainText { text: "Tap a chat to open it. New here? Find people and say hello. Press ? for help."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            PlainText { text: "Chats"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.heading; font.bold: true }
+            PlainText { text: "Tap a chat to open it. New here? Find people and say hello. Press ? for help."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
             Rectangle {
                 visible: root.service && root.service.inviteNudge
                 width: parent.width
@@ -1520,8 +1521,8 @@ KeyboardPanel {
                         width: parent.width - inviteNudgeCopy.width - inviteNudgeLater.width - Style.space(16)
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(2)
-                        PlainText { text: "🎉 First chat sent!"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                        PlainText { text: "Builders you invite become your people."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                        PlainText { text: "🎉 First chat sent!"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        PlainText { text: "Builders you invite become your people."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                     }
                     Rectangle {
                         id: inviteNudgeCopy
@@ -1530,7 +1531,7 @@ KeyboardPanel {
                         radius: height / 2
                         color: accent
                         anchors.verticalCenter: parent.verticalCenter
-                        PlainText { id: inviteNudgeCopyText; anchors.centerIn: parent; text: "Copy invite"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { id: inviteNudgeCopyText; anchors.centerIn: parent; text: "Copy invite"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
                     }
                     Rectangle {
@@ -1540,7 +1541,7 @@ KeyboardPanel {
                         radius: height / 2
                         color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
                         anchors.verticalCenter: parent.verticalCenter
-                        PlainText { id: inviteNudgeLaterText; anchors.centerIn: parent; text: "Later"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { id: inviteNudgeLaterText; anchors.centerIn: parent; text: "Later"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.dismissNudge() }
                     }
                 }
@@ -1548,14 +1549,14 @@ KeyboardPanel {
             Row {
                 width: parent.width
                 spacing: Style.space(8)
-                PlainText { width: parent.width - newGroupButton.width - Style.space(8); text: root.groupsList().length > 0 ? "Private groups" : "Start a private group"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                PlainText { width: parent.width - newGroupButton.width - Style.space(8); text: root.groupsList().length > 0 ? "Private groups" : "Start a private group"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                 Rectangle {
                     id: newGroupButton
                     width: newGroupButtonText.implicitWidth + Style.space(16)
                     height: Style.space(28)
                     radius: height / 2
                     color: root.groupCreateOpen ? Qt.rgba(accent.r, accent.g, accent.b, 0.18) : soft
-                    PlainText { id: newGroupButtonText; anchors.centerIn: parent; text: root.groupCreateOpen ? "Close" : "+ Group"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { id: newGroupButtonText; anchors.centerIn: parent; text: root.groupCreateOpen ? "Close" : "+ Group"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.groupCreateOpen = !root.groupCreateOpen }
                 }
             }
@@ -1570,14 +1571,14 @@ KeyboardPanel {
                     anchors.fill: parent
                     anchors.margins: Style.space(9)
                     spacing: Style.space(7)
-                    PlainText { text: "Invite friends into one private chat"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { text: "Invite friends into one private chat"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     Rectangle {
                         width: parent.width
                         height: Style.space(34)
                         radius: Style.space(7)
                         color: soft
-                        TextInput { anchors.fill: parent; anchors.margins: Style.space(9); text: root.groupNameDraft; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; onTextChanged: root.groupNameDraft = text }
-                        PlainText { visible: root.groupNameDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(9); anchors.verticalCenter: parent.verticalCenter; text: "Group name"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                        TextInput { anchors.fill: parent; anchors.margins: Style.space(9); text: root.groupNameDraft; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; onTextChanged: root.groupNameDraft = text }
+                        PlainText { visible: root.groupNameDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(9); anchors.verticalCenter: parent.verticalCenter; text: "Group name"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; enabled: false }
                     }
                     Repeater {
                         model: root.friendsList()
@@ -1589,7 +1590,7 @@ KeyboardPanel {
                             activeFocusOnTab: true
                             Accessible.role: Accessible.Button
                             Accessible.name: "Toggle group member " + (modelData.handle || "friend")
-                            PlainText { anchors.centerIn: parent; text: (root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓ " : "") + (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { anchors.centerIn: parent; text: (root.groupMemberKeys.indexOf(modelData.public_key) >= 0 ? "✓ " : "") + (modelData.avatar || "👾") + " " + (modelData.handle || "Friend"); color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.toggleGroupMember(modelData.public_key) }
                             Keys.onReturnPressed: root.toggleGroupMember(modelData.public_key)
                             Keys.onEnterPressed: root.toggleGroupMember(modelData.public_key)
@@ -1608,7 +1609,7 @@ KeyboardPanel {
                         Keys.onReturnPressed: root.createGroup()
                         Keys.onEnterPressed: root.createGroup()
                         Keys.onSpacePressed: root.createGroup()
-                        PlainText { anchors.centerIn: parent; text: "Create private group"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { anchors.centerIn: parent; text: "Create private group"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.createGroup() }
                         Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"; border.width: parent.activeFocus ? 2 : 0; border.color: bg; z: 5 }
                     }
@@ -1638,13 +1639,13 @@ KeyboardPanel {
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
-                            PlainText { text: modelData.name || "Private group"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                            PlainText { text: Object.keys(modelData.members || {}).length + " members"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { text: modelData.name || "Private group"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                            PlainText { text: Object.keys(modelData.members || {}).length + " members"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                         }
                     }
                 }
             }
-            PlainText { visible: root.incomingFriendRequests().length > 0; text: "Pending requests"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            PlainText { visible: root.incomingFriendRequests().length > 0; text: "Pending requests"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
             Repeater {
                 model: root.incomingFriendRequests()
                 Rectangle {
@@ -1661,8 +1662,8 @@ KeyboardPanel {
                             width: parent.width - acceptRequestButton.width - Style.space(38)
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
-                            PlainText { text: modelData.handle || "A builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                            PlainText { text: "wants to chat"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                            PlainText { text: modelData.handle || "A builder"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            PlainText { text: "wants to chat"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                         }
                         Rectangle {
                             id: acceptRequestButton
@@ -1671,13 +1672,13 @@ KeyboardPanel {
                             radius: height / 2
                             color: accent
                             anchors.verticalCenter: parent.verticalCenter
-                            PlainText { id: acceptRequestText; anchors.centerIn: parent; text: "Accept"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { id: acceptRequestText; anchors.centerIn: parent; text: "Accept"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.acceptAndOpen(modelData) }
                         }
                     }
                 }
             }
-            PlainText { visible: root.pendingFriendsList().length > 0; text: "Waiting for acceptance"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            PlainText { visible: root.pendingFriendsList().length > 0; text: "Waiting for acceptance"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
             Repeater {
                 model: root.pendingFriendsList()
                 Rectangle {
@@ -1694,8 +1695,8 @@ KeyboardPanel {
                             width: parent.width - Style.space(28)
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
-                            PlainText { text: modelData.handle || "A builder"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                            PlainText { text: "Invite sent · waiting for them to accept"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                            PlainText { text: modelData.handle || "A builder"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            PlainText { text: "Invite sent · waiting for them to accept"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                         }
                     }
                 }
@@ -1725,8 +1726,8 @@ KeyboardPanel {
                             width: parent.width - messageFriendButton.width - Style.space(38)
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
-                            PlainText { text: modelData.handle || "Omarchy friend"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                            PlainText { text: root.lastMessagePreview(modelData.public_key); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                            PlainText { text: modelData.handle || "Omarchy friend"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
+                            PlainText { text: root.lastMessagePreview(modelData.public_key); color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                         }
                         Rectangle {
                             id: messageFriendButton
@@ -1735,7 +1736,7 @@ KeyboardPanel {
                             radius: height / 2
                             color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
                             anchors.verticalCenter: parent.verticalCenter
-                            PlainText { id: messageFriendText; anchors.centerIn: parent; text: "Open"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { id: messageFriendText; anchors.centerIn: parent; text: "Open"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.chooseFriend(modelData) }
                         }
                     }
@@ -1756,8 +1757,8 @@ KeyboardPanel {
                     width: parent.width - Style.space(34)
                     spacing: Style.space(8)
 
-                    PlainText { width: parent.width; text: "Your people are one hello away."; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }
-                    PlainText { width: parent.width; text: "Find a builder in World, or share your invite link with someone you already know."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+                    PlainText { width: parent.width; text: "Your people are one hello away."; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.body; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    PlainText { width: parent.width; text: "Find a builder in World, or share your invite link with someone you already know."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
 
                     Row {
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -1768,7 +1769,7 @@ KeyboardPanel {
                             height: Style.space(30)
                             radius: height / 2
                             color: accent
-                            PlainText { id: friendsDiscoverText; anchors.centerIn: parent; text: "Discover people"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { id: friendsDiscoverText; anchors.centerIn: parent; text: "Discover people"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.tab = "world" }
                         }
 
@@ -1777,7 +1778,7 @@ KeyboardPanel {
                             height: Style.space(30)
                             radius: height / 2
                             color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
-                            PlainText { id: friendsInviteText; anchors.centerIn: parent; text: "Copy invite"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { id: friendsInviteText; anchors.centerIn: parent; text: "Copy invite"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
                         }
                     }
@@ -1788,7 +1789,7 @@ KeyboardPanel {
                         height: Style.space(30)
                         radius: height / 2
                         color: soft
-                        PlainText { id: soloFocusText; anchors.centerIn: parent; text: "🍅 Start a 25m focus instead"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { id: soloFocusText; anchors.centerIn: parent; text: "🍅 Start a 25m focus instead"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.startCowork(25) }
                     }
                 }
@@ -1818,8 +1819,8 @@ KeyboardPanel {
                 Column {
                     width: parent.width - communityInfoButton.width - Style.space(8)
                     spacing: Style.space(2)
-                    PlainText { text: "Circles"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.heading; font.bold: true }
-                    PlainText { text: (root.world.length + 1) + " builders · one shared room"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                    PlainText { text: "Circles"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.heading; font.bold: true }
+                    PlainText { text: (root.world.length + 1) + " builders · one shared room"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                 }
                 Rectangle {
                     id: communityInfoButton
@@ -1828,11 +1829,11 @@ KeyboardPanel {
                     radius: height / 2
                     color: root.communityInfoOpen ? Qt.rgba(accent.r, accent.g, accent.b, 0.18) : soft
                     anchors.verticalCenter: parent.verticalCenter
-                    PlainText { id: communityInfoText; anchors.centerIn: parent; text: root.communityInfoOpen ? "Hide members" : "Members"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { id: communityInfoText; anchors.centerIn: parent; text: root.communityInfoOpen ? "Hide members" : "Members"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.communityInfoOpen = !root.communityInfoOpen }
                 }
             }
-            PlainText { text: "Everyone on the updated plugin is here automatically. Say hello in the room before starting a DM."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+            PlainText { text: "Everyone on the updated plugin is here automatically. Say hello in the room before starting a DM."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
             Rectangle {
                 visible: root.communityInfoOpen
@@ -1852,7 +1853,7 @@ KeyboardPanel {
                             height: Style.space(28)
                             radius: height / 2
                             color: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-                            PlainText { id: communityMemberText; anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder"); color: fg; font.family: Style.font.family; font.pixelSize: Style.space(11); elide: Text.ElideRight }
+                            PlainText { id: communityMemberText; anchors.centerIn: parent; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder"); color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.space(11); elide: Text.ElideRight }
                         }
                     }
                     Rectangle {
@@ -1860,7 +1861,7 @@ KeyboardPanel {
                         height: Style.space(28)
                         radius: height / 2
                         color: Qt.rgba(accent.r, accent.g, accent.b, 0.16)
-                        PlainText { id: communityYouText; anchors.centerIn: parent; text: (root.profile.avatar || "👾") + " You"; color: accent; font.family: Style.font.family; font.pixelSize: Style.space(11); font.bold: true }
+                        PlainText { id: communityYouText; anchors.centerIn: parent; text: (root.profile.avatar || "👾") + " You"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.space(11); font.bold: true }
                     }
                 }
             }
@@ -1875,12 +1876,12 @@ KeyboardPanel {
                     anchors.margins: Style.space(10)
                     text: root.communityDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     onTextChanged: root.communityDraft = text
                     onAccepted: root.sendCommunity()
                 }
-                PlainText { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Chat with everyone…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                PlainText { visible: root.communityDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Chat with everyone…"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; enabled: false }
             }
 
             Rectangle {
@@ -1888,7 +1889,7 @@ KeyboardPanel {
                 height: Style.space(32)
                 radius: height / 2
                 color: accent
-                PlainText { anchors.centerIn: parent; text: "Send message"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                PlainText { anchors.centerIn: parent; text: "Send message"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendCommunity() }
             }
 
@@ -1897,7 +1898,7 @@ KeyboardPanel {
                 height: Style.space(38)
                 radius: Style.space(8)
                 color: Qt.rgba(accent.r, accent.g, accent.b, 0.1)
-                PlainText { anchors.fill: parent; anchors.margins: Style.space(10); text: "Public room: do not share passwords, private links, or personal information."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
+                PlainText { anchors.fill: parent; anchors.margins: Style.space(10); text: "Public room: do not share passwords, private links, or personal information."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; verticalAlignment: Text.AlignVCenter }
             }
 
             Repeater {
@@ -1912,13 +1913,13 @@ KeyboardPanel {
                         anchors.fill: parent
                         anchors.margins: Style.space(9)
                         spacing: Style.space(3)
-                        PlainText { width: parent.width; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder") + (modelData.incoming ? "" : " · you") + " · " + (modelData.time_ago || "now"); color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                        PlainText { width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
+                        PlainText { width: parent.width; text: (modelData.avatar || "👾") + " " + (modelData.handle || "Builder") + (modelData.incoming ? "" : " · you") + " · " + (modelData.time_ago || "now"); color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                        PlainText { width: parent.width; text: modelData.text || ""; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap }
                     }
                 }
             }
 
-            PlainText { visible: root.community.length === 0; width: parent.width; text: "No messages yet. Start the room."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
+            PlainText { visible: root.community.length === 0; width: parent.width; text: "No messages yet. Start the room."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
         }
 
         Column {
@@ -1928,19 +1929,19 @@ KeyboardPanel {
             height: visible ? implicitHeight : 0
             spacing: Style.space(12)
             Item { width: 1; height: Style.space(6) }
-            PlainText { visible: root.selectedFriend() !== null || root.selectedGroup() !== null; text: root.selectedGroup() ? "Group · " + root.selectedGroup().name : (root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""); color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+            PlainText { visible: root.selectedFriend() !== null || root.selectedGroup() !== null; text: root.selectedGroup() ? "Group · " + root.selectedGroup().name : (root.selectedFriend() ? "Chatting with " + root.selectedFriend().handle : ""); color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
             Row {
                 visible: root.selectedFriend() !== null
                 width: parent.width
                 spacing: Style.space(6)
-                PlainText { visible: root.friendStreak() >= 2; text: "🔥 " + root.friendStreak() + "-day focus streak — keep shipping together"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                PlainText { visible: root.friendStreak() >= 2; text: "🔥 " + root.friendStreak() + "-day focus streak — keep shipping together"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                 Item { width: 1; height: 1; visible: root.friendStreak() >= 2 }
                 Rectangle {
                     width: focusInviteText.implicitWidth + Style.space(14)
                     height: Style.space(26)
                     radius: height / 2
                     color: soft
-                    PlainText { id: focusInviteText; anchors.centerIn: parent; text: "🍅 Invite to focus 25m"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { id: focusInviteText; anchors.centerIn: parent; text: "🍅 Invite to focus 25m"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
                 }
             }
@@ -1975,7 +1976,7 @@ KeyboardPanel {
                                         width: parent.width - Style.space(14)
                                         anchors.centerIn: parent
                                         spacing: Style.space(5)
-                                        PlainText { visible: modelData.text !== ""; width: parent.width; text: modelData.text || ""; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                        PlainText { visible: modelData.text !== ""; width: parent.width; text: modelData.text || ""; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                         Repeater {
                                             model: modelData.media || []
                                             Rectangle {
@@ -1983,17 +1984,17 @@ KeyboardPanel {
                                                 height: Style.space(28)
                                                 radius: height / 2
                                                 color: Qt.rgba(accent.r, accent.g, accent.b, 0.14)
-                                                PlainText { anchors.centerIn: parent; text: (modelData.kind === "image" ? "🖼 " : modelData.kind === "video" ? "🎞 " : modelData.kind === "audio" ? "🎧 " : "🔗 ") + "Open shared " + modelData.kind; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                                                PlainText { anchors.centerIn: parent; text: (modelData.kind === "image" ? "🖼 " : modelData.kind === "video" ? "🎞 " : modelData.kind === "audio" ? "🎧 " : "🔗 ") + "Open shared " + modelData.kind; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openSharedUrl(modelData.url) }
                                             }
                                         }
                                     }
                                 }
                             }
-                            PlainText { width: parent.width; text: (modelData.incoming ? "← " : "→ ") + (modelData.handle || "Friend"); color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: modelData.incoming ? Text.AlignLeft : Text.AlignRight }
+                            PlainText { width: parent.width; text: (modelData.incoming ? "← " : "→ ") + (modelData.handle || "Friend"); color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; horizontalAlignment: modelData.incoming ? Text.AlignLeft : Text.AlignRight }
                         }
                     }
-                    PlainText { visible: root.conversationMessages().length === 0; width: parent.width; text: "No messages yet. Say hello or share a link."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
+                    PlainText { visible: root.conversationMessages().length === 0; width: parent.width; text: "No messages yet. Say hello or share a link."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; horizontalAlignment: Text.AlignHCenter }
                 }
             }
             Rectangle {
@@ -2007,12 +2008,12 @@ KeyboardPanel {
                     anchors.margins: Style.space(10)
                     text: root.messageDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     onTextChanged: root.messageDraft = text
                     onAccepted: root.sendMessage()
                 }
-                PlainText { visible: root.messageDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Write a message…"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                PlainText { visible: root.messageDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Write a message…"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; enabled: false }
             }
             Rectangle {
                 visible: root.selectedFriend() !== null || root.selectedGroup() !== null
@@ -2025,18 +2026,18 @@ KeyboardPanel {
                     anchors.margins: Style.space(10)
                     text: root.mediaDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     onTextChanged: root.mediaDraft = text
                     onAccepted: root.sendMessage()
                 }
-                PlainText { visible: root.mediaDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an image, video, audio, or file link (optional)"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false; elide: Text.ElideRight; width: parent.width - Style.space(20) }
+                PlainText { visible: root.mediaDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an image, video, audio, or file link (optional)"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; enabled: false; elide: Text.ElideRight; width: parent.width - Style.space(20) }
             }
             Row {
                 visible: root.selectedFriend() !== null || root.selectedGroup() !== null
                 width: parent.width
                 spacing: Style.space(8)
-                PlainText { width: parent.width - sendMessageButton.width - Style.space(8); text: "Links are shared inside the encrypted message; Friends never uploads a file without your permission."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; anchors.verticalCenter: parent.verticalCenter }
+                PlainText { width: parent.width - sendMessageButton.width - Style.space(8); text: "Links are shared inside the encrypted message; Friends never uploads a file without your permission."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; anchors.verticalCenter: parent.verticalCenter }
                 Rectangle {
                     id: sendMessageButton
                     width: sendMessageButtonText.implicitWidth + Style.space(20)
@@ -2044,7 +2045,7 @@ KeyboardPanel {
                     radius: height / 2
                     color: accent
                     anchors.verticalCenter: parent.verticalCenter
-                    PlainText { id: sendMessageButtonText; anchors.centerIn: parent; text: "Send"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { id: sendMessageButtonText; anchors.centerIn: parent; text: "Send"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sendMessage() }
                 }
             }
@@ -2062,7 +2063,7 @@ KeyboardPanel {
             PlainText {
                 text: "Showcase"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.heading
                 font.bold: true
             }
@@ -2070,7 +2071,7 @@ KeyboardPanel {
             PlainText {
                 text: "Projects, plugins, and custom rice shared in public."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
             }
 
@@ -2096,7 +2097,7 @@ KeyboardPanel {
                         width: parent.width - setupButton.width - Style.space(30)
                         text: root.profile.project_name ? "Your setup is live." : "Add one project to be discoverable."
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
                         anchors.verticalCenter: parent.verticalCenter
@@ -2115,7 +2116,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: root.profile.project_name ? "Edit" : "Add setup"
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -2160,7 +2161,7 @@ KeyboardPanel {
                                 PlainText {
                                     text: modelData.project_name || "Omarchy setup"
                                     color: fg
-                                    font.family: Style.font.family
+                                    font.family: root.uiFontFamily
                                     font.pixelSize: Style.font.bodySmall
                                     font.bold: true
                                     elide: Text.ElideRight
@@ -2169,7 +2170,7 @@ KeyboardPanel {
                                 PlainText {
                                     text: "by " + (modelData.handle || "builder")
                                     color: muted
-                                    font.family: Style.font.family
+                                    font.family: root.uiFontFamily
                                     font.pixelSize: Style.font.caption
                                     elide: Text.ElideRight
                                 }
@@ -2179,7 +2180,7 @@ KeyboardPanel {
                                 width: parent.width
                                 text: modelData.project_desc || "A setup worth exploring"
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 wrapMode: Text.WordWrap
                                 elide: Text.ElideRight
@@ -2190,7 +2191,7 @@ KeyboardPanel {
                                 width: parent.width
                                 text: "↗ " + modelData.project_url
                                 color: accent
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 elide: Text.ElideRight
                                 MouseArea {
@@ -2214,7 +2215,7 @@ KeyboardPanel {
                                 anchors.centerIn: parent
                                 text: "Say hi"
                                 color: fg
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
                             }
@@ -2246,7 +2247,7 @@ KeyboardPanel {
                         width: parent.width
                         text: "Nothing here yet."
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.body
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
@@ -2256,7 +2257,7 @@ KeyboardPanel {
                         width: parent.width
                         text: "Add a project and give someone an easy opener."
                         color: muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
@@ -2274,7 +2275,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: "Add setup"
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -2300,7 +2301,7 @@ KeyboardPanel {
             PlainText {
                 text: "Activity"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.heading
                 font.bold: true
             }
@@ -2308,7 +2309,7 @@ KeyboardPanel {
             PlainText {
                 text: "Signals from people you crossed paths with."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
             }
 
@@ -2341,7 +2342,7 @@ KeyboardPanel {
                             PlainText {
                                 text: (modelData.user || "A builder") + " · " + (modelData.time_ago || "now")
                                 color: fg
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
                             }
@@ -2350,7 +2351,7 @@ KeyboardPanel {
                                 width: parent.width
                                 text: modelData.text || "Sent a signal"
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 wrapMode: Text.WordWrap
                             }
@@ -2370,7 +2371,7 @@ KeyboardPanel {
                                 anchors.centerIn: parent
                                 text: "Reply"
                                 color: fg
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                                 font.bold: true
                             }
@@ -2402,7 +2403,7 @@ KeyboardPanel {
                         width: parent.width
                         text: "Your first hello starts here."
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.body
                         font.bold: true
                         horizontalAlignment: Text.AlignHCenter
@@ -2412,7 +2413,7 @@ KeyboardPanel {
                         width: parent.width
                         text: "Say hi in World and replies will appear here."
                         color: muted
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
@@ -2442,7 +2443,7 @@ KeyboardPanel {
             PlainText {
                 text: "Profile"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.heading
                 font.bold: true
             }
@@ -2450,7 +2451,7 @@ KeyboardPanel {
             PlainText {
                 text: "The small details that help someone say hello."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
             }
 
@@ -2459,14 +2460,14 @@ KeyboardPanel {
                 height: Style.space(36)
                 radius: height / 2
                 color: accent
-                PlainText { anchors.centerIn: parent; text: "Save changes"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                PlainText { anchors.centerIn: parent; text: "Save changes"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.saveProfile() }
             }
 
             PlainText {
                 text: "Name"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -2482,7 +2483,7 @@ KeyboardPanel {
                     anchors.margins: Style.space(9)
                     text: root.handleDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.bodySmall
                     onTextChanged: root.handleDraft = text
                 }
@@ -2491,7 +2492,7 @@ KeyboardPanel {
             PlainText {
                 text: "Avatar"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -2528,7 +2529,7 @@ KeyboardPanel {
             PlainText {
                 text: "Status"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -2561,7 +2562,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: modelData.emoji + " " + modelData.name
                             color: root.profile.status === modelData.id ? accent : muted
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: root.profile.status === modelData.id
                         }
@@ -2577,7 +2578,7 @@ KeyboardPanel {
             PlainText {
                 text: "Interests"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -2585,7 +2586,7 @@ KeyboardPanel {
             PlainText {
                 text: "Choose up to four."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
             }
 
@@ -2620,7 +2621,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: modelData.emoji + " " + modelData.name
                             color: root.interestsDraft.indexOf(modelData.id) >= 0 ? accent : muted
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: root.interestsDraft.indexOf(modelData.id) >= 0
                         }
@@ -2636,7 +2637,7 @@ KeyboardPanel {
             PlainText {
                 text: "Hack Circles"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -2644,7 +2645,7 @@ KeyboardPanel {
             PlainText {
                 text: root.profile.room ? "You are in " + root.profile.room + ". Tap to switch or leave." : "Join a temporary tribe. Builders in the same circle find each other."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 wrapMode: Text.WordWrap
             }
@@ -2669,7 +2670,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: modelData
                             color: root.profile.room === modelData ? accent : muted
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: root.profile.room === modelData
                         }
@@ -2706,7 +2707,7 @@ KeyboardPanel {
                         width: parent.width - privacyButton.width - Style.space(27)
                         text: root.profile.privacy && root.profile.privacy.share_global ? "Visible in World" : "Hidden from World"
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -2724,7 +2725,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: "Change"
                             color: muted
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                         }
 
@@ -2739,7 +2740,7 @@ KeyboardPanel {
             PlainText {
                 text: "Showcase"
                 color: fg
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
             }
@@ -2747,7 +2748,7 @@ KeyboardPanel {
             PlainText {
                 text: "A project name and one sentence is enough."
                 color: muted
-                font.family: Style.font.family
+                font.family: root.uiFontFamily
                 font.pixelSize: Style.font.caption
             }
 
@@ -2762,7 +2763,7 @@ KeyboardPanel {
                     anchors.margins: Style.space(9)
                     text: root.projectNameDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.bodySmall
                     onTextChanged: root.projectNameDraft = text
                 }
@@ -2779,7 +2780,7 @@ KeyboardPanel {
                     anchors.margins: Style.space(9)
                     text: root.projectDescDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     wrapMode: TextEdit.Wrap
                     onTextChanged: root.projectDescDraft = text
@@ -2797,11 +2798,11 @@ KeyboardPanel {
                     anchors.margins: Style.space(9)
                     text: root.projectUrlDraft
                     color: fg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.bodySmall
                     onTextChanged: root.projectUrlDraft = text
                 }
-                PlainText { visible: root.projectUrlDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(9); anchors.verticalCenter: parent.verticalCenter; text: "Project link https://… (optional)"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                PlainText { visible: root.projectUrlDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(9); anchors.verticalCenter: parent.verticalCenter; text: "Project link https://… (optional)"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; enabled: false }
             }
 
             Rectangle {
@@ -2814,7 +2815,7 @@ KeyboardPanel {
                     anchors.centerIn: parent
                     text: "Save profile"
                     color: bg
-                    font.family: Style.font.family
+                    font.family: root.uiFontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
                 }
@@ -2840,8 +2841,8 @@ KeyboardPanel {
                         width: parent.width - updateButton.width - Style.space(8)
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Style.space(2)
-                        PlainText { text: "Keep Friends up to date"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
-                        PlainText { text: "Needed for chat compatibility."; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+                        PlainText { text: "Keep Friends up to date"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { text: "Needed for chat compatibility."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                     }
 
                     Rectangle {
@@ -2851,7 +2852,7 @@ KeyboardPanel {
                         radius: height / 2
                         color: Qt.rgba(accent.r, accent.g, accent.b, 0.18)
                         anchors.verticalCenter: parent.verticalCenter
-                        PlainText { id: updateButtonText; anchors.centerIn: parent; text: "Update"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { id: updateButtonText; anchors.centerIn: parent; text: "Update"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (root.service) root.service.updatePlugin() }
                     }
                 }
@@ -2869,14 +2870,14 @@ KeyboardPanel {
                     spacing: Style.space(6)
                     Row {
                         width: parent.width
-                        PlainText { width: parent.width - inviteCopyButton.width; text: "Invite someone directly"; color: fg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                        PlainText { width: parent.width - inviteCopyButton.width; text: "Invite someone directly"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                         Rectangle {
                             id: inviteCopyButton
                             width: inviteCopyText.implicitWidth + Style.space(16)
                             height: Style.space(24)
                             radius: height / 2
                             color: accent
-                            PlainText { id: inviteCopyText; anchors.centerIn: parent; text: "Copy invite"; color: bg; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { id: inviteCopyText; anchors.centerIn: parent; text: "Copy invite"; color: bg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.copyInviteLink() }
                         }
                     }
@@ -2890,13 +2891,13 @@ KeyboardPanel {
                             anchors.leftMargin: Style.space(10)
                             anchors.rightMargin: connectInviteButton.width + Style.space(8)
                             color: fg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             text: root.inviteDraft
                             onTextChanged: root.inviteDraft = text
                             onAccepted: root.connectInvite()
                         }
-                        PlainText { visible: root.inviteDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an invite link"; color: muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; enabled: false }
+                        PlainText { visible: root.inviteDraft === ""; anchors.left: parent.left; anchors.leftMargin: Style.space(10); anchors.verticalCenter: parent.verticalCenter; text: "Paste an invite link"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; enabled: false }
                         Rectangle {
                             id: connectInviteButton
                             anchors.right: parent.right
@@ -2906,7 +2907,7 @@ KeyboardPanel {
                             height: Style.space(25)
                             radius: height / 2
                             color: Qt.rgba(accent.r, accent.g, accent.b, 0.18)
-                            PlainText { id: connectInviteText; anchors.centerIn: parent; text: "Connect"; color: accent; font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { id: connectInviteText; anchors.centerIn: parent; text: "Connect"; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.connectInvite() }
                         }
                     }
@@ -2932,7 +2933,7 @@ KeyboardPanel {
                             width: parent.width - ideaToggle.width
                             text: "Suggest a feature"
                             color: fg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -2948,7 +2949,7 @@ KeyboardPanel {
                                 anchors.centerIn: parent
                                 text: root.ideaOpen ? "Close" : "Open"
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                             }
 
@@ -2965,7 +2966,7 @@ KeyboardPanel {
                         height: Style.space(54)
                         text: root.ideaText
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         wrapMode: TextEdit.Wrap
                         onTextChanged: root.ideaText = text
@@ -2982,7 +2983,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: "Copy suggestion and open GitHub"
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -3014,7 +3015,7 @@ KeyboardPanel {
                             width: parent.width - feedbackToggle.width
                             text: "Send feedback"
                             color: fg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -3030,7 +3031,7 @@ KeyboardPanel {
                                 anchors.centerIn: parent
                                 text: root.feedbackOpen ? "Close" : "Open"
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                             }
 
@@ -3047,7 +3048,7 @@ KeyboardPanel {
                         height: Style.space(54)
                         text: root.feedbackText
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         wrapMode: TextEdit.Wrap
                         onTextChanged: root.feedbackText = text
@@ -3064,7 +3065,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: "Copy feedback and open GitHub"
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -3096,7 +3097,7 @@ KeyboardPanel {
                             width: parent.width - bugToggle.width
                             text: "Report a bug"
                             color: fg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
@@ -3112,7 +3113,7 @@ KeyboardPanel {
                                 anchors.centerIn: parent
                                 text: root.bugOpen ? "Close" : "Open"
                                 color: muted
-                                font.family: Style.font.family
+                                font.family: root.uiFontFamily
                                 font.pixelSize: Style.font.caption
                             }
 
@@ -3129,7 +3130,7 @@ KeyboardPanel {
                         height: Style.space(54)
                         text: root.bugText
                         color: fg
-                        font.family: Style.font.family
+                        font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         wrapMode: TextEdit.Wrap
                         onTextChanged: root.bugText = text
@@ -3146,7 +3147,7 @@ KeyboardPanel {
                             anchors.centerIn: parent
                             text: "Copy bug report and open GitHub"
                             color: bg
-                            font.family: Style.font.family
+                            font.family: root.uiFontFamily
                             font.pixelSize: Style.font.caption
                             font.bold: true
                         }
