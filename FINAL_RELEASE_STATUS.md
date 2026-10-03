@@ -19,8 +19,9 @@
 - The CI release gate passes all 326 tests; `qmllint` also passes against the
   installed Omarchy shell imports. CUA exposed no desktop window for rendered UI
   verification, so the visual result and live World/relay behavior remain
-  unverified. This candidate has not been installed, pushed, or published and
-  is not release-cleared.
+  unverified. This candidate is pushed on `fix/accurate-world-status` for
+  review; it has not been installed or published to the marketplace and is not
+  release-cleared.
 
 ## v4.16.1 hotfix
 
