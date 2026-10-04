@@ -1,0 +1,17 @@
+[package]
+name = "omarchy-friends-mls-session-experiment"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dev-dependencies]
+cgka-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "fcc85edd8dbd07c8293c899ee52230f72c54c897" }
+futures = "0.3"
+marmot-uniffi = { git = "https://github.com/marmot-protocol/mdk", rev = "fcc85edd8dbd07c8293c899ee52230f72c54c897" }
+nostr = "0.44.8"
+nostr-relay-builder = "0.44.0"
+nostr-sdk = "0.44.1"
+tempfile = "3.27"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+transport-nostr-adapter = { git = "https://github.com/marmot-protocol/mdk", rev = "fcc85edd8dbd07c8293c899ee52230f72c54c897" }
+transport-nostr-peeler = { git = "https://github.com/marmot-protocol/mdk", rev = "fcc85edd8dbd07c8293c899ee52230f72c54c897" }

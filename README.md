@@ -97,6 +97,8 @@ The dependency-free WebSocket transport also bounds individual frame size, cumul
 
 CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey, WebSocket fragmentation limits, Friends V3 information-architecture contracts and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
 
+An isolated, loopback-only MLS integration experiment is maintained at `native/mls-session-experiment/`. It does not participate in Friends chats or migrate any account; current production conversations continue to use the documented NIP-17/NIP-44 transports. See `docs/private-messaging-security-migration.md` for the prototype evidence and remaining enablement gates.
+
 The compatibility/design record is in `docs/private-messaging-security-migration.md`.
 
 Direct chats also expose **Verify security code** in the chat's More menu. Compare the pairwise account-key fingerprint with the other person through a separate trusted channel to detect a changed or mismatched identity key. This does not verify a real-world identity by itself and does not add forward secrecy.
