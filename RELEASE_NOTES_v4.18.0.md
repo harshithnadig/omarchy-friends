@@ -10,6 +10,9 @@
   in **Me → Privacy**. Existing saved privacy choices are preserved.
 - New profiles are discoverable in World by default. Existing users who saved
   the hidden setting stay hidden until they choose to become visible.
+- World refresh now queries configured relays concurrently and has one bounded
+  five-second deadline, so an unhealthy relay cannot make refresh wait through
+  every relay timeout in sequence. Duplicate relay URLs are ignored.
 - This candidate leaves encrypted chat state, chat history, and message
   journals unchanged.
 

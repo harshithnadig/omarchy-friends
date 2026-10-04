@@ -148,20 +148,21 @@ GLOBAL_DM_TAG = "omarchy-friends-dm"
 GLOBAL_COMMUNITY_TAG = "omarchy-friends-community"
 GLOBAL_PEER_TTL_SECONDS = 150
 GLOBAL_SYNC_INTERVAL_SECONDS = 60
+GLOBAL_SYNC_DEADLINE_SECONDS = 5.0
 GLOBAL_MAX_PEERS = 120
 MAX_READ_CURSORS = GLOBAL_MAX_PEERS + MAX_GROUPS
 MAX_PINNED_CONVERSATIONS = 20
 MAX_MUTED_CONVERSATIONS = GLOBAL_MAX_PEERS + MAX_GROUPS
 GLOBAL_MAX_PINGS = 24
 GLOBAL_MAX_SENT_PINGS = 64
-GLOBAL_RELAYS = tuple(
+GLOBAL_RELAYS = tuple(dict.fromkeys(
     item.strip().rstrip("/")
     for item in os.environ.get(
         "OMARCHY_FRIENDS_RELAYS",
         "wss://relay.primal.net,wss://nos.lol,wss://purplerelay.com,wss://nostr.mom,wss://relay.damus.io",
     ).split(",")
     if item.strip()
-)
+))
 NIP17_DM_RELAYS = tuple(GLOBAL_RELAYS[:NIP17_MAX_DM_RELAYS])
 STATE_DIR = (
     Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
@@ -6616,31 +6617,37 @@ class FriendsEngine:
         published = False
         dm_relay_published = False
         errors = []
-        for relay_url in GLOBAL_RELAYS:
+        # Public presence is refreshed on every configured relay. Running each
+        # network round trip in sequence made a 5-relay World refresh wait as
+        # long as five socket timeouts. Fan out with bounded daemon workers and
+        # one overall deadline so one unhealthy relay cannot stall discovery.
+        relay_results = queue.Queue()
+
+        def sync_one_relay(relay_url):
             try:
                 result = self._global_relay_sync(relay_url, presence_event, sync_since, dm_relay_event)
-                successes += 1
-                published = published or bool(result.get("published"))
-                dm_relay_published = dm_relay_published or bool(result.get("dm_relay_published"))
-                relay_status[relay_url] = {
-                    "online": True,
-                    "accepted": bool(result.get("published")),
-                    "acknowledged": bool(result.get("acknowledged")),
-                    "error": "",
-                }
-                for event in result.get("presence", []):
-                    peer = self._global_peer_from_event(event)
-                    if not peer:
-                        continue
-                    key = peer["public_key"]
-                    if safe_int(peer.get("last_seen")) >= safe_int(peers.get(key, {}).get("last_seen")):
-                        peers[key] = peer
-                    relay_counts.setdefault(key, set()).add(relay_url)
-                for event in result.get("pings", []):
-                    pings.append(event)
-                messages.extend(result.get("messages", []))
-                community_events.extend(result.get("community", []))
-            except (OSError, ValueError, ssl.SSLError, EOFError) as error:
+                relay_results.put((relay_url, result, None))
+            except Exception as error:
+                relay_results.put((relay_url, None, error))
+
+        for relay_url in GLOBAL_RELAYS:
+            threading.Thread(target=sync_one_relay, args=(relay_url,), daemon=True).start()
+
+        deadline = time.monotonic() + GLOBAL_SYNC_DEADLINE_SECONDS
+        completed_relays = set()
+        while len(completed_relays) < len(GLOBAL_RELAYS) and time.monotonic() < deadline:
+            try:
+                relay_url, result, error = relay_results.get(
+                    timeout=max(0.01, deadline - time.monotonic())
+                )
+            except queue.Empty:
+                break
+            if relay_url in completed_relays:
+                continue
+            completed_relays.add(relay_url)
+            if error is not None:
+                if not isinstance(error, (OSError, ValueError, ssl.SSLError, EOFError)):
+                    raise error
                 message = trim_text(error, 120)
                 errors.append(f"{relay_url}: {message}")
                 relay_status[relay_url] = {
@@ -6649,6 +6656,40 @@ class FriendsEngine:
                     "acknowledged": False,
                     "error": message,
                 }
+                continue
+
+            successes += 1
+            published = published or bool(result.get("published"))
+            dm_relay_published = dm_relay_published or bool(result.get("dm_relay_published"))
+            relay_status[relay_url] = {
+                "online": True,
+                "accepted": bool(result.get("published")),
+                "acknowledged": bool(result.get("acknowledged")),
+                "error": "",
+            }
+            for event in result.get("presence", []):
+                peer = self._global_peer_from_event(event)
+                if not peer:
+                    continue
+                key = peer["public_key"]
+                if safe_int(peer.get("last_seen")) >= safe_int(peers.get(key, {}).get("last_seen")):
+                    peers[key] = peer
+                relay_counts.setdefault(key, set()).add(relay_url)
+            pings.extend(result.get("pings", []))
+            messages.extend(result.get("messages", []))
+            community_events.extend(result.get("community", []))
+
+        for relay_url in GLOBAL_RELAYS:
+            if relay_url in completed_relays:
+                continue
+            message = "World sync deadline exceeded"
+            errors.append(f"{relay_url}: {message}")
+            relay_status[relay_url] = {
+                "online": False,
+                "accepted": False,
+                "acknowledged": False,
+                "error": message,
+            }
 
         for key, peer in peers.items():
             peer["relay_count"] = len(relay_counts.get(key, set()))

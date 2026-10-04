@@ -1,4 +1,5 @@
 import shutil
+import threading
 import tempfile
 import time
 import unittest
@@ -817,6 +818,31 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertFalse(explicitly_hidden["profile"]["privacy"]["share_global"])
         typing_opt_out = self.engine._migrate_state({"profile": {"privacy": {"share_typing": False}}})
         self.assertFalse(typing_opt_out["profile"]["privacy"]["share_typing"])
+
+    def test_world_relay_sync_fans_out_in_parallel(self):
+        barrier = threading.Barrier(len(friends_module.GLOBAL_RELAYS))
+        result = {
+            "published": True,
+            "acknowledged": True,
+            "dm_relay_published": False,
+            "presence": [],
+            "pings": [],
+            "messages": [],
+            "community": [],
+        }
+
+        def wait_for_all_relays(*_args):
+            barrier.wait(timeout=2)
+            return result
+
+        with patch.object(self.engine, "_global_relay_sync", side_effect=wait_for_all_relays), patch.object(
+            self.engine, "_refresh_update_status"
+        ):
+            ok, message = self.engine.sync_global()
+
+        self.assertTrue(ok, message)
+        self.assertEqual(set(self.engine.state["global"]["relays"]), set(friends_module.GLOBAL_RELAYS))
+        self.assertTrue(all(item["acknowledged"] for item in self.engine.state["global"]["relays"].values()))
 
     def test_new_profile_does_not_send_lan_signals_until_opted_in(self):
         self.prime_peer()

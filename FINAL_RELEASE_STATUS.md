@@ -11,10 +11,16 @@
 - New profiles remain discoverable in World by default. Existing saved choices,
   including explicit hidden profiles, are preserved. The candidate does not
   touch local chat journals or migration data.
-- Full release gate passes all 334 tests, including localhost NIP-17 direct and
-  group relay round trips. Python compilation, Omarchy plugin validation, QML
-  lint against installed shell imports, remote-execution checks, and health
-  check also pass.
+- World refresh now queries configured relays concurrently with a shared
+  five-second deadline instead of serially waiting on each relay. Duplicate
+  relay URLs are removed from the configured set. A synchronization test
+  confirms all relay requests overlap; fresh-profile default discovery and
+  preservation of an existing hidden choice are also covered.
+- The release gate passes all 335 tests, including localhost NIP-17 direct and
+  group relay round trips. Python compilation, remote-execution checks, and
+  health check pass. Omarchy plugin validation and QML lint were not rerun in
+  this environment; their previous candidate results do not verify this turn's
+  live UI behavior.
 - Rendered UI, live public relay interoperability, and an actual two-user
   typing exchange have not been verified. Candidate is on
   `fix/accurate-world-status` and draft PR #8; it has not been installed or
