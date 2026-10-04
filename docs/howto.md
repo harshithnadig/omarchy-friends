@@ -1,4 +1,4 @@
-# How to use Omarchy Friends v4.16
+# How to use Omarchy Friends v4.18
 
 Friends is the human layer of Omarchy: real builders, private conversations, a public community room and a Build Network for collaborating on useful things.
 
@@ -40,6 +40,7 @@ Chats intentionally does **not** show every friend.
 - Use the message's **⋯** menu to react, reply, edit your sent text-only messages for up to 15 minutes, delete the message for yourself, or (for your own sent messages) delete for everyone. The menu keeps the chat bubble compact; each person has one reaction per message, and the chat shows reaction totals.
 - **Delete for me** removes the message from this device's encrypted message journal and chat view; it does not send an event to other participants. **Delete for everyone** sends the encrypted deletion event and remains best effort.
 - **Read receipts** are off by default. Enable them in Me → Privacy to send an encrypted read notice when you open a chat; direct-chat receipts go to that friend and group receipts go to the current group members. Only compatible Friends clients show the read status.
+- **Typing indicators** are on by default for direct chats with compatible Friends peers. They are end-to-end encrypted ephemeral events, clear after a short timeout, and can be switched off in Me → Privacy. Relays see the destination key and timing; the indicator is never added to chat history. Groups and older clients do not support them.
 - **Delete for everyone** is available on confirmed messages you sent. It sends an encrypted deletion event and replaces the message content with a tombstone on clients that process it.
 - Use the single **📎 attachment button** to choose a file, a folder to send as a ZIP, or a link. File and folder selection opens the desktop's native chooser through the XDG FileChooser portal; the selected local item is staged in the composer for you to send.
 - Files up to 16 KiB travel inside the encrypted private message. Larger files and folders up to 100 MiB are encrypted on your device and uploaded to your configured HTTPS Blossom server. Set that server in **Me → Large files** first; its own size limits and policies apply.
@@ -59,6 +60,16 @@ This state is deliberately separate from Chats so a busy request list cannot bur
 ## World
 
 World is a discovery surface, not a social-media feed.
+
+New profiles are discoverable by default. Existing installs keep their saved
+visibility choice. While visible and online, your stable public key, generated
+handle, avatar, basic status/focus metadata and inbox-relay list are published
+to configured public relays. This profile is pseudonymous but linkable over
+time. You can hide it in **Me → Privacy**; relay operators or recipients may
+retain earlier events. Chat messages and history are never published to World.
+World only shows real Friends users with a fresh beacon on relays reachable by
+your install. If nobody appears while relays are healthy, there may simply be
+no other users online; use **Copy invite** to connect directly.
 
 - **All** — everyone currently visible.
 - **New** — people you have not already connected with.
@@ -122,7 +133,7 @@ Setup sharing is review-first. Friends does not automatically install another pe
 - Chat rows show encrypted-state-backed unread counts. Opening a direct chat or group advances a device-local read cursor; read state is not sent to relays or other devices.
 - Current peers receive deletion in an encrypted NIP-17 kind-5 event; the legacy compatibility path carries the deletion in its existing encrypted envelope. Relay acceptance means at least one configured recipient relay acknowledged it. Deletion is not secure erasure: it cannot erase copies already saved, exported, backed up, or retained by another client or relay.
 - The implementation is not independently security-audited and NIP-44 does not provide forward secrecy, so Friends is not a place for highly sensitive secrets.
-- Opt-in encrypted read receipts are available between compatible Friends clients and remain off by default. Device-local unread counts are separate from those receipts and are never sent to relays or other devices. Typing indicators, voice/video calls, verified device identities, and account/key recovery are not implemented.
+- Opt-in encrypted read receipts are available between compatible Friends clients and remain off by default. Device-local unread counts are separate from those receipts and are never sent to relays or other devices. Direct-chat typing indicators are available between compatible Friends clients and can be switched off in Me → Privacy. Voice/video calls, verified device identities, and account/key recovery are not implemented.
 - LAN Radar is off on new profiles because its UDP discovery is visible to devices on the local network. Enable **Me → Privacy → LAN sharing** only on a network where you want nearby users to discover you. Existing saved choices are preserved. LAN signals are separate from encrypted internet DMs.
 
 ## Staying updated
@@ -133,4 +144,4 @@ Use the visible **Update** action when you choose to update. The active service 
 
 ## If something looks wrong
 
-For the v4.16.0 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility, attachments and invite handling.
+For the v4.18.0 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility, attachments and invite handling.

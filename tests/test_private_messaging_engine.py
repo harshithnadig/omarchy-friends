@@ -16,6 +16,7 @@ import sqlite3
 import struct
 import tempfile
 import threading
+import time
 import unittest
 import zipfile
 from contextlib import closing, redirect_stdout
@@ -38,6 +39,14 @@ class LoopbackNostrRelay:
     class Handler(socketserver.BaseRequestHandler):
         def setup(self):
             self.rfile = self.request.makefile("rb")
+            self.subscriptions = {}
+            self.write_lock = threading.Lock()
+            with self.server.clients_lock:
+                self.server.clients.add(self)
+
+        def finish(self):
+            with self.server.clients_lock:
+                self.server.clients.discard(self)
 
         def handle(self):
             try:
@@ -73,8 +82,11 @@ class LoopbackNostrRelay:
                         with self.server.events_lock:
                             self.server.events[event["id"]] = event
                         self._send_json(["OK", event["id"], True, "stored on loopback test relay"])
+                        self.server.broadcast_event(event)
                     elif message[0] == "REQ" and len(message) >= 3:
                         sub_id, filters = message[1], message[2:]
+                        with self.server.clients_lock:
+                            self.subscriptions[sub_id] = filters
                         with self.server.events_lock:
                             events = list(self.server.events.values())
                         for event in events:
@@ -82,7 +94,9 @@ class LoopbackNostrRelay:
                                 self._send_json(["EVENT", sub_id, event])
                         self._send_json(["EOSE", sub_id])
                     elif message[0] == "CLOSE":
-                        continue
+                        if len(message) >= 2:
+                            with self.server.clients_lock:
+                                self.subscriptions.pop(message[1], None)
             except (BrokenPipeError, ConnectionError, OSError, ValueError, json.JSONDecodeError):
                 return
 
@@ -141,7 +155,8 @@ class LoopbackNostrRelay:
                 bytes((0x80 | opcode, 126)) + struct.pack("!H", length)
                 if length < 65536 else bytes((0x80 | opcode, 127)) + struct.pack("!Q", length)
             )
-            self.request.sendall(header + payload)
+            with self.write_lock:
+                self.request.sendall(header + payload)
 
     class Server(socketserver.ThreadingTCPServer):
         allow_reuse_address = True
@@ -151,6 +166,27 @@ class LoopbackNostrRelay:
             super().__init__(("127.0.0.1", 0), LoopbackNostrRelay.Handler)
             self.events = {}
             self.events_lock = threading.Lock()
+            self.clients = set()
+            self.clients_lock = threading.Lock()
+
+        def broadcast_event(self, event):
+            with self.clients_lock:
+                subscriptions = [
+                    (client, sub_id)
+                    for client in tuple(self.clients)
+                    for sub_id, filters in client.subscriptions.items()
+                    if any(
+                        LoopbackNostrRelay.Handler._matches(event, filter_)
+                        for filter_ in filters
+                        if isinstance(filter_, dict)
+                    )
+                ]
+            for client, sub_id in subscriptions:
+                try:
+                    client._send_json(["EVENT", sub_id, event])
+                except (BrokenPipeError, ConnectionError, OSError, ValueError):
+                    with self.clients_lock:
+                        self.clients.discard(client)
 
     def __enter__(self):
         self.server = self.Server()
@@ -772,6 +808,223 @@ class PrivateMessagingEngineTests(unittest.TestCase):
             viewer._remember_nip17_dm_relay_event(normalized["public_key"], relay_event),
             list(friends.NIP17_DM_RELAYS),
         )
+
+    def advertise_typing(self, viewer, peer):
+        self.advertise_modern(viewer, peer)
+        normalized = viewer.state["global"]["peers"][self.key(peer)]
+        normalized["capabilities"] = list(friends.GLOBAL_CAPABILITIES)
+
+    def test_typing_signal_is_encrypted_private_ephemeral_and_not_saved_to_chat(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_typing(self.alice, self.bob)
+        self.advertise_typing(self.bob, self.alice)
+        relay_url = friends.GLOBAL_RELAYS[0]
+        self.alice.state["global"]["friendships"][self.key(self.bob)]["nip17_dm_relays"] = [relay_url]
+        self.alice.state["global"]["friendships"][self.key(self.bob)]["nip17_dm_relays_seen_at"] = friends.now_seconds()
+        sent = []
+        self.alice._publish_event_to_relays = lambda event, relays: (sent.append((event, relays)) or True, {})
+
+        ok, message = self.alice.send_typing(self.key(self.bob), "typing")
+
+        self.assertTrue(ok, message)
+        self.assertEqual(len(sent), 1)
+        event, relay_urls = sent[0]
+        self.assertEqual(event["kind"], friends.NIP59_EPHEMERAL_GIFT_WRAP_KIND)
+        self.assertEqual(relay_urls, [relay_url])
+        self.assertNotIn(self.key(self.alice), json.dumps(event))
+        self.assertNotIn("typing", json.dumps(event))
+
+        runtime_dir = Path(self.paths[1]) / "runtime"
+        runtime_dir.mkdir(mode=0o700)
+        self.bob.typing_cache_file = runtime_dir / "typing.json"
+        before_messages = list(self.bob.state["global"]["messages"])
+        before_state = json.dumps(self.bob.state, sort_keys=True)
+        self.assertTrue(self.bob._ingest_global_typing(event))
+        self.assertEqual(self.bob.get_typing_peers(), [self.key(self.alice)])
+        self.assertEqual(self.bob.state["global"]["messages"], before_messages)
+        self.assertEqual(json.dumps(self.bob.state, sort_keys=True), before_state)
+        self.assertEqual(self.bob.typing_cache_file.stat().st_mode & 0o777, 0o600)
+
+        paused = friends.wrap_nip59_ephemeral_rumor(
+            self.alice._global_identity()["secret_key"], self.key(self.bob),
+            json.dumps({"app": "omarchy-friends", "type": "typing", "state": "paused"}),
+        )
+        self.assertTrue(self.bob._ingest_global_typing(paused), "typing-to-paused transition should clear immediately")
+        self.assertEqual(self.bob.get_typing_peers(), [])
+
+    def test_typing_indicator_round_trips_between_two_clients_over_live_loopback_relay(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_typing(self.alice, self.bob)
+        self.advertise_typing(self.bob, self.alice)
+
+        with LoopbackNostrRelay() as relay:
+            with patch.object(friends, "GLOBAL_RELAYS", (relay.url,)):
+                with patch.object(friends, "NIP17_DM_RELAYS", (relay.url,)):
+                    published, _ = self.bob._publish_event_to_relays(
+                        self.bob._dm_relay_list_event(), [relay.url]
+                    )
+                    self.assertTrue(published)
+
+                    # Persist Bob's peer metadata before his listener reloads
+                    # local state while processing an incoming relay event.
+                    self.bob.save_state()
+                    runtime_dir = Path(self.paths[1]) / "runtime"
+                    runtime_dir.mkdir(mode=0o700)
+                    self.bob.typing_cache_file = runtime_dir / "typing.json"
+                    original_messages = list(self.bob.state["global"]["messages"])
+                    connection = self.bob._open_global_listener_connection(
+                        relay.url,
+                        self.bob._global_identity(),
+                        None,
+                        None,
+                        friends.now_seconds(),
+                    )
+                    try:
+                        deadline = time.monotonic() + 3
+                        while time.monotonic() < deadline:
+                            message = connection["relay"].recv_json(timeout=0.25)
+                            if (
+                                isinstance(message, list)
+                                and len(message) >= 2
+                                and message[0] == "EOSE"
+                                and message[1] == connection["dm_sub"]
+                            ):
+                                break
+                        else:
+                            self.fail("Bob's real DM subscription did not reach EOSE")
+
+                        ok, result = self.alice.send_typing(self.key(self.bob), "typing")
+                        self.assertTrue(ok, result)
+
+                        deadline = time.monotonic() + 3
+                        while time.monotonic() < deadline:
+                            message = connection["relay"].recv_json(timeout=0.25)
+                            if (
+                                isinstance(message, list)
+                                and len(message) >= 3
+                                and message[0] == "EVENT"
+                                and message[1] == connection["dm_sub"]
+                                and message[2].get("kind") == friends.NIP59_EPHEMERAL_GIFT_WRAP_KIND
+                            ):
+                                self.assertTrue(
+                                    self.bob._handle_global_listener_message(connection, message)
+                                )
+                                break
+                        else:
+                            self.fail("Bob's active relay subscription did not receive Alice's typing event")
+
+                        self.assertEqual(self.bob.get_typing_peers(), [self.key(self.alice)])
+                        self.assertEqual(self.bob.state["global"]["messages"], original_messages)
+                        self.assertEqual(
+                            self.bob._read_state_file()["global"]["messages"], original_messages
+                        )
+                        with relay.server.events_lock:
+                            typing_events = [
+                                event for event in relay.server.events.values()
+                                if event.get("kind") == friends.NIP59_EPHEMERAL_GIFT_WRAP_KIND
+                            ]
+                        self.assertEqual(len(typing_events), 1)
+                        serialized = json.dumps(typing_events[0], sort_keys=True)
+                        self.assertNotIn(self.key(self.alice), serialized)
+                        self.assertNotIn("typing", serialized)
+                    finally:
+                        self.bob._close_global_listener_connection(connection)
+
+    def test_typing_signal_requires_opt_in_friendship_and_capability(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_typing(self.alice, self.bob)
+        self.alice.state["profile"]["privacy"]["share_typing"] = False
+        ok, message = self.alice.send_typing(self.key(self.bob), "typing")
+        self.assertFalse(ok)
+        self.assertIn("off", message)
+        self.alice.state["profile"]["privacy"]["share_typing"] = True
+        self.alice.state["global"]["peers"][self.key(self.bob)]["capabilities"] = ["nip44-v2", "nip17-dm-v1"]
+        ok, message = self.alice.send_typing(self.key(self.bob), "typing")
+        self.assertFalse(ok)
+        self.assertIn("compatible friend", message)
+
+    def test_typing_signals_expire_are_rate_limited_and_blocked_peers_are_hidden(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_typing(self.bob, self.alice)
+        runtime_dir = Path(self.paths[1]) / "runtime"
+        runtime_dir.mkdir(mode=0o700)
+        self.bob.typing_cache_file = runtime_dir / "typing.json"
+        secret = self.alice._global_identity()["secret_key"]
+        now = friends.now_seconds()
+        fresh = friends.wrap_nip59_ephemeral_rumor(
+            secret, self.key(self.bob),
+            json.dumps({"app": "omarchy-friends", "type": "typing", "state": "typing"}),
+            created_at=now,
+        )
+        self.assertTrue(self.bob._ingest_global_typing(fresh))
+        self.assertFalse(self.bob._ingest_global_typing(fresh), "rapid duplicate must be rate limited")
+        with patch.object(friends, "now_seconds", return_value=now + friends.TYPING_SIGNAL_MIN_INTERVAL_SECONDS + 1):
+            self.assertFalse(self.bob._ingest_global_typing(fresh), "replayed event id must stay rejected after rate window")
+        second = friends.wrap_nip59_ephemeral_rumor(
+            secret, self.key(self.bob),
+            json.dumps({"app": "omarchy-friends", "type": "typing", "state": "typing"}),
+            created_at=now + friends.TYPING_SIGNAL_MIN_INTERVAL_SECONDS + 1,
+        )
+        with patch.object(friends, "now_seconds", return_value=now + friends.TYPING_SIGNAL_MIN_INTERVAL_SECONDS + 1):
+            self.assertTrue(self.bob._ingest_global_typing(second))
+        with patch.object(friends, "now_seconds", return_value=now + 2 * (friends.TYPING_SIGNAL_MIN_INTERVAL_SECONDS + 1)):
+            self.assertFalse(self.bob._ingest_global_typing(fresh), "an older event stays rejected after a newer signal")
+        self.assertEqual(self.bob.get_typing_peers(), [self.key(self.alice)])
+        self.bob.state["global"]["blocked_pubkeys"].append(self.key(self.alice))
+        self.assertEqual(self.bob.get_typing_peers(), [], "blocked peer typing must be hidden immediately")
+
+        stale = friends.wrap_nip59_ephemeral_rumor(
+            secret, self.key(self.bob),
+            json.dumps({"app": "omarchy-friends", "type": "typing", "state": "typing"}),
+            created_at=now - friends.TYPING_SIGNAL_MAX_AGE_SECONDS - 1,
+        )
+        self.assertFalse(self.bob._ingest_global_typing(stale))
+
+        expired_cache = {self.key(self.alice): {
+            "state": "typing", "expires_at": now - 1, "last_event_at": now - 3,
+        }}
+        self.assertTrue(self.bob._write_typing_cache(expired_cache))
+        self.assertEqual(self.bob.get_typing_peers(), [])
+        self.assertEqual(json.loads(self.bob.typing_cache_file.read_text()), {"peers": {}})
+
+    def test_persistent_listener_subscribes_and_routes_ephemeral_typing_without_journal_writes(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_typing(self.bob, self.alice)
+        self.bob.save_state()
+        runtime_dir = Path(self.paths[1]) / "runtime"
+        runtime_dir.mkdir(mode=0o700)
+        self.bob.typing_cache_file = runtime_dir / "typing.json"
+
+        class FakeRelay:
+            def __init__(self):
+                self.sent = []
+
+            def send_json(self, value):
+                self.sent.append(value)
+
+            def close(self):
+                return None
+
+        fake_relay = FakeRelay()
+        with patch.object(friends, "WebSocketClient", return_value=fake_relay):
+            connection = self.bob._open_global_listener_connection(
+                "wss://relay.example", self.bob._global_identity(), None, None, friends.now_seconds()
+            )
+        dm_subscription = next(
+            item for item in fake_relay.sent
+            if item[0] == "REQ" and friends.NIP59_EPHEMERAL_GIFT_WRAP_KIND in item[2].get("kinds", [])
+        )
+        self.assertIn(friends.NIP59_EPHEMERAL_GIFT_WRAP_KIND, dm_subscription[2]["kinds"])
+
+        event = friends.wrap_nip59_ephemeral_rumor(
+            self.alice._global_identity()["secret_key"], self.key(self.bob),
+            json.dumps({"app": "omarchy-friends", "type": "typing", "state": "typing"}),
+        )
+        original_messages = list(self.bob.state["global"]["messages"])
+        self.assertTrue(self.bob._handle_global_listener_message(connection, ["EVENT", connection["dm_sub"], event]))
+        self.assertEqual(self.bob.get_typing_peers(), [self.key(self.alice)])
+        self.assertEqual(self.bob.state["global"]["messages"], original_messages)
+        self.assertEqual(self.bob._read_state_file()["global"]["messages"], original_messages)
 
     @staticmethod
     def targeted(event, public_key):

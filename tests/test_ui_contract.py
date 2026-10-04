@@ -354,6 +354,32 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn('def _apply_message_read_receipt(self, target_id, actor, group_id)', engine)
         self.assertIn('"read_receipt_eligible"', engine)
 
+    def test_typing_indicators_are_friend_only_ephemeral_and_opt_out_controls_exist(self):
+        panel = self.read("FriendsPanelV3.qml")
+        service = self.read("Service.qml")
+        engine = self.read("bin/omarchy-friends")
+        self.assertIn('text: "Typing indicators"; active: root.profile.privacy && root.profile.privacy.share_typing === true', panel)
+        self.assertIn('"typing…"', panel)
+        self.assertIn('onEdited: root.updateTypingSignal(text)', panel)
+        self.assertIn('"send-typing"', engine)
+        self.assertIn('"typing-status"', engine)
+        self.assertIn('NIP59_EPHEMERAL_GIFT_WRAP_KIND', engine)
+        self.assertIn('self._write_typing_cache(peers)', engine)
+        start = engine.index('def _ingest_global_typing(')
+        end = engine.index('def _empty_global_focus(', start)
+        self.assertNotIn('global_state.setdefault("messages", []).append', engine[start:end])
+        self.assertIn('function sendTyping(publicKey, state)', service)
+        self.assertIn('function refreshTypingStatus()', service)
+        self.assertIn('root.service.togglePrivacy("share_typing")', panel)
+        fallback = self.read("FriendsPanelV2.qml")
+        self.assertIn('onEdited: root.updateTypingSignal(text)', fallback)
+        self.assertIn('root.service.setTypingPeer(key)', fallback)
+        self.assertEqual(panel.count("onOpenChanged:"), 1)
+        self.assertEqual(panel.count("onProfileChanged:"), 1)
+        self.assertIn("} else root.stopTypingSignal()", panel)
+        self.assertEqual(fallback.count("onOpenChanged:"), 1)
+        self.assertIn("} else root.stopTypingSignal()", fallback)
+
     def test_chat_search_indexes_loaded_messages_in_memory_and_opens_matching_message(self):
         panel = self.read("FriendsPanelV3.qml")
         self.assertIn('placeholder: "Search chats and messages"', panel)
@@ -451,7 +477,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
 
     def test_world_cards_keep_one_clear_primary_connection_action(self):
         panel = self.read("FriendsPanelV3.qml")
-        self.assertIn("You’re hidden from World.", panel)
+        self.assertIn("Your profile is hidden from public discovery", panel)
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
         self.assertIn('return "Message"', panel)
         self.assertIn('return "Connect"', panel)
@@ -475,10 +501,17 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertNotIn("circleText.implicitWidth", circles)
         self.assertIn('text: "Privacy"', profile)
         self.assertNotIn("This is what other Omarchy users see when you choose to share it.", profile)
-        self.assertIn('text: "Pseudonymous profile · sharing is opt-in."', profile)
+        self.assertIn('"World visibility on · turn off anytime"', profile)
+        self.assertIn('"Hidden from World · turn on anytime"', profile)
+        self.assertIn("Your profile is discoverable and its beacon is live.", panel)
+        self.assertIn("No other visible Friends users are online on your reachable relays right now.", panel)
+        self.assertIn("existing privacy choices are preserved", panel)
+        self.assertIn("messages and chat history are never published here", panel)
+        self.assertIn("relay operators may retain published data", profile)
         self.assertIn('readonly property string globalConnectionText:', panel)
         self.assertIn('"Presence not accepted"', panel)
-        self.assertNotIn('"Reconnecting"', panel)
+        self.assertIn('"Reconnecting"', panel)
+        self.assertIn('"Relay check failed"', panel)
         for privacy_key in ("share_global", "share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertIn(f'root.service.togglePrivacy("{privacy_key}")', profile)
 

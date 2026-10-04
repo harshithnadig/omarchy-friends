@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Omarchy Friends v4.16 release-candidate verification
+# Omarchy Friends v4.18 release-candidate verification
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -32,7 +32,7 @@ class RuntimeContractTests(unittest.TestCase):
         engine = read("bin/omarchy-friends")
         defaults = re.search(r"PRIVACY_DEFAULTS\s*=\s*\{([^}]+)\}", engine)
         self.assertIsNotNone(defaults)
-        for key in ("share_window", "share_music", "share_project", "share_theme", "share_interests", "share_room", "share_global"):
+        for key in ("share_window", "share_music", "share_project", "share_theme", "share_interests", "share_room", "share_global", "share_typing"):
             expected = re.search(rf'"{key}"\s*:\s*(True|False)', defaults.group(1))
             actual = re.search(rf'{key}\s*:\s*(true|false)', service)
             self.assertIsNotNone(expected, key)
@@ -40,8 +40,9 @@ class RuntimeContractTests(unittest.TestCase):
             self.assertEqual(actual.group(1).lower(), expected.group(1).lower(), key)
         self.assertIn("share_lan: false", service)
         self.assertIn('"share_lan": False', defaults.group(1))
-        self.assertIn('"share_global": False', defaults.group(1))
-        self.assertIn("share_global: false", service)
+        self.assertIn('"share_global": True', defaults.group(1))
+        self.assertIn("share_global: true", service)
+        self.assertIn("share_typing: true", service)
 
     def test_build_panel_friends_handoffs_exist(self):
         panel = read("BuildNetworkPanelV3.qml")

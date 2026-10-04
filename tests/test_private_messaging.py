@@ -138,6 +138,35 @@ class TestPrivateMessagingStandards(unittest.TestCase):
         with self.assertRaises(ValueError):
             private.unwrap_nip17_gift_wrap(carol["secret_key"], gift)
 
+    def test_ephemeral_gift_wrap_roundtrip_is_separate_from_persistent_dm_kind(self):
+        alice = generate_keypair()
+        bob = generate_keypair()
+        payload = json.dumps({"app": "omarchy-friends", "type": "typing", "state": "typing"})
+        gift = private.wrap_nip59_ephemeral_rumor(
+            alice["secret_key"], bob["public_key"], payload, created_at=1_700_000_000
+        )
+        opened = private.unwrap_nip59_ephemeral_gift_wrap(bob["secret_key"], gift)
+        self.assertEqual(gift["kind"], private.NIP59_EPHEMERAL_GIFT_WRAP_KIND)
+        self.assertEqual(opened["kind"], private.NIP59_EPHEMERAL_RUMOR_KIND)
+        self.assertEqual(opened["pubkey"], alice["public_key"])
+        self.assertEqual(json.loads(opened["content"]), json.loads(payload))
+        self.assertNotIn(alice["public_key"], json.dumps(gift))
+        self.assertNotIn("typing", json.dumps(gift))
+        with self.assertRaises(ValueError):
+            private.unwrap_nip17_gift_wrap(bob["secret_key"], gift)
+
+    def test_ephemeral_gift_wrap_rejects_wrong_recipient_and_mutation(self):
+        alice = generate_keypair()
+        bob = generate_keypair()
+        carol = generate_keypair()
+        gift = private.wrap_nip59_ephemeral_rumor(alice["secret_key"], bob["public_key"], "{}")
+        with self.assertRaises(ValueError):
+            private.unwrap_nip59_ephemeral_gift_wrap(carol["secret_key"], gift)
+        changed = dict(gift)
+        changed["content"] = gift["content"][:-4] + "AAAA"
+        with self.assertRaises(ValueError):
+            private.unwrap_nip59_ephemeral_gift_wrap(bob["secret_key"], changed)
+
     def test_group_rumor_hides_members_inside_gift_wrap(self):
         alice = generate_keypair()
         bob = generate_keypair()

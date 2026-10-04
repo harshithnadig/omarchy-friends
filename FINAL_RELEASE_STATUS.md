@@ -1,4 +1,67 @@
-# Omarchy Friends v4.16.0 — release candidate status
+# Omarchy Friends v4.18.0 — release candidate status
+
+## v4.18.0 current candidate (2026-10-04)
+
+- Adds direct-chat typing indicators for connected, compatible Friends peers.
+  The state is end-to-end encrypted, sent in NIP-59 ephemeral kind-21059
+  envelopes, rate-limited, replay-filtered, and kept only in a 12-second
+  owner-only runtime cache. It never enters chat history or notifications.
+  Users can disable sharing in Me → Privacy; groups and old clients are not
+  included.
+- New profiles remain discoverable in World by default. Existing saved choices,
+  including explicit hidden profiles, are preserved. The candidate does not
+  touch local chat journals or migration data.
+- World refresh now queries configured relays concurrently with a shared
+  five-second deadline instead of serially waiting on each relay. Duplicate
+  relay URLs are removed from the configured set. A synchronization test
+  confirms all relay requests overlap; fresh-profile default discovery and
+  preservation of an existing hidden choice are also covered.
+- The release gate passes all 336 tests, including localhost NIP-17 direct and
+  group relay round trips and a two-client typing-indicator exchange through an
+  already-open WebSocket subscription. The typing payload was decrypted by the
+  recipient, did not enter saved chat history, and exposed neither sender key
+  nor plaintext on the relay. Python compilation, remote-execution checks,
+  health check, Omarchy plugin validation, and QML lint all pass. This localhost
+  test does not establish public-relay behavior or rendered UI behavior.
+- The separately pinned Rust MLS experiment now checks a stale pre-removal
+  account snapshot against post-removal ciphertext on a distinct loopback
+  relay; the one-test suite passes locally and has been added as a PR CI job.
+  SQLCipher memory locking failed in this sandbox (`mlock()` returned ENOMEM),
+  so that property remains unverified. The experiment is test-only and does not
+  change production NIP-17/NIP-44 chats.
+- Rendered UI and live public-relay interoperability have not been verified.
+  The two-client typing exchange is covered only by the isolated localhost
+  relay test. Candidate is on
+  `fix/accurate-world-status` and draft PR #8; it has not been installed or
+  published to the marketplace and is not release-cleared.
+
+## v4.17.0 historical candidate (2026-10-04; superseded by v4.18.0)
+
+- World now distinguishes checking, failed/stale relay status, and a healthy
+  relay check with no other fresh presences. Its empty state explains that
+  visibility controls whether others can find you, not whether you can discover
+  other users. It never fabricates people.
+- The profile's green online dot now requires a recent relay-confirmed presence
+  publish and a fresh, healthy relay check. Background listener socket sends
+  no longer count as confirmed publishes.
+- Shared surfaces and controls use flatter fills, quieter borders, and a
+  readable sans-serif font. This affects Friends and Build Network, including
+  compatibility panels.
+- Chat storage is unchanged. Existing saved privacy choices are preserved;
+  only the default applied to new profiles or profiles with no saved World
+  choice changes.
+- Saved conversations remain discoverable through the full durable local index,
+  and the desktop file chooser now launches only after the full-screen Friends
+  overlay releases focus. The panel reopens after choosing or cancelling.
+- New profiles publish a minimal pseudonymous World presence by default while
+  online. Existing saved visibility choices, including hidden profiles, remain
+  unchanged on upgrade; users can turn World visibility off at any time.
+- The CI release gate passed all 327 tests; `qmllint` passed against the
+  installed Omarchy shell imports. CUA exposed no desktop window for rendered UI
+  verification, so the visual result and live World/relay behavior remain
+  unverified. The candidate is on `fix/accurate-world-status` and draft PR #8;
+  it has not been installed or published to the marketplace and is not
+  release-cleared.
 
 ## v4.16.1 hotfix
 
@@ -8,9 +71,9 @@ image requests through Qt's automatic text detection. It does not change chat
 storage. Marketplace review remains tied to the exact published commit and is
 not complete until its automation and maintainer review finish.
 
-This document's historical v4.15.1 sections are retained below for provenance. The active v4.16.0 source is pushed to the public GitHub repository; it is not yet a published marketplace release.
+The historical v4.16.0 and v4.15.1 sections are retained below for provenance.
 
-## v4.16.0 candidate state (2026-09-29)
+## Historical v4.16.0 candidate state (2026-09-29; superseded by v4.17.0)
 
 - **Current audit follow-up (2026-09-29):** reproduced why users saw the V2 compatibility screen: Friends V3 put a nonvisual `Connections` object directly in `KeyboardPanel`'s `contentItem` list, causing Loader.Error. Moved it under an invisible `Item` and added a regression test. Removed the obsolete optional-link composer field from V3, keeping link sharing through the attachment menu/message field. The local journal was read without mutation: it still has 88 rows, including 80 NeonOtter messages and eight unlinked recovery messages; `conversation-history` returns all 80 for NeonOtter. The fixed installed panel was opened and visually verified: V3 Chats lists NeonOtter, Recovered messages and CosmicFox, the selected NeonOtter transcript renders, and the composer shows only its attachment icon, message field and Send button. The change passes `qmllint` and the targeted UI contract suite. Actual file selection/send and two-device exchanges remain unverified. Marketplace compatibility validation passes at exact commit `36c45ac`, but publication is not complete and the security baseline requires maintainer review.
 - Chat-pane overflow root cause fixed: the message scroller used the left chat-list header height instead of the conversation header height, so the composer could extend into the bottom footer. It now subtracts the correct conversation-header height and lets the scroller shrink to the remaining space. The chat header is compact again, with Focus and More beside the avatar and the per-chat Build action removed. Removed an unsupported `Text.selectByMouse` property that caused Friends V3 to fall back to V2. The supported shell restart and plugin rescan produced no Friends V3 load/fallback warning; source and installed QML match. A fresh live open restored NeonOtter-8176 and CosmicFox-2449 with saved history after a status-load race fix.
@@ -41,17 +104,17 @@ This document's historical v4.15.1 sections are retained below for provenance. T
 - Reply/reaction/deletion protocol handling and composer/menu UI contracts have unit coverage. Direct and three-account group message flows are exercised over real localhost WebSockets. CUA confirmed the system picker foreground and cancellation path. Real two-device attachment/reaction/deletion exchange, post-config picker appearance, long-duration CPU/thermal behavior, legacy-client behavior, and independent security review remain unverified.
 - Private messaging still does not provide forward secrecy, persisted or independently verified device identities, remote read receipts, typing indicators, voice/video calls, or account/key recovery. The pairwise safety code only helps detect a key mismatch when both people compare it through a separate trusted channel. Unread cursors stay encrypted on this device and are never sent to a relay. Deletion is best effort and cannot guarantee erasure of copies another client or relay already retained. Do not describe this implementation as audited or equivalent to WhatsApp's security guarantees.
 
-The active v4.16.0 candidate extends the historical v4.15.1 scope; release remains blocked on fresh real two-client and UI validation.
+The v4.16.0 candidate extended the historical v4.15.1 scope. This is a retained snapshot, not the active candidate status; current status is recorded at the top of this file.
 
-**Release posture:** Omarchy Friends v4.16.0 is pushed to GitHub but is not release-cleared. Direct and group messaging pass isolated localhost WebSocket round trips. File and folder portal dialogs were launched live and cancelled; actual selection/send and two-device exchanges remain unverified. Real two-device attachment/action checks, V3/V2/legacy fallback, full UI interaction, forward secrecy and independent security review remain open. The marketplace request must validate the new exact commit and receive maintainer approval before it is listed as published.
+**Historical release posture:** Omarchy Friends v4.16.0 was not release-cleared. Direct and group messaging passed isolated localhost WebSocket round trips. At that time, actual file selection/send and two-device exchanges were unverified. See the v4.17.0 status at the top for current candidate evidence and remaining gates.
 
 ## Repository-side state
 
-- Product architecture: complete for the planned v4.15 scope.
+- Product architecture: the planned v4.15 scope was implemented; this does not mean current release gates are complete.
 - Build Network backend: complete.
 - Friends V3 is the preferred shell; Friends V2 is the compatibility fallback; `Panel.qml` is the final legacy fallback.
 - Build Network uses `BuildNetworkPanelV3.qml -> BuildNetworkService.qml -> bin/build_network_app_v4.py` and is now **lazy-loaded only when opened** so normal Friends use does not start its Python/network work unnecessarily.
-- `manifest.json` and the installed Friends engine advertise `4.16.0`. The source is pushed to GitHub; marketplace verification/publication is pending.
+- Historical v4.16.0 manifest/install state is retained here for provenance. The active candidate version and publication state are defined in the v4.17.0 status at the top.
 - The shared glass primitives now expose visible keyboard focus and keyboard activation for primary buttons, navigation items and pills, so the main product is not mouse-only.
 - The latest release prep includes `SECURITY.md` and `RELEASE_NOTES_v4.15.md`.
 - Private inbox listening fans in all configured NIP-17 inbox relays, so one silent relay cannot park the listener indefinitely.

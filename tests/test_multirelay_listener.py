@@ -119,6 +119,7 @@ class MultiRelayListenerTests(unittest.TestCase):
 
     def test_idle_first_relay_cannot_starve_second_inbox(self):
         first, second = friends.NIP17_DM_RELAYS[:2]
+        self.bob.state["profile"]["privacy"]["share_global"] = False
         FakeRelay.delivery_urls = {second}
         with patch.object(friends, "WebSocketClient", FakeRelay):
             self.bob._listen_on_relays((first, second), max_cycles=2)
@@ -186,6 +187,25 @@ class MultiRelayListenerTests(unittest.TestCase):
         ]
         self.assertEqual(len(incoming), 1)
         self.assertEqual(incoming[0]["text"], "hello across the second inbox relay")
+
+    def test_listener_send_does_not_claim_presence_was_accepted(self):
+        self.bob.state["profile"]["privacy"]["share_global"] = True
+        self.bob.save_state()
+        with patch.object(friends, "WebSocketClient", FakeRelay):
+            self.bob._listen_on_relays(friends.NIP17_DM_RELAYS[:2], max_cycles=1)
+
+        published = [
+            message[1]
+            for relay in FakeRelay.instances
+            for message in relay.sent_json
+            if isinstance(message, list)
+            and len(message) > 1
+            and message[0] == "EVENT"
+            and isinstance(message[1], dict)
+            and message[1].get("kind") == friends.GLOBAL_PRESENCE_KIND
+        ]
+        self.assertTrue(published)
+        self.assertEqual(self.bob.state["global"]["last_publish"], 0)
 
     def test_duplicate_gift_from_two_relays_is_stored_once(self):
         first, second = friends.NIP17_DM_RELAYS[:2]

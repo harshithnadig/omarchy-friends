@@ -30,6 +30,7 @@ import ssl
 import stat
 import subprocess
 import queue
+import tempfile
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
@@ -49,6 +50,8 @@ from omarchy_friends_global import (  # noqa: E402
 )
 from omarchy_friends_private import (  # noqa: E402
     NIP59_GIFT_WRAP_KIND,
+    NIP59_EPHEMERAL_GIFT_WRAP_KIND,
+    NIP59_EPHEMERAL_RUMOR_KIND,
     NIP17_MESSAGE_KIND,
     NIP17_REACTION_KIND,
     NIP17_FILE_KIND,
@@ -60,13 +63,15 @@ from omarchy_friends_private import (  # noqa: E402
     encrypt_legacy_private_text,
     _decrypt_legacy_private_text,
     unwrap_nip17_gift_wrap,
+    unwrap_nip59_ephemeral_gift_wrap,
     wrap_nip17_rumor,
+    wrap_nip59_ephemeral_rumor,
 )
 
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.16.1"
+PLUGIN_VERSION = "4.18.0"
 OFFICIAL_MANIFEST_URL = "https://raw.githubusercontent.com/harshithnadig/omarchy-friends/main/manifest.json"
 OFFICIAL_RELEASE_CHECK_SECONDS = 6 * 60 * 60
 OFFICIAL_RELEASE_RETRY_SECONDS = 30 * 60
@@ -83,8 +88,14 @@ GLOBAL_CAPABILITIES = (
     "nip17-file-kind15-v1",
     "nip59-gift-wrap-v1",
     "nip17-inbox-relays-v1",
+    "typing-indicator-v1",
 )
 PEER_TTL_SECONDS = 90
+TYPING_SIGNAL_MAX_AGE_SECONDS = 15
+TYPING_SIGNAL_FUTURE_SKEW_SECONDS = 5
+TYPING_SIGNAL_MIN_INTERVAL_SECONDS = 2
+TYPING_STATE_TTL_SECONDS = 12
+MAX_TYPING_PEERS = 80
 MAX_PACKET_BYTES = 4096
 MAX_EVENTS = 48
 MAX_PULSE_ITEMS = 24
@@ -137,20 +148,21 @@ GLOBAL_DM_TAG = "omarchy-friends-dm"
 GLOBAL_COMMUNITY_TAG = "omarchy-friends-community"
 GLOBAL_PEER_TTL_SECONDS = 150
 GLOBAL_SYNC_INTERVAL_SECONDS = 60
+GLOBAL_SYNC_DEADLINE_SECONDS = 5.0
 GLOBAL_MAX_PEERS = 120
 MAX_READ_CURSORS = GLOBAL_MAX_PEERS + MAX_GROUPS
 MAX_PINNED_CONVERSATIONS = 20
 MAX_MUTED_CONVERSATIONS = GLOBAL_MAX_PEERS + MAX_GROUPS
 GLOBAL_MAX_PINGS = 24
 GLOBAL_MAX_SENT_PINGS = 64
-GLOBAL_RELAYS = tuple(
+GLOBAL_RELAYS = tuple(dict.fromkeys(
     item.strip().rstrip("/")
     for item in os.environ.get(
         "OMARCHY_FRIENDS_RELAYS",
         "wss://relay.primal.net,wss://nos.lol,wss://purplerelay.com,wss://nostr.mom,wss://relay.damus.io",
     ).split(",")
     if item.strip()
-)
+))
 NIP17_DM_RELAYS = tuple(GLOBAL_RELAYS[:NIP17_MAX_DM_RELAYS])
 STATE_DIR = (
     Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
@@ -251,9 +263,12 @@ PRIVACY_DEFAULTS = {
     "share_room": False,
     # Read receipts reveal private conversation activity; require an explicit opt-in.
     "share_read_receipts": False,
-    # World presence exposes the account's pseudonymous public key. Require a
-    # deliberate opt-in on new profiles; migrations preserve a saved choice.
-    "share_global": False,
+    # Only paired friends can receive these encrypted, volatile presence hints.
+    "share_typing": True,
+    # World presence is enabled for new profiles so users can discover each
+    # other without configuring privacy first. Existing saved choices are
+    # preserved by _migrate_state; users can hide their profile at any time.
+    "share_global": True,
 }
 
 INTERACTION_META = {
@@ -888,6 +903,7 @@ class FriendsEngine:
         self.state_file = self.state_dir / "friends_state.json"
         self.state_key_file = self.state_dir / "friends_state.key"
         self.message_journal_file = self.state_dir / "friends_messages.db"
+        self.typing_cache_file = self._typing_runtime_cache_path()
         self.load_message_journal = bool(load_message_journal)
         self._journal_versions = {}
         self._journal_cache = None
@@ -897,6 +913,218 @@ class FriendsEngine:
         self._status_cache_signature = None
         self.last_sent_message_id = ""
         self.state = self.load_state()
+
+    @staticmethod
+    def _typing_runtime_cache_path():
+        """Return a per-user volatile cache path, failing closed if unsafe."""
+        runtime_value = os.environ.get("XDG_RUNTIME_DIR", "")
+        if not runtime_value:
+            return None
+        runtime_dir = Path(runtime_value)
+        try:
+            runtime_stat = runtime_dir.lstat()
+            if (
+                not stat.S_ISDIR(runtime_stat.st_mode)
+                or runtime_stat.st_uid != os.getuid()
+                or stat.S_IMODE(runtime_stat.st_mode) & 0o077
+            ):
+                return None
+            app_dir = runtime_dir / "omarchy-friends"
+            app_dir.mkdir(mode=0o700, exist_ok=True)
+            app_stat = app_dir.lstat()
+            if (
+                not stat.S_ISDIR(app_stat.st_mode)
+                or app_stat.st_uid != os.getuid()
+                or stat.S_IMODE(app_stat.st_mode) & 0o077
+            ):
+                return None
+            return app_dir / "typing.json"
+        except OSError:
+            return None
+
+    def _read_typing_cache(self):
+        path = self.typing_cache_file
+        if path is None:
+            return {}
+        try:
+            info = path.lstat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) & 0o077
+                or info.st_size > 32768
+            ):
+                return {}
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return {}
+        peers = data.get("peers") if isinstance(data, dict) else None
+        if not isinstance(peers, dict):
+            return {}
+        now = now_seconds()
+        clean = {}
+        for public_key, item in peers.items():
+            if (
+                not is_valid_public_key(public_key)
+                or not isinstance(item, dict)
+                or item.get("state") not in {"typing", "paused"}
+                or safe_int(item.get("expires_at")) <= now
+            ):
+                continue
+            recent_ids = item.get("recent_event_ids", [])
+            if not isinstance(recent_ids, list):
+                recent_ids = []
+            recent_ids = list(dict.fromkeys(
+                trim_text(value, 64).lower()
+                for value in recent_ids
+                if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value)
+            ))[-16:]
+            last_event_id = trim_text(item.get("last_event_id"), 64).lower()
+            if re.fullmatch(r"[0-9a-f]{64}", last_event_id) and last_event_id not in recent_ids:
+                recent_ids = (recent_ids + [last_event_id])[-16:]
+            clean[public_key] = {
+                "state": item["state"],
+                "expires_at": safe_int(item.get("expires_at")),
+                "last_event_at": safe_int(item.get("last_event_at")),
+                "last_event_id": last_event_id,
+                "recent_event_ids": recent_ids,
+            }
+        if len(clean) != len(peers):
+            self._write_typing_cache(clean)
+        return clean
+
+    def _write_typing_cache(self, peers):
+        path = self.typing_cache_file
+        if path is None:
+            return False
+        try:
+            parent_stat = path.parent.lstat()
+            if (
+                not stat.S_ISDIR(parent_stat.st_mode)
+                or parent_stat.st_uid != os.getuid()
+                or stat.S_IMODE(parent_stat.st_mode) & 0o077
+            ):
+                return False
+            encoded = json.dumps({"peers": peers}, separators=(",", ":")).encode("utf-8")
+            fd, temporary = tempfile.mkstemp(prefix=".typing-", dir=path.parent)
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(encoded)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+            finally:
+                try:
+                    os.unlink(temporary)
+                except FileNotFoundError:
+                    pass
+            return True
+        except OSError:
+            return False
+
+    def get_typing_peers(self):
+        """Return current typing identities from the volatile runtime cache."""
+        peers = self._read_typing_cache()
+        blocked = set(self.state.setdefault("global", {}).get("blocked_pubkeys", []))
+        friendships = self.state.setdefault("global", {}).setdefault("friendships", {})
+        return sorted(
+            public_key
+            for public_key, item in peers.items()
+            if item.get("state") == "typing"
+            and public_key not in blocked
+            and isinstance(friendships.get(public_key), dict)
+            and friendships[public_key].get("status") == "friends"
+        )
+
+    def send_typing(self, public_key, state="typing"):
+        """Send an encrypted, non-persistent direct-chat typing signal."""
+        public_key = trim_text(public_key, 64).lower()
+        if state not in {"typing", "paused"} or not is_valid_public_key(public_key):
+            return False, "Invalid typing signal"
+        global_state = self.state.setdefault("global", {})
+        friendship = global_state.setdefault("friendships", {}).get(public_key, {})
+        peer = global_state.setdefault("peers", {}).get(public_key, {})
+        capabilities = set(peer.get("capabilities", [])) if isinstance(peer, dict) else set()
+        if (
+            not isinstance(friendship, dict)
+            or friendship.get("status") != "friends"
+            or public_key in global_state.get("blocked_pubkeys", [])
+            or "typing-indicator-v1" not in capabilities
+            or not self._supports_nip17(public_key)
+        ):
+            return False, "Typing indicators require a connected, compatible friend"
+        if state == "typing" and not self.state["profile"].get("privacy", {}).get("share_typing", False):
+            return False, "Typing indicators are off in Me → Privacy"
+        identity = self._global_identity()
+        content = json.dumps(
+            {"app": "omarchy-friends", "type": "typing", "state": state},
+            separators=(",", ":"),
+        )
+        event = wrap_nip59_ephemeral_rumor(identity["secret_key"], public_key, content)
+        relay_urls = self._fetch_nip17_dm_relays(public_key)
+        if not relay_urls:
+            return False, "Friend inbox relays are not available"
+        published, relay_status = self._publish_event_to_relays(event, relay_urls)
+        global_state.setdefault("relays", {}).update(relay_status)
+        return published, "Typing state sent" if published else "Typing state could not be sent"
+
+    def _ingest_global_typing(self, event):
+        """Accept a fresh signal from a friend into volatile memory only."""
+        if not isinstance(event, dict) or safe_int(event.get("kind")) != NIP59_EPHEMERAL_GIFT_WRAP_KIND:
+            return False
+        try:
+            rumor = unwrap_nip59_ephemeral_gift_wrap(
+                self._global_identity()["secret_key"], event
+            )
+            sender = trim_text(rumor.get("pubkey"), 64).lower()
+            timestamp = safe_int(rumor.get("created_at"))
+            payload = json.loads(rumor.get("content", ""))
+        except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+            return False
+        now = now_seconds()
+        if (
+            timestamp < now - TYPING_SIGNAL_MAX_AGE_SECONDS
+            or timestamp > now + TYPING_SIGNAL_FUTURE_SKEW_SECONDS
+            or not isinstance(payload, dict)
+            or len(str(rumor.get("content", ""))) > 512
+            or payload != {"app": "omarchy-friends", "type": "typing", "state": payload.get("state")}
+            or payload.get("state") not in {"typing", "paused"}
+        ):
+            return False
+        global_state = self.state.setdefault("global", {})
+        friendship = global_state.setdefault("friendships", {}).get(sender, {})
+        peer = global_state.setdefault("peers", {}).get(sender, {})
+        capabilities = set(peer.get("capabilities", [])) if isinstance(peer, dict) else set()
+        if (
+            not isinstance(friendship, dict)
+            or friendship.get("status") != "friends"
+            or sender in global_state.get("blocked_pubkeys", [])
+            or "typing-indicator-v1" not in capabilities
+            or not self._supports_nip17(sender)
+        ):
+            return False
+        peers = self._read_typing_cache()
+        previous = peers.get(sender, {})
+        event_id = trim_text(event.get("id"), 64).lower()
+        if event_id and event_id in previous.get("recent_event_ids", []):
+            return False
+        immediate_pause = payload["state"] == "paused" and previous.get("state") == "typing"
+        if (
+            now - safe_int(previous.get("last_event_at")) < TYPING_SIGNAL_MIN_INTERVAL_SECONDS
+            and not immediate_pause
+        ):
+            return False
+        peers[sender] = {
+            "state": payload["state"],
+            "expires_at": now + TYPING_STATE_TTL_SECONDS,
+            "last_event_at": now,
+            "last_event_id": event_id,
+            "recent_event_ids": (previous.get("recent_event_ids", []) + ([event_id] if event_id else []))[-16:],
+        }
+        if len(peers) > MAX_TYPING_PEERS:
+            peers = dict(sorted(peers.items(), key=lambda pair: pair[1]["expires_at"])[-MAX_TYPING_PEERS:])
+        return self._write_typing_cache(peers)
 
     @staticmethod
     def _empty_global_focus():
@@ -6389,31 +6617,37 @@ class FriendsEngine:
         published = False
         dm_relay_published = False
         errors = []
-        for relay_url in GLOBAL_RELAYS:
+        # Public presence is refreshed on every configured relay. Running each
+        # network round trip in sequence made a 5-relay World refresh wait as
+        # long as five socket timeouts. Fan out with bounded daemon workers and
+        # one overall deadline so one unhealthy relay cannot stall discovery.
+        relay_results = queue.Queue()
+
+        def sync_one_relay(relay_url):
             try:
                 result = self._global_relay_sync(relay_url, presence_event, sync_since, dm_relay_event)
-                successes += 1
-                published = published or bool(result.get("published"))
-                dm_relay_published = dm_relay_published or bool(result.get("dm_relay_published"))
-                relay_status[relay_url] = {
-                    "online": True,
-                    "accepted": bool(result.get("published")),
-                    "acknowledged": bool(result.get("acknowledged")),
-                    "error": "",
-                }
-                for event in result.get("presence", []):
-                    peer = self._global_peer_from_event(event)
-                    if not peer:
-                        continue
-                    key = peer["public_key"]
-                    if safe_int(peer.get("last_seen")) >= safe_int(peers.get(key, {}).get("last_seen")):
-                        peers[key] = peer
-                    relay_counts.setdefault(key, set()).add(relay_url)
-                for event in result.get("pings", []):
-                    pings.append(event)
-                messages.extend(result.get("messages", []))
-                community_events.extend(result.get("community", []))
-            except (OSError, ValueError, ssl.SSLError, EOFError) as error:
+                relay_results.put((relay_url, result, None))
+            except Exception as error:
+                relay_results.put((relay_url, None, error))
+
+        for relay_url in GLOBAL_RELAYS:
+            threading.Thread(target=sync_one_relay, args=(relay_url,), daemon=True).start()
+
+        deadline = time.monotonic() + GLOBAL_SYNC_DEADLINE_SECONDS
+        completed_relays = set()
+        while len(completed_relays) < len(GLOBAL_RELAYS) and time.monotonic() < deadline:
+            try:
+                relay_url, result, error = relay_results.get(
+                    timeout=max(0.01, deadline - time.monotonic())
+                )
+            except queue.Empty:
+                break
+            if relay_url in completed_relays:
+                continue
+            completed_relays.add(relay_url)
+            if error is not None:
+                if not isinstance(error, (OSError, ValueError, ssl.SSLError, EOFError)):
+                    raise error
                 message = trim_text(error, 120)
                 errors.append(f"{relay_url}: {message}")
                 relay_status[relay_url] = {
@@ -6422,6 +6656,40 @@ class FriendsEngine:
                     "acknowledged": False,
                     "error": message,
                 }
+                continue
+
+            successes += 1
+            published = published or bool(result.get("published"))
+            dm_relay_published = dm_relay_published or bool(result.get("dm_relay_published"))
+            relay_status[relay_url] = {
+                "online": True,
+                "accepted": bool(result.get("published")),
+                "acknowledged": bool(result.get("acknowledged")),
+                "error": "",
+            }
+            for event in result.get("presence", []):
+                peer = self._global_peer_from_event(event)
+                if not peer:
+                    continue
+                key = peer["public_key"]
+                if safe_int(peer.get("last_seen")) >= safe_int(peers.get(key, {}).get("last_seen")):
+                    peers[key] = peer
+                relay_counts.setdefault(key, set()).add(relay_url)
+            pings.extend(result.get("pings", []))
+            messages.extend(result.get("messages", []))
+            community_events.extend(result.get("community", []))
+
+        for relay_url in GLOBAL_RELAYS:
+            if relay_url in completed_relays:
+                continue
+            message = "World sync deadline exceeded"
+            errors.append(f"{relay_url}: {message}")
+            relay_status[relay_url] = {
+                "online": False,
+                "accepted": False,
+                "acknowledged": False,
+                "error": message,
+            }
 
         for key, peer in peers.items():
             peer["relay_count"] = len(relay_counts.get(key, set()))
@@ -6449,6 +6717,9 @@ class FriendsEngine:
 
         if successes:
             global_state["last_sync"] = now_seconds()
+            # Only sync_global receives relay EVENT acknowledgements. A socket
+            # send from the background listener is not proof that presence was
+            # accepted, so keep this timestamp tied to confirmed publishes.
             global_state["last_publish"] = now_seconds() if published else global_state.get("last_publish", 0)
             if dm_relay_event is not None and dm_relay_published:
                 global_state["dm_relay_list_last_publish"] = now_seconds()
@@ -6521,7 +6792,7 @@ class FriendsEngine:
             relay.send_json([
                 "REQ", dm_sub,
                 {
-                    "kinds": [NIP59_GIFT_WRAP_KIND],
+                    "kinds": [NIP59_GIFT_WRAP_KIND, NIP59_EPHEMERAL_GIFT_WRAP_KIND],
                     "#p": [identity["public_key"]],
                     # NIP-59 gift wraps intentionally randomize their outer
                     # timestamp over the two-day privacy window. A short
@@ -6594,6 +6865,8 @@ class FriendsEngine:
                 else:
                     stored = self._ingest_global_ping(event)
             elif sub_id == connection["dm_sub"]:
+                if safe_int(event.get("kind")) == NIP59_EPHEMERAL_GIFT_WRAP_KIND:
+                    return self._ingest_global_typing(event)
                 stored = self._ingest_global_dm(event)
             elif sub_id == connection["community_sub"]:
                 stored = self._ingest_global_community(event)
@@ -6664,8 +6937,6 @@ class FriendsEngine:
             raise OSError("no private inbox relay answered")
 
         global_state["last_sync"] = now_seconds()
-        if presence_event is not None:
-            global_state["last_publish"] = now_seconds()
         if dm_relay_event is not None:
             global_state["dm_relay_list_last_publish"] = now_seconds()
         global_state["last_error"] = ""
@@ -6700,7 +6971,6 @@ class FriendsEngine:
                                     relay_state[relay_url] = {"online": False, "error": trim_text(error, 120)}
                                     self._close_global_listener_connection(connection)
                                     connections.pop(relay_url, None)
-                            global_state["last_publish"] = now_seconds()
                         else:
                             previous_id = presence_event.get("id", "")
                             presence_event = None
@@ -6734,7 +7004,6 @@ class FriendsEngine:
                                 }
                                 self._close_global_listener_connection(connection)
                                 connections.pop(relay_url, None)
-                        global_state["last_publish"] = now_seconds()
                     last_presence = monotonic_now
 
                 ready_relays = []
@@ -6921,6 +7190,9 @@ class FriendsEngine:
         global_state.get("memory", {}).pop(public_key, None)
         global_state["pings"] = [item for item in global_state.get("pings", []) if item.get("public_key") != public_key]
         global_state["community"] = [item for item in global_state.get("community", []) if item.get("public_key") != public_key]
+        typing_peers = self._read_typing_cache()
+        if typing_peers.pop(public_key, None) is not None:
+            self._write_typing_cache(typing_peers)
         self.save_state()
         return True, "Builder blocked from your world"
 
@@ -7872,6 +8144,7 @@ class FriendsEngine:
             key=lambda item: (safe_int(item.get("timestamp")), safe_int(item.get("received_at_ms"))),
         )
         status["global_message_counts"] = counts
+        status["global_typing_peers"] = self.get_typing_peers()
         return status
 
     def search_messages(self, query):
@@ -8115,7 +8388,7 @@ def main():
             len(sys.argv) >= 3 and sys.argv[2] == "folder"
         )))
         return
-    read_only_message_commands = {"status-ui", "conversation-history", "search-messages"}
+    read_only_message_commands = {"status-ui", "typing-status", "conversation-history", "search-messages"}
     engine = FriendsEngine(load_message_journal=command not in read_only_message_commands)
     if len(sys.argv) < 2 or sys.argv[1] == "status":
         print(json.dumps(engine.get_full_status()))
@@ -8129,6 +8402,8 @@ def main():
         print(json.dumps(engine.search_messages(" ".join(sys.argv[2:])), ensure_ascii=False))
     elif command == "status-ui":
         print(json.dumps(engine.get_ui_status(), ensure_ascii=False))
+    elif command == "typing-status":
+        print(json.dumps({"ok": True, "peers": engine.get_typing_peers()}))
     elif command == "safety-code" and len(sys.argv) >= 3:
         try:
             identity = engine._global_identity()
@@ -8138,6 +8413,9 @@ def main():
             print(json.dumps({"ok": False, "message": str(error) or "Could not derive the safety code"}))
     elif command == "set-status" and len(sys.argv) >= 3:
         print_result(engine.set_status(sys.argv[2]), "Status updated")
+    elif command == "send-typing" and len(sys.argv) >= 4:
+        ok, message = engine.send_typing(sys.argv[2], sys.argv[3])
+        print_result(ok, message)
     elif command == "set-handle" and len(sys.argv) >= 3:
         print_result(engine.set_handle(" ".join(sys.argv[2:])), "Handle updated")
     elif command == "set-avatar" and len(sys.argv) >= 3:

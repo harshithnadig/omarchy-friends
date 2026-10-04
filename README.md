@@ -4,7 +4,7 @@
 
 Omarchy Friends is built specifically for Omarchy. It combines a lightweight social/messaging layer with the **Build Network**, a collaboration surface for ideas, projects, setups, testing, human help, solutions, events and community shipping.
 
-There are no hosted Friends accounts and no fake users. Public discovery is pseudonymous and federated over Nostr relays; private social state stays local unless a user explicitly sends or publishes something.
+There are no hosted Friends accounts and no fake users. World discovery is pseudonymous and federated over Nostr relays, with minimal presence enabled by default for new profiles while online. Private chat content stays local unless a user sends it to a conversation.
 
 ## Two surfaces, one product
 
@@ -50,7 +50,7 @@ The Build Network is the workshop layer:
 
 Public World / Circles / Build Network data is intentionally public and relay-readable. Do not put passwords, private URLs, secrets, personal addresses or sensitive logs into public cards.
 
-New profiles start hidden from World. A user must turn on **Visible in World** in Me before their pseudonymous public key appears in discovery; saved visibility choices are preserved when upgrading.
+New profiles are discoverable in World by default so people can find each other without setup. While online, the app publishes a stable public key, generated handle, avatar, status and inbox-relay list to configured public relays; this is pseudonymous but linkable over time, not anonymous. Relay operators or other recipients may retain published data after visibility is turned off. Users can switch **Visible in World** off in Me → Privacy at any time. Existing saved visibility choices, including hidden profiles, are preserved when upgrading. World shows only real Friends installations with fresh presence and compatible relay reachability; an empty list does not mean your account or chats are missing. Chat contents and history are never part of World presence.
 
 Hiding your own beacon does not turn off World browsing or your private inbox. Friends continues syncing incoming messages and connection events while hidden; only your periodic discovery presence stops.
 
@@ -83,6 +83,8 @@ Current Friends clients support NIP-17 replies, reactions, author-checked encryp
 
 Encrypted read receipts are optional and disabled by default. When enabled, opening a direct chat or group sends an encrypted receipt to compatible Friends peers; other NIP-17 clients may display the receipt as an ordinary short message.
 
+Typing indicators are enabled by default for direct chats with compatible, connected Friends peers and can be disabled in **Me → Privacy**. Each signal is NIP-44 encrypted inside a NIP-59 ephemeral gift wrap (kind 21059); its inner kind 20000 payload is held only in the user's volatile runtime directory for at most 12 seconds and never enters message history or notifications. Signals stop after inactivity, when sending, or when changing chats. Groups and older clients do not receive them. NIP-59 ephemeral events are required not to be stored by relays, but relays still see the recipient's public key and event timing while routing them.
+
 Chat rows show per-conversation unread counts using encrypted local read cursors. Opening a chat marks its current messages read on this device. This local unread tracking is separate from the optional encrypted read receipts described above.
 
 Pin up to 20 direct or group conversations from the chat header. Pins are stored in the encrypted local state and sort ahead of recent conversations; they are not synced to other devices.
@@ -94,6 +96,10 @@ Friends deliberately caps a NIP-44 plaintext at **65,535 bytes** as an applicati
 The dependency-free WebSocket transport also bounds individual frame size, cumulative fragmented-message size, fragment count and one overall receive deadline so a relay cannot keep a client busy indefinitely with tiny continuation frames. Those limits have dedicated regression tests.
 
 CI covers the official NIP-44 v2 vector, authentication/tamper failures, wrong-recipient and wrong-inner-recipient rejection, signed kind-10050 handling, actual FriendsEngine inbox routing, restart-persistent upgrade state, old-peer fallback, group metadata hiding, the two-user journey, WebSocket fragmentation limits, Friends V3 information-architecture contracts and the complete repository suite. The Friends implementation itself has **not** received an independent security audit, so do not market the plugin as audited cryptography. NIP-44 also does not provide forward secrecy; users should not treat Friends as a high-assurance secure messenger for highly sensitive secrets.
+
+The separate Rust CI job runs the pinned, loopback-only MLS session experiment. It does not enable MLS in production.
+
+An isolated, loopback-only MLS integration experiment is maintained at `native/mls-session-experiment/`. It does not participate in Friends chats or migrate any account; current production conversations continue to use the documented NIP-17/NIP-44 transports. See `docs/private-messaging-security-migration.md` for the prototype evidence and remaining enablement gates.
 
 The compatibility/design record is in `docs/private-messaging-security-migration.md`.
 
@@ -113,6 +119,13 @@ When a DM activity record exists but its message bodies are missing locally, the
 
 World presence uses signed Nostr events with a locally generated secp256k1 identity. Presence expires quickly so World behaves like a live lobby rather than a permanent fake-online list.
 
+World lists people who have Omarchy Friends installed, have World visibility
+on, and published a recent presence. New profiles are visible by default while
+online; existing profiles keep their saved visibility choice after upgrading.
+If the directory is empty while relays are healthy, there may simply be no
+other users online yet; use the invite action to bring someone in. You can
+browse World with your own profile hidden.
+
 Default relays:
 
 ```text
@@ -125,7 +138,7 @@ wss://relay.damus.io
 
 Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
 
-New profiles are hidden from global discovery by default. After **Visible in World** is explicitly enabled, the generated pseudonymous handle, basic avatar/status/focus metadata and signed inbox-relay list are public to configured relays. Active-app name, music, project details/URL, interests and room remain **off until separately enabled** in **Me → Privacy**. Previously saved privacy choices are preserved during migration. Turning sharing off stops future publication but cannot guarantee removal of information already received or retained by relays; do not publish sensitive project details or links.
+New profiles are visible to configured public relays by default while online. Their stable pseudonymous public key, generated handle, basic avatar/status/focus metadata and signed inbox-relay list are public. Relay operators or other recipients may retain published data after visibility is turned off. Existing profiles keep their saved privacy choice on upgrade, including an explicit hidden setting. Active-app name, music, project details/URL, interests and room remain **off until separately enabled** in **Me → Privacy**. Chat contents are never part of World presence. Do not publish sensitive project details or links.
 
 Local Radar/LAN presence is **off on new profiles** because discovery uses unauthenticated UDP broadcast visible to devices on the local network. Enable **Me → Privacy → LAN sharing** only on networks where you want nearby Omarchy users to discover this profile. Existing saved LAN-sharing choices are preserved during migration.
 

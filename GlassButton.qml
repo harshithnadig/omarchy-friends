@@ -16,12 +16,10 @@ Item {
     property color coolTint: "#55d9ff"
     signal clicked()
 
-    implicitWidth: labelRow.implicitWidth + Style.space(root.compact ? 16 : 24)
-    implicitHeight: Style.space(root.compact ? 30 : 38)
-    opacity: root.enabled ? 1 : 0.42
-    scale: tap.pressed ? 0.965 : (hover.hovered ? 1.015 : 1)
-    // Keep the current focus item tabbable until focus leaves it. Changing this
-    // to false while it owns active focus emits a Qt runtime warning.
+    implicitWidth: labelRow.implicitWidth + Style.space(root.compact ? 18 : 26)
+    implicitHeight: Style.space(root.compact ? 32 : 40)
+    opacity: root.enabled ? 1 : 0.48
+    scale: tap.pressed ? 0.98 : 1
     activeFocusOnTab: root.enabled || root.activeFocus
     Accessible.role: Accessible.Button
     Accessible.name: root.accessibleName || root.text || root.icon
@@ -34,69 +32,28 @@ Item {
         }
     }
 
-    Behavior on scale { NumberAnimation { duration: 105; easing.type: Easing.OutCubic } }
-
     Rectangle {
-        visible: root.primary || root.selected || root.activeFocus
+        visible: root.activeFocus
         anchors.fill: parent
         anchors.margins: -Style.space(2)
-        radius: Style.space(root.compact ? 12 : 15)
+        radius: Style.space(root.compact ? 10 : 12)
         color: "transparent"
-        border.width: root.activeFocus ? 2 : 1
-        border.color: root.activeFocus
-            ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.92)
-            : Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b,
-                      root.primary ? 0.28 : 0.18)
+        border.width: 2
+        border.color: root.coolTint
     }
 
     Rectangle {
         anchors.fill: parent
-        radius: Style.space(root.compact ? 10 : 13)
-        gradient: Gradient {
-            GradientStop {
-                position: 0
-                color: root.primary
-                    ? Qt.rgba(0.58, 0.45, 1.0, 0.98)
-                    : (hover.hovered || root.selected || root.activeFocus
-                       ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.22)
-                       : Qt.rgba(1, 1, 1, 0.072))
-            }
-            GradientStop {
-                position: 0.58
-                color: root.primary
-                    ? Qt.rgba(0.38, 0.34, 0.94, 0.97)
-                    : (hover.hovered || root.selected || root.activeFocus
-                       ? Qt.rgba(0.24, 0.27, 0.58, 0.19)
-                       : Qt.rgba(0.12, 0.16, 0.28, 0.055))
-            }
-            GradientStop {
-                position: 1
-                color: root.primary
-                    ? Qt.rgba(0.18, 0.56, 0.96, 0.94)
-                    : (hover.hovered || root.selected || root.activeFocus
-                       ? Qt.rgba(root.coolTint.r, root.coolTint.g, root.coolTint.b, 0.10)
-                       : Qt.rgba(1, 1, 1, 0.028))
-            }
-        }
+        radius: Style.space(root.compact ? 8 : 10)
+        color: root.primary
+            ? root.accentColor
+            : (root.selected || hover.hovered || root.activeFocus ? "#273341" : "#1b252f")
         border.width: 1
         border.color: root.primary
-            ? Qt.rgba(0.82, 0.82, 1.0, 0.76)
+            ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.92)
             : (root.selected || root.activeFocus
-               ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.58)
-               : Qt.rgba(1, 1, 1, hover.hovered ? 0.17 : 0.11))
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 1
-            height: Math.max(2, parent.height * 0.43)
-            radius: parent.radius
-            gradient: Gradient {
-                GradientStop { position: 0; color: Qt.rgba(1, 1, 1, root.primary ? 0.20 : 0.075) }
-                GradientStop { position: 1; color: "transparent" }
-            }
-        }
+               ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.70)
+               : "#303c48")
     }
 
     Row {
@@ -106,14 +63,14 @@ Item {
         PlainText {
             visible: root.icon !== ""
             text: root.icon
-            color: root.primary ? "white" : (root.selected ? "#f1eeff" : "#d9e5ff")
-            font.family: Style.font.family
+            color: "#eef1f6"
+            font.family: "sans-serif"
             font.pixelSize: Style.font.caption
         }
         PlainText {
             text: root.text
-            color: root.primary ? "white" : (root.selected ? "#f7f3ff" : "#e7ebf7")
-            font.family: Style.font.family
+            color: root.primary ? "white" : "#e4eaf0"
+            font.family: "sans-serif"
             font.pixelSize: Style.font.caption
             font.bold: root.primary || root.selected
         }
