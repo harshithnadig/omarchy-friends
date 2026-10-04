@@ -5,13 +5,13 @@ edition = "2024"
 publish = false
 
 [dev-dependencies]
-cgka-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "f8de39d00514236fd775dce11d8483ec7a105852" }
+cgka-traits = { git = "https://github.com/marmot-protocol/mdk", rev = "c977bfa844a244500590798680858b4f690d6f74" }
 futures = "0.3"
-marmot-uniffi = { git = "https://github.com/marmot-protocol/mdk", rev = "f8de39d00514236fd775dce11d8483ec7a105852" }
+marmot-uniffi = { git = "https://github.com/marmot-protocol/mdk", rev = "c977bfa844a244500590798680858b4f690d6f74" }
 nostr = { git = "https://github.com/erskingardner/rust-nostr", rev = "a9c7a6423d104c603de6ea8244265ea17f0f9d89", default-features = false, features = ["std", "rand", "os-rng", "nip04", "nip49", "nip59"] }
 nostr-relay-builder = "0.44.0"
 nostr-sdk = { git = "https://github.com/erskingardner/rust-nostr", rev = "a9c7a6423d104c603de6ea8244265ea17f0f9d89", features = ["local-relay"] }
 tempfile = "3.27"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
-transport-nostr-adapter = { git = "https://github.com/marmot-protocol/mdk", rev = "f8de39d00514236fd775dce11d8483ec7a105852" }
-transport-nostr-peeler = { git = "https://github.com/marmot-protocol/mdk", rev = "f8de39d00514236fd775dce11d8483ec7a105852" }
+transport-nostr-adapter = { git = "https://github.com/marmot-protocol/mdk", rev = "c977bfa844a244500590798680858b4f690d6f74" }
+transport-nostr-peeler = { git = "https://github.com/marmot-protocol/mdk", rev = "c977bfa844a244500590798680858b4f690d6f74" }

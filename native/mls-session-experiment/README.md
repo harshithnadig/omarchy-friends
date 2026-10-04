@@ -2,7 +2,7 @@
 
 This is an isolated protocol-integration test, not the Friends runtime transport.
 It pins MDK to the immutable upstream catch-up fix candidate
-`f8de39d00514236fd775dce11d8483ec7a105852` (the current tip of upstream PR
+`c977bfa844a244500590798680858b4f690d6f74` (the current tip of upstream PR
 [#2153](https://github.com/marmot-protocol/mdk/pull/2153)) and proves
 that the supported UniFFI external-signer contract can drive two accounts
 through relay discovery, MLS group setup, Welcome acceptance, message send, and
@@ -33,9 +33,10 @@ downgrade prevention, real-relay interoperation, identity migration/recovery
 from existing Friends profiles, and UI/runtime integration.
 
 This candidate is newer than the `v0.12.0` stable tag but is not a stable MDK
-release. Its upstream 1,024-message catch-up regression has not yet produced a
-reliable pass; keep this pin isolated until that recovery test passes and the
-upstream fix is merged/released.
+release. Upstream PR #2153 remains open. Its ordinary CI passes, but its
+1,024-message catch-up regression still has not validated the fix reliably;
+keep this pin isolated until that recovery test passes and the upstream fix is
+merged and released.
 
 Run with:
 
@@ -55,7 +56,7 @@ scripts/build-mls-python-bridge.sh
 
 The script writes the generated Python module, native shared library, SHA-256,
 and build provenance under `/tmp/omarchy-friends-mls-python-bridge/`. It builds
-MDK commit `f8de39d00514236fd775dce11d8483ec7a105852` for Linux x86_64, uses the
+MDK commit `c977bfa844a244500590798680858b4f690d6f74` for Linux x86_64, uses the
 MDK-pinned Rust toolchain, import-checks the generated API, and runs an isolated
 two-client MLS Welcome/message exchange over a localhost relay using temporary
 Friends identities and an in-memory secret store. Clang is needed
