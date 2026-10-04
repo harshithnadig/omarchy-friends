@@ -73,6 +73,7 @@ if not hasattr(module, "Marmot") or not hasattr(module, "ExternalAccountSignerFf
     raise SystemExit("generated binding is missing the expected MDK external-signer API")
 print(f"Loaded {module.__name__} from {out}")
 PY
+python3 "$repo_root/scripts/smoke-mls-python-bridge.py" "$output_dir"
 
 sha256sum "$library" > "$output_dir/libmarmot_uniffi.so.sha256"
 cat > "$output_dir/build-provenance.json" <<EOF

@@ -19,6 +19,8 @@ on:
       - 'ServiceModern.qml'
       - 'tests/test_*.py'
       - 'scripts/release-gate.sh'
+      - 'scripts/build-mls-python-bridge.sh'
+      - 'scripts/smoke-mls-python-bridge.py'
       - 'manifest.json'
       - 'native/mls-session-experiment/**'
       - 'docs/private-messaging-security-migration.md'
@@ -76,3 +78,21 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run isolated MLS session regression
         run: cargo test --locked
+
+  mls-python-bridge-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: native/mls-session-experiment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Friends test dependency
+        run: python -m pip install cryptography
+      - name: Fetch pinned MDK source and build dependencies
+        run: cargo fetch --locked
+      - name: Build and exercise Python FFI bridge
+        run: ../../scripts/build-mls-python-bridge.sh
