@@ -16,19 +16,22 @@
   relay URLs are removed from the configured set. A synchronization test
   confirms all relay requests overlap; fresh-profile default discovery and
   preservation of an existing hidden choice are also covered.
-- The release gate passes all 335 tests, including localhost NIP-17 direct and
-  group relay round trips. Python compilation, remote-execution checks, and
-  health check pass. Omarchy plugin validation and QML lint were not rerun in
-  this environment; their previous candidate results do not verify this turn's
-  live UI behavior.
+- The release gate passes all 336 tests, including localhost NIP-17 direct and
+  group relay round trips and a two-client typing-indicator exchange through an
+  already-open WebSocket subscription. The typing payload was decrypted by the
+  recipient, did not enter saved chat history, and exposed neither sender key
+  nor plaintext on the relay. Python compilation, remote-execution checks,
+  health check, Omarchy plugin validation, and QML lint all pass. This localhost
+  test does not establish public-relay behavior or rendered UI behavior.
 - The separately pinned Rust MLS experiment now checks a stale pre-removal
   account snapshot against post-removal ciphertext on a distinct loopback
   relay; the one-test suite passes locally and has been added as a PR CI job.
   SQLCipher memory locking failed in this sandbox (`mlock()` returned ENOMEM),
   so that property remains unverified. The experiment is test-only and does not
   change production NIP-17/NIP-44 chats.
-- Rendered UI, live public relay interoperability, and an actual two-user
-  typing exchange have not been verified. Candidate is on
+- Rendered UI and live public-relay interoperability have not been verified.
+  The two-client typing exchange is covered only by the isolated localhost
+  relay test. Candidate is on
   `fix/accurate-world-status` and draft PR #8; it has not been installed or
   published to the marketplace and is not release-cleared.
 
