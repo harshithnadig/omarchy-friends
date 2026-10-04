@@ -90,6 +90,8 @@ python3 -m py_compile \
   bin/build_network_app_v4.py \
   bin/omarchy_friends_global.py \
   bin/omarchy_friends_private.py \
+  bin/omarchy_friends_mls.py \
+  scripts/smoke-mls-python-bridge.py \
   bin/omarchy-friends \
   bin/omarchy-friends-open
 pass "Python modules compile"

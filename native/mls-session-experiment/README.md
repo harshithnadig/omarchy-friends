@@ -49,7 +49,9 @@ scripts/build-mls-python-bridge.sh
 The script writes the generated Python module, native shared library, SHA-256,
 and build provenance under `/tmp/omarchy-friends-mls-python-bridge/`. It builds
 MDK commit `fcc85edd8dbd07c8293c899ee52230f72c54c897` for Linux x86_64, uses the
-MDK-pinned Rust toolchain, and import-checks the generated API. Clang is needed
+MDK-pinned Rust toolchain, import-checks the generated API, and runs an isolated
+two-client MLS Welcome/message exchange over a localhost relay using temporary
+Friends identities and an in-memory secret store. Clang is needed
 on hosts where GCC emits an invalid SQLCipher TLS relocation for this shared
 library. Provide another output directory as the script's first argument.
 

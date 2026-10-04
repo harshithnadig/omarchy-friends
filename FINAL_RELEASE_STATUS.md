@@ -16,7 +16,8 @@
   relay URLs are removed from the configured set. A synchronization test
   confirms all relay requests overlap; fresh-profile default discovery and
   preservation of an existing hidden choice are also covered.
-- The release gate passes all 336 tests, including localhost NIP-17 direct and
+- The release gate passes all 340 tests, including the Friends-to-MDK external
+  signer boundary checks, localhost NIP-17 direct and
   group relay round trips and a two-client typing-indicator exchange through an
   already-open WebSocket subscription. The typing payload was decrypted by the
   recipient, did not enter saved chat history, and exposed neither sender key
@@ -26,6 +27,11 @@
 - The separately pinned Rust MLS experiment now checks a stale pre-removal
   account snapshot against post-removal ciphertext on a distinct loopback
   relay; the one-test suite passes locally and has been added as a PR CI job.
+  A second isolated Python UniFFI smoke now builds the pinned MDK library and
+  completes external-signer login, two-person MLS group setup, Welcome
+  acceptance, and message decryption over a localhost relay with temporary
+  identities and an in-memory test secret store. It is not the Friends chat
+  runtime and does not change production transport.
   SQLCipher memory locking failed in this sandbox (`mlock()` returned ENOMEM),
   so that property remains unverified. The experiment is test-only and does not
   change production NIP-17/NIP-44 chats.
