@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -10,7 +10,8 @@ use std::time::Duration;
 use cgka_traits::TransportEndpoint;
 use futures::executor::block_on;
 use marmot_uniffi::{
-    ExternalAccountSignerFfi, Marmot, MarmotKitError, RelayPolicyFfi, TimelineMessageQueryFfi,
+    ExternalAccountSignerFfi, Marmot, MarmotKitError, RelayPolicyFfi, SecretStore,
+    TimelineMessageQueryFfi,
 };
 use nostr::{Event, Filter, JsonUtil, Keys, Kind, NostrSigner, PublicKey, UnsignedEvent};
 use nostr_relay_builder::prelude::{BoxedFuture, PolicyResult, WritePolicy};
@@ -22,6 +23,61 @@ use transport_nostr_peeler::NostrTransportEvent;
 
 #[derive(Clone)]
 struct LocalSigner(Keys);
+
+#[derive(Default)]
+struct InMemorySecretStore {
+    secrets: Mutex<HashMap<(String, String), String>>,
+}
+
+impl SecretStore for InMemorySecretStore {
+    fn has_secret_for_label(&self, label: String) -> Result<bool, MarmotKitError> {
+        Ok(self
+            .secrets
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|(stored_label, _)| stored_label == &label))
+    }
+
+    fn has_secret_for_account_id(&self, account_id_hex: String) -> Result<bool, MarmotKitError> {
+        Ok(self
+            .secrets
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|(_, stored_account_id)| stored_account_id == &account_id_hex))
+    }
+
+    fn write_secret(
+        &self,
+        label: String,
+        account_id_hex: String,
+        secret_key_hex: String,
+    ) -> Result<(), MarmotKitError> {
+        self.secrets
+            .lock()
+            .unwrap()
+            .insert((label, account_id_hex), secret_key_hex);
+        Ok(())
+    }
+
+    fn load_secret(&self, label: String, account_id_hex: String) -> Result<String, MarmotKitError> {
+        self.secrets
+            .lock()
+            .unwrap()
+            .get(&(label.clone(), account_id_hex))
+            .cloned()
+            .ok_or(MarmotKitError::SecretNotFound { details: label })
+    }
+
+    fn remove_secret(&self, label: String, account_id_hex: String) -> Result<(), MarmotKitError> {
+        self.secrets
+            .lock()
+            .unwrap()
+            .remove(&(label, account_id_hex));
+        Ok(())
+    }
+}
 
 #[derive(Clone, Debug, Default)]
 struct ReplayAudit {
@@ -139,6 +195,10 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     let alice_id = alice_keys.public_key().to_hex();
     let bob_id = bob_keys.public_key().to_hex();
     let relay_urls = vec![relay_url.clone()];
+    // Keep this protocol test independent of a desktop keyring/Secret Service.
+    // The in-memory store exists only for this test and is shared by reopened
+    // runtimes so the simulated account credentials survive runtime restarts.
+    let test_secret_store = Arc::new(InMemorySecretStore::default());
     let observer = NostrSdkClient::builder().build();
     observer.add_relay(&relay_url).await.unwrap();
     observer.connect().await;
@@ -167,7 +227,7 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
             temp.path().join(name).to_string_lossy().into_owned(),
             client_relays,
             RelayPolicyFfi::AllowLoopback,
-            None,
+            Some(test_secret_store.clone() as Arc<dyn SecretStore>),
         )
         .unwrap()
     };

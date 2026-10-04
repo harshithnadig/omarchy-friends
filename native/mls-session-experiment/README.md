@@ -22,10 +22,11 @@ The local test host logged SQLCipher `mlock()` failures (`ENOMEM`) while still
 passing the protocol flow. Memory locking is therefore not established by this
 experiment and must be validated on the target runtime before production use.
 
-The test creates fresh identities in memory and temporary account databases.
-It does not read the installed Friends identity, write Friends state, advertise
-an MLS capability, or change the existing NIP-17 transport. Production enablement
-still needs reordered Welcome behavior, downgrade prevention, real-relay
+The test creates fresh identities in memory, uses a test-only in-memory secret
+store, and writes only temporary account databases. It needs no desktop keyring
+or Secret Service. It does not read the installed Friends identity, write
+Friends state, advertise an MLS capability, or change the existing NIP-17
+transport. Production enablement still needs reordered Welcome behavior, downgrade prevention, real-relay
 interoperation, identity migration/recovery from existing Friends
 profiles, and UI/runtime integration.
 
