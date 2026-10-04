@@ -7,7 +7,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 experiment="$repo_root/native/mls-session-experiment"
 output_dir="${1:-/tmp/omarchy-friends-mls-python-bridge}"
 target_dir="${CARGO_TARGET_DIR:-$experiment/target}"
-expected_mdk_revision="fcc85edd8dbd07c8293c899ee52230f72c54c897"
+expected_mdk_revision="f8de39d00514236fd775dce11d8483ec7a105852"
 if [[ "$(uname -s)" != Linux || "$(uname -m)" != x86_64 ]]; then
     echo "error: this packaging script currently supports Linux x86_64 only" >&2
     exit 1

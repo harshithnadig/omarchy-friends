@@ -8,15 +8,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use cgka_traits::TransportEndpoint;
-use futures::executor::block_on;
 use marmot_uniffi::{
     ExternalAccountSignerFfi, Marmot, MarmotKitError, RelayPolicyFfi, SecretStore,
     TimelineMessageQueryFfi,
 };
-use nostr::{Event, Filter, JsonUtil, Keys, Kind, NostrSigner, PublicKey, UnsignedEvent};
+use nostr::event::SignEvent;
+use nostr::nips::nip04::Nip04;
+use nostr::nips::nip44::Nip44;
+use nostr::prelude::{Filter, Keys, Kind, PublicKey, UnsignedEvent};
 use nostr_relay_builder::prelude::{BoxedFuture, PolicyResult, WritePolicy};
+use nostr_relay_builder::prelude::{Event as RelayEvent, Kind as RelayKind};
 use nostr_relay_builder::{LocalRelay, RelayBuilder};
-use nostr_sdk::Client as NostrSdkClient;
+use nostr_sdk::prelude::{Client as NostrSdkClient, SignerAuthenticator};
 use tokio::time::{Instant, sleep, timeout};
 use transport_nostr_adapter::{NostrRelayClient, NostrSdkRelayClient};
 use transport_nostr_peeler::NostrTransportEvent;
@@ -88,11 +91,11 @@ struct ReplayAudit {
 impl WritePolicy for ReplayAudit {
     fn admit_event<'a>(
         &'a self,
-        event: &'a Event,
+        event: &'a RelayEvent,
         _addr: &'a SocketAddr,
     ) -> BoxedFuture<'a, PolicyResult> {
         Box::pin(async move {
-            if event.kind == Kind::MlsGroupMessage {
+            if event.kind == RelayKind::MlsGroupMessage {
                 let event_id = event.id.to_hex();
                 let mut seen = self.seen_event_ids.lock().unwrap();
                 if !seen.insert(event_id) {
@@ -114,7 +117,8 @@ impl ExternalAccountSignerFfi for LocalSigner {
             UnsignedEvent::from_json(unsigned_event_json).map_err(|e| MarmotKitError::Runtime {
                 details: e.to_string(),
             })?;
-        block_on(self.0.sign_event(unsigned))
+        self.0
+            .sign_event(unsigned)
             .map(|event| event.as_json())
             .map_err(|e| MarmotKitError::Runtime {
                 details: e.to_string(),
@@ -125,9 +129,11 @@ impl ExternalAccountSignerFfi for LocalSigner {
         let public_key = PublicKey::parse(&public_key).map_err(|e| MarmotKitError::Runtime {
             details: e.to_string(),
         })?;
-        block_on(self.0.nip04_encrypt(&public_key, &content)).map_err(|e| MarmotKitError::Runtime {
-            details: e.to_string(),
-        })
+        self.0
+            .nip04_encrypt(&public_key, &content)
+            .map_err(|e| MarmotKitError::Runtime {
+                details: e.to_string(),
+            })
     }
 
     fn nip04_decrypt(
@@ -138,29 +144,33 @@ impl ExternalAccountSignerFfi for LocalSigner {
         let public_key = PublicKey::parse(&public_key).map_err(|e| MarmotKitError::Runtime {
             details: e.to_string(),
         })?;
-        block_on(self.0.nip04_decrypt(&public_key, &encrypted_content)).map_err(|e| {
-            MarmotKitError::Runtime {
+        self.0
+            .nip04_decrypt(&public_key, &encrypted_content)
+            .map_err(|e| MarmotKitError::Runtime {
                 details: e.to_string(),
-            }
-        })
+            })
     }
 
     fn nip44_encrypt(&self, public_key: String, content: String) -> Result<String, MarmotKitError> {
         let public_key = PublicKey::parse(&public_key).map_err(|e| MarmotKitError::Runtime {
             details: e.to_string(),
         })?;
-        block_on(self.0.nip44_encrypt(&public_key, &content)).map_err(|e| MarmotKitError::Runtime {
-            details: e.to_string(),
-        })
+        self.0
+            .nip44_encrypt(&public_key, &content)
+            .map_err(|e| MarmotKitError::Runtime {
+                details: e.to_string(),
+            })
     }
 
     fn nip44_decrypt(&self, public_key: String, payload: String) -> Result<String, MarmotKitError> {
         let public_key = PublicKey::parse(&public_key).map_err(|e| MarmotKitError::Runtime {
             details: e.to_string(),
         })?;
-        block_on(self.0.nip44_decrypt(&public_key, &payload)).map_err(|e| MarmotKitError::Runtime {
-            details: e.to_string(),
-        })
+        self.0
+            .nip44_decrypt(&public_key, &payload)
+            .map_err(|e| MarmotKitError::Runtime {
+                details: e.to_string(),
+            })
     }
 }
 
@@ -206,8 +216,11 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     // Give discovery a real, signed NIP-65 and NIP-17 inbox record for each
     // account, as an independently bootstrapped Nostr installation would.
     for keys in [&alice_keys, &bob_keys] {
-        let relay_client =
-            NostrSdkRelayClient::new(NostrSdkClient::builder().signer(keys.clone()).build());
+        let relay_client = NostrSdkRelayClient::new(
+            NostrSdkClient::builder()
+                .authenticator(SignerAuthenticator::new(keys.clone()))
+                .build(),
+        );
         for (kind, tag_name) in [(10002, "r"), (10050, "relay")] {
             let event = NostrTransportEvent::new_unsigned(
                 keys.public_key().to_hex(),
@@ -242,6 +255,7 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
             Arc::new(LocalSigner(alice_keys.clone())),
             relay_urls.clone(),
             relay_urls.clone(),
+            relay_urls.clone(),
         )
         .await
         .unwrap();
@@ -249,6 +263,7 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         .login_external_signer(
             bob_id,
             Arc::new(LocalSigner(bob_keys.clone())),
+            relay_urls.clone(),
             relay_urls.clone(),
             relay_urls.clone(),
         )
@@ -399,11 +414,8 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     );
 
     let before_replay: HashSet<String> = observer
-        .fetch_events_from(
-            [relay_url.clone()],
-            Filter::new().kind(Kind::MlsGroupMessage),
-            Duration::from_secs(3),
-        )
+        .fetch_events(Filter::new().kind(Kind::MlsGroupMessage))
+        .timeout(Duration::from_secs(3))
         .await
         .unwrap()
         .iter()
@@ -445,11 +457,8 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     }
 
     let published_events = observer
-        .fetch_events_from(
-            [relay_url.clone()],
-            Filter::new().kind(Kind::MlsGroupMessage),
-            Duration::from_secs(3),
-        )
+        .fetch_events(Filter::new().kind(Kind::MlsGroupMessage))
+        .timeout(Duration::from_secs(3))
         .await
         .unwrap();
     let replay_event = published_events
@@ -525,11 +534,8 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     );
 
     let before_removal: HashSet<String> = observer
-        .fetch_events_from(
-            [relay_url.clone()],
-            Filter::new().kind(Kind::MlsGroupMessage),
-            Duration::from_secs(3),
-        )
+        .fetch_events(Filter::new().kind(Kind::MlsGroupMessage))
+        .timeout(Duration::from_secs(3))
         .await
         .unwrap()
         .iter()
@@ -575,11 +581,8 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     let post_removal_event = timeout(Duration::from_secs(20), async {
         loop {
             let events = observer
-                .fetch_events_from(
-                    [relay_url.clone()],
-                    Filter::new().kind(Kind::MlsGroupMessage),
-                    Duration::from_secs(3),
-                )
+                .fetch_events(Filter::new().kind(Kind::MlsGroupMessage))
+                .timeout(Duration::from_secs(3))
                 .await
                 .unwrap();
             if let Some(event) = events.iter().find(|event| {
@@ -607,11 +610,8 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         .await
         .unwrap();
     let stale_relay_events = stale_delivery
-        .fetch_events_from(
-            [stale_relay_url.clone()],
-            Filter::new().kind(Kind::MlsGroupMessage),
-            Duration::from_secs(3),
-        )
+        .fetch_events(Filter::new().kind(Kind::MlsGroupMessage))
+        .timeout(Duration::from_secs(3))
         .await
         .unwrap();
     assert!(
