@@ -1,4 +1,4 @@
-# How to use Omarchy Friends v4.16
+# How to use Omarchy Friends v4.17
 
 Friends is the human layer of Omarchy: real builders, private conversations, a public community room and a Build Network for collaborating on useful things.
 
@@ -133,4 +133,4 @@ Use the visible **Update** action when you choose to update. The active service 
 
 ## If something looks wrong
 
-For the v4.16.0 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility, attachments and invite handling.
+For the v4.17.0 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility, attachments and invite handling.

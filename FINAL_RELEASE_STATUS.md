@@ -38,7 +38,7 @@ not complete until its automation and maintainer review finish.
 
 The historical v4.16.0 and v4.15.1 sections are retained below for provenance.
 
-## v4.16.0 candidate state (2026-09-29)
+## Historical v4.16.0 candidate state (2026-09-29; superseded by v4.17.0)
 
 - **Current audit follow-up (2026-09-29):** reproduced why users saw the V2 compatibility screen: Friends V3 put a nonvisual `Connections` object directly in `KeyboardPanel`'s `contentItem` list, causing Loader.Error. Moved it under an invisible `Item` and added a regression test. Removed the obsolete optional-link composer field from V3, keeping link sharing through the attachment menu/message field. The local journal was read without mutation: it still has 88 rows, including 80 NeonOtter messages and eight unlinked recovery messages; `conversation-history` returns all 80 for NeonOtter. The fixed installed panel was opened and visually verified: V3 Chats lists NeonOtter, Recovered messages and CosmicFox, the selected NeonOtter transcript renders, and the composer shows only its attachment icon, message field and Send button. The change passes `qmllint` and the targeted UI contract suite. Actual file selection/send and two-device exchanges remain unverified. Marketplace compatibility validation passes at exact commit `36c45ac`, but publication is not complete and the security baseline requires maintainer review.
 - Chat-pane overflow root cause fixed: the message scroller used the left chat-list header height instead of the conversation header height, so the composer could extend into the bottom footer. It now subtracts the correct conversation-header height and lets the scroller shrink to the remaining space. The chat header is compact again, with Focus and More beside the avatar and the per-chat Build action removed. Removed an unsupported `Text.selectByMouse` property that caused Friends V3 to fall back to V2. The supported shell restart and plugin rescan produced no Friends V3 load/fallback warning; source and installed QML match. A fresh live open restored NeonOtter-8176 and CosmicFox-2449 with saved history after a status-load race fix.
@@ -69,17 +69,17 @@ The historical v4.16.0 and v4.15.1 sections are retained below for provenance.
 - Reply/reaction/deletion protocol handling and composer/menu UI contracts have unit coverage. Direct and three-account group message flows are exercised over real localhost WebSockets. CUA confirmed the system picker foreground and cancellation path. Real two-device attachment/reaction/deletion exchange, post-config picker appearance, long-duration CPU/thermal behavior, legacy-client behavior, and independent security review remain unverified.
 - Private messaging still does not provide forward secrecy, persisted or independently verified device identities, remote read receipts, typing indicators, voice/video calls, or account/key recovery. The pairwise safety code only helps detect a key mismatch when both people compare it through a separate trusted channel. Unread cursors stay encrypted on this device and are never sent to a relay. Deletion is best effort and cannot guarantee erasure of copies another client or relay already retained. Do not describe this implementation as audited or equivalent to WhatsApp's security guarantees.
 
-The active v4.16.0 candidate extends the historical v4.15.1 scope; release remains blocked on fresh real two-client and UI validation.
+The v4.16.0 candidate extended the historical v4.15.1 scope. This is a retained snapshot, not the active candidate status; current status is recorded at the top of this file.
 
-**Release posture:** Omarchy Friends v4.16.0 is pushed to GitHub but is not release-cleared. Direct and group messaging pass isolated localhost WebSocket round trips. File and folder portal dialogs were launched live and cancelled; actual selection/send and two-device exchanges remain unverified. Real two-device attachment/action checks, V3/V2/legacy fallback, full UI interaction, forward secrecy and independent security review remain open. The marketplace request must validate the new exact commit and receive maintainer approval before it is listed as published.
+**Historical release posture:** Omarchy Friends v4.16.0 was not release-cleared. Direct and group messaging passed isolated localhost WebSocket round trips. At that time, actual file selection/send and two-device exchanges were unverified. See the v4.17.0 status at the top for current candidate evidence and remaining gates.
 
 ## Repository-side state
 
-- Product architecture: complete for the planned v4.15 scope.
+- Product architecture: the planned v4.15 scope was implemented; this does not mean current release gates are complete.
 - Build Network backend: complete.
 - Friends V3 is the preferred shell; Friends V2 is the compatibility fallback; `Panel.qml` is the final legacy fallback.
 - Build Network uses `BuildNetworkPanelV3.qml -> BuildNetworkService.qml -> bin/build_network_app_v4.py` and is now **lazy-loaded only when opened** so normal Friends use does not start its Python/network work unnecessarily.
-- `manifest.json` and the installed Friends engine advertise `4.16.0`. The source is pushed to GitHub; marketplace verification/publication is pending.
+- Historical v4.16.0 manifest/install state is retained here for provenance. The active candidate version and publication state are defined in the v4.17.0 status at the top.
 - The shared glass primitives now expose visible keyboard focus and keyboard activation for primary buttons, navigation items and pills, so the main product is not mouse-only.
 - The latest release prep includes `SECURITY.md` and `RELEASE_NOTES_v4.15.md`.
 - Private inbox listening fans in all configured NIP-17 inbox relays, so one silent relay cannot park the listener indefinitely.

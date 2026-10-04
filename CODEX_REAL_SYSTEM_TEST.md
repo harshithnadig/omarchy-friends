@@ -1,8 +1,8 @@
-# Codex real-system validation — Omarchy Friends v4.16.0 RC
+# Codex real-system validation — Omarchy Friends v4.17.0 candidate
 
-Branch: `feature/build-network`
+Branch: `fix/accurate-world-status`
 
-This checklist validates the v4.16.0 candidate, including the previous v4.15 feature set. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
+This checklist validates the v4.17.0 candidate, including the previous v4.16 and v4.15 feature sets. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
 
 Do not merge into `main` unless Harshu explicitly asks.
 
@@ -10,14 +10,14 @@ Do not merge into `main` unless Harshu explicitly asks.
 
 ```bash
 git fetch origin
-git switch feature/build-network
+git switch fix/accurate-world-status
 git pull --ff-only
 git status --short
 git rev-parse --abbrev-ref HEAD
 git log -1 --oneline
 ```
 
-Confirm the branch is exactly `feature/build-network` and the worktree is clean before testing.
+Confirm the branch is exactly `fix/accurate-world-status` and the worktree is clean before testing.
 
 ## 2. Run the release gate first
 
@@ -159,7 +159,7 @@ python3 bin/build_network_app_v4.py register-uri | python3 -m json.tool
 
 ## 6. Two-current-client private messaging / inbox-relay test — REQUIRED
 
-Use two isolated v4.16.0 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
+Use two isolated v4.17.0 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
 
 ### 6.1 Prove NIP-17 inbox metadata on real relays
 
@@ -348,4 +348,4 @@ Return:
 
 **Stop condition:** if all ten gates pass, do not add or refactor anything else. Report success, leave the branch unmerged, and wait for Harshu's explicit merge/release instruction.
 
-Commit/push only minimal fixes for demonstrated failures to `feature/build-network`. Do not merge `main`.
+Commit/push only minimal fixes for demonstrated failures to `fix/accurate-world-status`. Do not merge `main`.
