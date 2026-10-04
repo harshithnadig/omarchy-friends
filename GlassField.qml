@@ -14,6 +14,7 @@ Item {
     property color accentColor: "#8b7cff"
     property color coolTint: "#55d9ff"
     signal accepted()
+    signal edited(string value)
 
     implicitHeight: Style.space(multiline ? 78 : 40)
 
@@ -42,6 +43,7 @@ Item {
         clip: true
         verticalAlignment: TextInput.AlignVCenter
         onAccepted: root.accepted()
+        onTextEdited: root.edited(text)
 
         PlainText {
             visible: input.text === "" && !input.activeFocus
@@ -69,5 +71,6 @@ Item {
         font.family: "sans-serif"
         font.pixelSize: Style.font.caption
         readOnly: root.readOnly
+        onTextEdited: root.edited(text)
     }
 }

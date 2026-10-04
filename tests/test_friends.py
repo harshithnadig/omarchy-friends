@@ -194,6 +194,7 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertEqual(content["plugin_version"], friends_module.PLUGIN_VERSION)
         self.assertIn("friend-requests-v1", content["capabilities"])
         self.assertIn("encrypted-dm-v1", content["capabilities"])
+        self.assertIn("typing-indicator-v1", content["capabilities"])
 
     def test_capable_peer_friend_request_publishes_one_friend_request(self):
         remote_dir = tempfile.mkdtemp()
@@ -772,6 +773,7 @@ class TestFriendsEngine(unittest.TestCase):
         for key in ("share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertFalse(profile["privacy"][key])
         self.assertTrue(profile["privacy"]["share_global"])
+        self.assertTrue(profile["privacy"]["share_typing"])
         public_event = fresh_engine._global_presence_content()
         for key in ("activity", "music", "project_name", "project_desc", "project_url", "interests", "room"):
             self.assertNotIn(key, public_event)
@@ -813,6 +815,8 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertTrue(explicitly_visible["profile"]["privacy"]["share_global"])
         explicitly_hidden = self.engine._migrate_state({"profile": {"privacy": {"share_global": False}}})
         self.assertFalse(explicitly_hidden["profile"]["privacy"]["share_global"])
+        typing_opt_out = self.engine._migrate_state({"profile": {"privacy": {"share_typing": False}}})
+        self.assertFalse(typing_opt_out["profile"]["privacy"]["share_typing"])
 
     def test_new_profile_does_not_send_lan_signals_until_opted_in(self):
         self.prime_peer()

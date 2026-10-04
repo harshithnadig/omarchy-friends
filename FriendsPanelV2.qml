@@ -32,6 +32,7 @@ KeyboardPanel {
     readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : null
     readonly property var profile: service && service.profile ? service.profile : ({ handle: "Omarchy Builder", avatar: "👾", status_name: "Ready", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({}) })
     readonly property var world: service && service.globalPeers ? service.globalPeers : []
+    readonly property var typingPeers: service && service.globalTypingPeers ? service.globalTypingPeers : []
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
     readonly property var messages: service && service.globalMessages ? service.globalMessages : []
@@ -54,7 +55,7 @@ KeyboardPanel {
         return root.worldRelayCount > 0 ? "Connected to relays" : "No relay connection"
     }
     readonly property color globalConnectionColor: root.worldRelaysConnected ? root.success : (root.globalConnectionText === "Checking relays" ? root.mutedInk : root.warning)
-    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.17.0", latest: "4.17.0" })
+    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.18.0", latest: "4.18.0" })
 
     property string page: "chats"
     property string worldQuery: ""
@@ -65,6 +66,9 @@ KeyboardPanel {
     property bool sendingCommunity: false
     property bool creatingGroup: false
     property string messageDraft: ""
+    property string typingRecipientKey: ""
+    property bool typingSignalActive: false
+    property double lastTypingSignalAt: 0
     property string mediaDraft: ""
     property string communityDraft: ""
     property string notice: ""
@@ -94,6 +98,9 @@ KeyboardPanel {
     }
 
     onServiceChanged: connectServiceSignals()
+    onOpenChanged: if (!root.open) root.stopTypingSignal()
+    onPageChanged: root.syncTypingPeer()
+    onProfileChanged: root.syncTypingPeer()
     Component.onCompleted: connectServiceSignals()
 
     function worldPeer(publicKey) {
@@ -202,6 +209,7 @@ KeyboardPanel {
         root.prepareDraftForConversation("friend:" + (friend && friend.public_key ? friend.public_key : ""))
         root.selectedFriendKey = friend && friend.public_key ? friend.public_key : ""
         root.selectedGroupId = ""
+        root.syncTypingPeer()
     }
 
     function openChatForPublicKey(publicKey) {
@@ -224,6 +232,45 @@ KeyboardPanel {
         root.prepareDraftForConversation("group:" + (group && group.id ? group.id : ""))
         root.selectedGroupId = group && group.id ? group.id : ""
         root.selectedFriendKey = ""
+        root.syncTypingPeer()
+    }
+
+    function isFriendTyping(publicKey) {
+        return !!publicKey && root.typingPeers.indexOf(String(publicKey).toLowerCase()) >= 0
+    }
+
+    function syncTypingPeer() {
+        var friend = root.selectedFriend()
+        var key = root.open && root.page === "chats" && friend && !friend.legacy_archive && !root.selectedGroup() && root.profile.privacy && root.profile.privacy.share_typing === true ? String(friend.public_key || "").toLowerCase() : ""
+        if (root.typingRecipientKey && root.typingRecipientKey !== key) root.stopTypingSignal()
+        if (root.service && root.service.setTypingPeer) root.service.setTypingPeer(key)
+    }
+
+    function stopTypingSignal() {
+        if (root.typingSignalActive && root.typingRecipientKey && root.service)
+            root.service.sendTyping(root.typingRecipientKey, "paused")
+        root.typingSignalActive = false
+        root.typingRecipientKey = ""
+        typingIdleTimer.stop()
+    }
+
+    function updateTypingSignal(text) {
+        var friend = root.selectedFriend()
+        if (!root.open || !root.service || root.page !== "chats" || !root.profile.privacy || root.profile.privacy.share_typing !== true || !friend || friend.legacy_archive || root.selectedGroup() || !String(text || "").trim()) {
+            root.stopTypingSignal()
+            return
+        }
+        var key = String(friend.public_key || "").toLowerCase()
+        if (!/^[0-9a-f]{64}$/.test(key)) return
+        if (root.typingRecipientKey && root.typingRecipientKey !== key) root.stopTypingSignal()
+        root.typingRecipientKey = key
+        var now = Date.now()
+        if (!root.typingSignalActive || now - root.lastTypingSignalAt >= 4000) {
+            root.service.sendTyping(key, "typing")
+            root.lastTypingSignalAt = now
+            root.typingSignalActive = true
+        }
+        typingIdleTimer.restart()
     }
 
     function prepareDraftForConversation(key) {
@@ -249,6 +296,7 @@ KeyboardPanel {
         var media = root.mediaDraft.trim()
         if (!root.service || (!friend && !group)) { root.showNotice("Choose a conversation first"); return }
         if (!text && !media) return
+        root.stopTypingSignal()
         var conversationKey = root.draftConversationKey
         root.sendingMessage = true
         function finishSend(ok) {
@@ -388,7 +436,7 @@ KeyboardPanel {
     }
 
     function formatVersion() {
-        return root.updateInfo.current || "4.17.0"
+        return root.updateInfo.current || "4.18.0"
     }
 
     Item {
@@ -396,6 +444,7 @@ KeyboardPanel {
         height: 0
         visible: false
         Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
+        Timer { id: typingIdleTimer; interval: 10000; repeat: false; onTriggered: root.stopTypingSignal() }
         Timer {
             interval: 10000
             repeat: true
@@ -856,7 +905,7 @@ KeyboardPanel {
                                             width: parent.width - focusButton.width - buildTogetherButton.width - Style.space(66)
                                             anchors.verticalCenter: parent.verticalCenter
                                             PlainText { width: parent.width; text: parent.parent.group ? (parent.parent.group.name || "Private group") : (parent.parent.friend ? (parent.parent.friend.handle || "Builder") : "Choose a conversation"); color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                                            PlainText { width: parent.width; text: parent.parent.group ? "Private group · modern encrypted transport" : (parent.parent.friend ? ((parent.parent.friend.activity || "Friend") + (parent.parent.friend.online ? " · online" : "")) : "Your chats stay here"); color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                            PlainText { width: parent.width; text: parent.parent.group ? "Private group · modern encrypted transport" : (parent.parent.friend ? (root.isFriendTyping(parent.parent.friend.public_key) ? "typing…" : ((parent.parent.friend.activity || "Friend") + (parent.parent.friend.online ? " · online" : ""))) : "Your chats stay here"); color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                         }
                                         GlassButton {
                                             id: focusButton
@@ -977,6 +1026,7 @@ KeyboardPanel {
                                                     placeholder: "Message…"
                                                     text: root.messageDraft
                                                     onTextChanged: root.messageDraft = text
+                                                    onEdited: root.updateTypingSignal(text)
                                                     onAccepted: root.sendMessage()
                                                 }
                                                 GlassButton {
@@ -1356,6 +1406,7 @@ KeyboardPanel {
                                         PlainText { text: "World visibility"; color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                         PlainText { width: parent.width; text: "New profiles appear to other online Friends users by default. This shares your pseudonymous profile with public relays; chat contents stay private. Turn it off any time."; color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                         GlassPill { text: root.profile.privacy && root.profile.privacy.share_global === true ? "Visible in World" : "Hidden from World"; active: root.profile.privacy && root.profile.privacy.share_global === true; accentColor: root.success; onClicked: if (root.service) root.service.togglePrivacy("share_global") }
+                                        GlassPill { text: "Typing indicators"; active: root.profile.privacy && root.profile.privacy.share_typing === true; onClicked: if (root.service) root.service.togglePrivacy("share_typing") }
                                     }
                                 }
                             }

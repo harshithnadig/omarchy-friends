@@ -33,6 +33,8 @@ NIP17_REACTION_KIND = 7
 NIP17_DELETE_KIND = 5
 NIP17_FILE_KIND = 15
 NIP59_GIFT_WRAP_KIND = 1059
+NIP59_EPHEMERAL_GIFT_WRAP_KIND = 21059
+NIP59_EPHEMERAL_RUMOR_KIND = 20000
 NIP44_SALT = b"nip44-v2"
 NIP59_RANDOM_WINDOW_SECONDS = 2 * 24 * 60 * 60
 
@@ -431,6 +433,85 @@ def unwrap_nip17_gift_wrap(recipient_secret_key, event):
     expected_id = _unsigned_event_id(rumor.get("pubkey", ""), rumor.get("created_at", 0), rumor.get("kind", -1), rumor.get("tags", []), rumor.get("content", ""))
     if rumor.get("id") != expected_id:
         raise ValueError("invalid NIP-17 rumor id")
+    return rumor
+
+
+def wrap_nip59_ephemeral_rumor(sender_secret_key, recipient_public_key, content, *, created_at=None):
+    """Wrap one small real-time payload in a NIP-59 ephemeral gift wrap.
+
+    The inner kind 20000 and outer kind 21059 are intentionally separate from
+    NIP-17 message kinds. Relays must not store kind 21059, so this is only for
+    transient signals such as typing state, never chat messages.
+    """
+    recipient_public_key = str(recipient_public_key).lower()
+    _public_point(recipient_public_key)
+    sender_public_key = generate_keypair(sender_secret_key)["public_key"]
+    timestamp = int(time.time()) if created_at is None else int(created_at)
+    rumor = {
+        "pubkey": sender_public_key,
+        "created_at": timestamp,
+        "kind": NIP59_EPHEMERAL_RUMOR_KIND,
+        "tags": [["p", recipient_public_key]],
+        "content": str(content),
+    }
+    rumor["id"] = _unsigned_event_id(
+        rumor["pubkey"], rumor["created_at"], rumor["kind"], rumor["tags"], rumor["content"]
+    )
+    rumor_json = json.dumps(rumor, ensure_ascii=False, separators=(",", ":"))
+    seal = build_event(
+        sender_secret_key,
+        NIP59_SEAL_KIND,
+        [],
+        nip44_encrypt(sender_secret_key, recipient_public_key, rumor_json),
+        created_at=max(1, timestamp - secrets.randbelow(31)),
+    )
+    wrapper_identity = generate_keypair()
+    wrapper_content = nip44_encrypt(
+        wrapper_identity["secret_key"],
+        recipient_public_key,
+        json.dumps(seal, ensure_ascii=False, separators=(",", ":")),
+    )
+    return build_event(
+        wrapper_identity["secret_key"],
+        NIP59_EPHEMERAL_GIFT_WRAP_KIND,
+        [["p", recipient_public_key]],
+        wrapper_content,
+        created_at=max(1, timestamp - secrets.randbelow(31)),
+    )
+
+
+def unwrap_nip59_ephemeral_gift_wrap(recipient_secret_key, event):
+    """Validate and unwrap a transient NIP-59 kind-21059 event."""
+    if not verify_event(event) or int(event.get("kind", -1)) != NIP59_EPHEMERAL_GIFT_WRAP_KIND:
+        raise ValueError("invalid NIP-59 ephemeral gift wrap")
+    recipient_public_key = generate_keypair(recipient_secret_key)["public_key"]
+    p_values = [
+        tag[1]
+        for tag in event.get("tags", [])
+        if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "p" and isinstance(tag[1], str)
+    ]
+    if p_values != [recipient_public_key]:
+        raise ValueError("ephemeral gift wrap is for another recipient")
+    seal = json.loads(nip44_decrypt(recipient_secret_key, event.get("pubkey", ""), event.get("content", "")))
+    if not isinstance(seal, dict) or int(seal.get("kind", -1)) != NIP59_SEAL_KIND:
+        raise ValueError("invalid NIP-59 ephemeral seal")
+    if seal.get("tags") != [] or not verify_event(seal):
+        raise ValueError("invalid NIP-59 ephemeral seal signature")
+    rumor = json.loads(nip44_decrypt(recipient_secret_key, seal.get("pubkey", ""), seal.get("content", "")))
+    if not isinstance(rumor, dict) or rumor.get("sig") is not None:
+        raise ValueError("invalid NIP-59 ephemeral rumor")
+    if int(rumor.get("kind", -1)) != NIP59_EPHEMERAL_RUMOR_KIND:
+        raise ValueError("unsupported NIP-59 ephemeral rumor kind")
+    if rumor.get("pubkey") != seal.get("pubkey"):
+        raise ValueError("NIP-59 ephemeral sender mismatch")
+    expected_id = _unsigned_event_id(
+        rumor.get("pubkey", ""), rumor.get("created_at", 0), rumor.get("kind", -1),
+        rumor.get("tags", []), rumor.get("content", ""),
+    )
+    if rumor.get("id") != expected_id:
+        raise ValueError("invalid NIP-59 ephemeral rumor id")
+    if [tag[1] for tag in rumor.get("tags", []) if isinstance(tag, list) and len(tag) >= 2 and tag[0] == "p"] != [recipient_public_key]:
+        raise ValueError("ephemeral rumor is for another recipient")
     return rumor
 
 

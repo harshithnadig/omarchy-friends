@@ -39,13 +39,16 @@ Item {
         project_url: "",
         interests: [],
         room: "",
-        privacy: { share_window: false, share_music: false, share_lan: false, share_project: false, share_theme: false, share_interests: false, share_room: false, share_global: true }
+        privacy: { share_window: false, share_music: false, share_lan: false, share_project: false, share_theme: false, share_interests: false, share_room: false, share_global: true, share_typing: true }
     })
     property var matchedPeer: null
     property var friends: []
     property var lanPeers: []
     property var globalPeers: []
     property var globalPings: []
+    property var globalTypingPeers: []
+    property string activeTypingPeerKey: ""
+    property var activeTypingStatusProcess: null
     property var globalFriendships: ({})
     property var globalMessages: []
     property var globalMessageSummaries: []
@@ -263,6 +266,10 @@ Item {
         if (root.uiOpen === next) return
         root.uiOpen = next
         if (next) root.refresh()
+        else {
+            root.setTypingPeer("")
+            root.globalTypingPeers = []
+        }
     }
 
     function pollEvents() {
@@ -433,6 +440,33 @@ Item {
             root.refresh()
             root.pollEvents()
         })
+    }
+
+    function setTypingPeer(publicKey) {
+        var key = String(publicKey || "").toLowerCase()
+        if (!/^[0-9a-f]{64}$/.test(key)) key = ""
+        if (root.activeTypingPeerKey === key) return
+        root.activeTypingPeerKey = key
+        if (!key) root.globalTypingPeers = []
+        else root.refreshTypingStatus()
+    }
+
+    function sendTyping(publicKey, state) {
+        var key = String(publicKey || "").toLowerCase()
+        if (!/^[0-9a-f]{64}$/.test(key) || (state !== "typing" && state !== "paused")) return
+        runAction([root.binPath, "send-typing", key, state])
+    }
+
+    function refreshTypingStatus() {
+        if (!root.uiOpen || !root.activeTypingPeerKey || root.uiOnlyFallback) return
+        if (root.activeTypingStatusProcess && root.activeTypingStatusProcess.running) return
+        var proc = runAction([root.binPath, "typing-status"], function(output) {
+            root.activeTypingStatusProcess = null
+            var result = {}
+            try { result = JSON.parse(output || "{}") } catch (e) { result = {} }
+            root.globalTypingPeers = result.ok === true && Array.isArray(result.peers) ? result.peers : []
+        })
+        root.activeTypingStatusProcess = proc
     }
 
     function syncPrivateHistory(callback) {
@@ -812,6 +846,7 @@ Item {
                     if (data.lan_peers) root.lanPeers = data.lan_peers
                     if (data.global_peers) root.globalPeers = data.global_peers
                     if (data.global_pings) root.globalPings = data.global_pings
+                    if (Array.isArray(data.global_typing_peers)) root.globalTypingPeers = data.global_typing_peers
                     if (data.global_friendships) root.globalFriendships = data.global_friendships
                     if (Array.isArray(data.global_messages)) {
                         root.globalMessageSummaries = data.global_messages
@@ -917,6 +952,15 @@ Item {
         running: root.uiOpen
         repeat: true
         onTriggered: root.refresh()
+    }
+
+    // Typing status is volatile and only polled while a direct chat is open.
+    // It uses a small status command instead of reloading the chat journal.
+    Timer {
+        interval: 3000
+        running: root.uiOpen && !!root.activeTypingPeerKey && !root.uiOnlyFallback
+        repeat: true
+        onTriggered: root.refreshTypingStatus()
     }
 
     // Retry one previously saved private message at a time. The engine uses

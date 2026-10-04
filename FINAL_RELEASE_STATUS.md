@@ -1,6 +1,26 @@
-# Omarchy Friends v4.17.0 — release candidate status
+# Omarchy Friends v4.18.0 — release candidate status
 
-## v4.17.0 current candidate (2026-10-04)
+## v4.18.0 current candidate (2026-10-04)
+
+- Adds direct-chat typing indicators for connected, compatible Friends peers.
+  The state is end-to-end encrypted, sent in NIP-59 ephemeral kind-21059
+  envelopes, rate-limited, replay-filtered, and kept only in a 12-second
+  owner-only runtime cache. It never enters chat history or notifications.
+  Users can disable sharing in Me → Privacy; groups and old clients are not
+  included.
+- New profiles remain discoverable in World by default. Existing saved choices,
+  including explicit hidden profiles, are preserved. The candidate does not
+  touch local chat journals or migration data.
+- Full release gate passes all 334 tests, including localhost NIP-17 direct and
+  group relay round trips. Python compilation, Omarchy plugin validation, QML
+  lint against installed shell imports, remote-execution checks, and health
+  check also pass.
+- Rendered UI, live public relay interoperability, and an actual two-user
+  typing exchange have not been verified. Candidate is on
+  `fix/accurate-world-status` and draft PR #8; it has not been installed or
+  published to the marketplace and is not release-cleared.
+
+## v4.17.0 historical candidate (2026-10-04; superseded by v4.18.0)
 
 - World now distinguishes checking, failed/stale relay status, and a healthy
   relay check with no other fresh presences. Its empty state explains that
@@ -21,7 +41,7 @@
 - New profiles publish a minimal pseudonymous World presence by default while
   online. Existing saved visibility choices, including hidden profiles, remain
   unchanged on upgrade; users can turn World visibility off at any time.
-- The CI release gate passes all 327 tests; `qmllint` also passes against the
+- The CI release gate passed all 327 tests; `qmllint` passed against the
   installed Omarchy shell imports. CUA exposed no desktop window for rendered UI
   verification, so the visual result and live World/relay behavior remain
   unverified. The candidate is on `fix/accurate-world-status` and draft PR #8;

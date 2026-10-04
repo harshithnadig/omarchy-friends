@@ -1,8 +1,8 @@
-# Codex real-system validation — Omarchy Friends v4.17.0 candidate
+# Codex real-system validation — Omarchy Friends v4.18.0 candidate
 
 Branch: `fix/accurate-world-status`
 
-This checklist validates the v4.17.0 candidate, including the previous v4.16 and v4.15 feature sets. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
+This checklist validates the v4.18.0 candidate, including the previous v4.17, v4.16 and v4.15 feature sets. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
 
 Do not merge into `main` unless Harshu explicitly asks.
 
@@ -159,7 +159,7 @@ python3 bin/build_network_app_v4.py register-uri | python3 -m json.tool
 
 ## 6. Two-current-client private messaging / inbox-relay test — REQUIRED
 
-Use two isolated v4.17.0 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
+Use two isolated v4.18.0 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
 
 ### 6.1 Prove NIP-17 inbox metadata on real relays
 

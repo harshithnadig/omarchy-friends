@@ -38,6 +38,7 @@ KeyboardPanel {
     readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : panelFallbackService
     readonly property var profile: service && service.profile ? service.profile : ({ handle: "Omarchy Builder", avatar: "👾", status_name: "Ready", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({}) })
     readonly property var world: service && service.globalPeers ? service.globalPeers : []
+    readonly property var typingPeers: service && service.globalTypingPeers ? service.globalTypingPeers : []
     readonly property var pings: service && service.globalPings ? service.globalPings : []
     readonly property var friendships: service && service.globalFriendships ? service.globalFriendships : ({})
     readonly property var messages: service && service.globalMessages ? service.globalMessages : []
@@ -73,7 +74,7 @@ KeyboardPanel {
         return root.worldRelayCount > 0 ? "Connected to relays" : "No relay connection"
     }
     readonly property color globalConnectionColor: root.worldRelaysConnected ? root.success : (root.globalConnectionText === "Checking relays" ? root.mutedInk : root.warning)
-    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.17.0", latest: "4.17.0" })
+    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.18.0", latest: "4.18.0" })
     readonly property string reportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20report"
     readonly property string featureIdeaUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
     readonly property string bugReportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20bug"
@@ -91,6 +92,9 @@ KeyboardPanel {
     property string selectedFriendKey: ""
     property string selectedGroupId: ""
     property string messageDraft: ""
+    property string typingRecipientKey: ""
+    property bool typingSignalActive: false
+    property double lastTypingSignalAt: 0
     property string mediaDraft: ""
     property var replyDraft: null
     property var editingMessage: null
@@ -148,13 +152,17 @@ KeyboardPanel {
         rebuildMessageSearchIndex()
         Qt.callLater(rebuildConversationRows)
     }
+
+    onOpenChanged: if (!root.open) root.stopTypingSignal()
     onFriendshipsChanged: rebuildConversationRows()
     onMemoryChanged: rebuildConversationRows()
     onGroupsChanged: rebuildConversationRows()
     onPinnedConversationsChanged: rebuildConversationRows()
     onMutedConversationsChanged: rebuildConversationRows()
-    onSelectedFriendKeyChanged: rebuildConversationRows()
-    onSelectedGroupIdChanged: rebuildConversationRows()
+    onSelectedFriendKeyChanged: { rebuildConversationRows(); syncTypingPeer() }
+    onSelectedGroupIdChanged: { rebuildConversationRows(); syncTypingPeer() }
+    onPageChanged: syncTypingPeer()
+    onProfileChanged: syncTypingPeer()
     onCommunityChanged: updateCommunityMessageItems()
     onMessagesChanged: {
         rebuildMessageIndex()
@@ -637,6 +645,53 @@ KeyboardPanel {
         var list = root.groupsList()
         for (var i = 0; i < list.length; i++) if (list[i].id === root.selectedGroupId) return list[i]
         return null
+    }
+
+    function isFriendTyping(publicKey) {
+        return !!publicKey && root.typingPeers.indexOf(String(publicKey).toLowerCase()) >= 0
+    }
+
+    function syncTypingPeer() {
+        var friend = root.selectedFriend()
+        var key = root.page === "chats" && friend && !friend.legacy_archive ? String(friend.public_key || "").toLowerCase() : ""
+        if (!root.profile.privacy || root.profile.privacy.share_typing !== true) root.stopTypingSignal()
+        if (root.typingRecipientKey && root.typingRecipientKey !== key) root.stopTypingSignal()
+        if (root.service && root.service.setTypingPeer) root.service.setTypingPeer(key)
+    }
+
+    function stopTypingSignal() {
+        if (root.typingSignalActive && root.typingRecipientKey && root.service)
+            root.service.sendTyping(root.typingRecipientKey, "paused")
+        root.typingSignalActive = false
+        root.typingRecipientKey = ""
+        typingIdleTimer.stop()
+    }
+
+    function updateTypingSignal(text) {
+        if (!root.service || !root.profile.privacy || root.profile.privacy.share_typing !== true || root.editingMessage) {
+            root.stopTypingSignal()
+            return
+        }
+        var friend = root.selectedFriend()
+        if (!friend || friend.legacy_archive || root.selectedGroup() || root.page !== "chats") {
+            root.stopTypingSignal()
+            return
+        }
+        var key = String(friend.public_key || "").toLowerCase()
+        if (!/^[0-9a-f]{64}$/.test(key)) return
+        if (root.typingRecipientKey && root.typingRecipientKey !== key) root.stopTypingSignal()
+        if (!String(text || "").trim()) {
+            root.stopTypingSignal()
+            return
+        }
+        root.typingRecipientKey = key
+        var now = Date.now()
+        if (!root.typingSignalActive || now - root.lastTypingSignalAt >= 4000) {
+            root.service.sendTyping(key, "typing")
+            root.lastTypingSignalAt = now
+            root.typingSignalActive = true
+        }
+        typingIdleTimer.restart()
     }
 
     function conversationMessages() {
@@ -1140,6 +1195,7 @@ KeyboardPanel {
             return
         }
         if (!text && !media && !attachmentPath) return
+        root.stopTypingSignal()
         var conversationKey = root.draftConversationKey
         root.pendingSendCount += 1
         var optimistic = {
@@ -1355,7 +1411,7 @@ KeyboardPanel {
     }
 
     function formatVersion() {
-        return root.updateInfo.current || "4.17.0"
+        return root.updateInfo.current || "4.18.0"
     }
 
     Item {
@@ -1377,6 +1433,7 @@ KeyboardPanel {
             }
         }
         Timer { id: noticeTimer; interval: 2800; onTriggered: root.notice = "" }
+        Timer { id: typingIdleTimer; interval: 10000; repeat: false; onTriggered: root.stopTypingSignal() }
         Timer {
             id: chatSearchTimer
             interval: 260
@@ -1770,7 +1827,7 @@ KeyboardPanel {
                                         anchors.verticalCenter: parent.verticalCenter
                                         spacing: Style.space(2)
                                         PlainText { width: parent.width; text: root.selectedGroup() ? (root.selectedGroup().name || "Private group") : (root.selectedFriend() ? (root.selectedFriend().legacy_archive ? "Recovered messages" : (root.selectedFriend().handle || "Builder")) : "Choose a chat"); color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; elide: Text.ElideRight }
-                                        PlainText { width: parent.width; text: root.selectedGroup() ? "Private group · encrypted" : (root.selectedFriend() ? (root.selectedFriend().legacy_archive ? "Recipient unavailable · saved on this device" : (root.selectedFriend().online ? "Online now" : "Private chat")) : "Pick a conversation or start a new one"); color: root.selectedFriend() && root.selectedFriend().online ? root.success : root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+                                        PlainText { width: parent.width; text: root.selectedGroup() ? "Private group · encrypted" : (root.selectedFriend() ? (root.selectedFriend().legacy_archive ? "Recipient unavailable · saved on this device" : (root.isFriendTyping(root.selectedFriend().public_key) ? "typing…" : (root.selectedFriend().online ? "Online now" : "Private chat"))) : "Pick a conversation or start a new one"); color: root.selectedFriend() && (root.selectedFriend().online || root.isFriendTyping(root.selectedFriend().public_key)) ? root.success : root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
                                     }
                                     GlassButton { id: focusButton; text: "Focus"; icon: "◷"; compact: true; visible: root.selectedFriend() !== null && !root.selectedFriend().legacy_archive; width: visible ? implicitWidth : 0; onClicked: if (root.service && root.selectedFriend()) root.service.inviteGlobalFocus(root.selectedFriend().public_key) }
                                     GlassButton { id: olderHistoryButton; text: root.syncingPrivateHistory ? "Checking…" : "Older"; icon: "↻"; compact: true; visible: root.selectedFriend() !== null && !root.selectedFriend().legacy_archive && root.hasMorePrivateHistoryPages(root.selectedFriend().public_key); width: visible ? implicitWidth : 0; enabled: !root.syncingPrivateHistory; Accessible.name: "Check inbox relays for older private messages"; onClicked: root.syncEarlierMessages() }
@@ -2035,7 +2092,7 @@ KeyboardPanel {
                                             width: parent.width
                                             spacing: Style.space(7)
                                             GlassButton { id: attachmentButton; text: ""; icon: "📎"; accessibleName: "Attach a file, folder, or link"; compact: true; enabled: (root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null; onClicked: attachmentMenu.open() }
-                                            GlassField { id: messageInput; width: Math.max(0, parent.width - sendButton.width - attachmentButton.width - parent.spacing * 2); placeholder: root.selectedFriend() && root.selectedFriend().legacy_archive ? "Recovered archive is read-only" : (root.editingMessage ? "Edit message…" : (root.selectedFriend() || root.selectedGroup() ? "Message…" : "Choose a chat first")); enabled: (root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null; text: root.messageDraft; onTextChanged: root.messageDraft = text; onAccepted: root.sendMessage() }
+                                            GlassField { id: messageInput; width: Math.max(0, parent.width - sendButton.width - attachmentButton.width - parent.spacing * 2); placeholder: root.selectedFriend() && root.selectedFriend().legacy_archive ? "Recovered archive is read-only" : (root.editingMessage ? "Edit message…" : (root.selectedFriend() || root.selectedGroup() ? "Message…" : "Choose a chat first")); enabled: (root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null; text: root.messageDraft; onTextChanged: root.messageDraft = text; onEdited: root.updateTypingSignal(text); onAccepted: root.sendMessage() }
                                             GlassButton { id: sendButton; text: root.editingMessage ? (root.savingMessageEdit ? "Saving…" : "Save") : "Send"; icon: root.editingMessage ? "✓" : "➤"; primary: true; enabled: !root.savingMessageEdit && ((root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null) && (!!root.messageDraft.trim() || (!root.editingMessage && (!!root.mediaDraft.trim() || !!root.attachmentDraftPath))); onClicked: root.sendMessage() }
                                         }
                                         Row {
@@ -2584,7 +2641,7 @@ KeyboardPanel {
                                             anchors.margins: Style.space(12)
                                             spacing: Style.space(8)
                                             PlainText { text: "Privacy"; color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                            PlainText { width: parent.width; text: "New profiles are visible to configured public relays by default while online. This shares your pseudonymous public key, handle, avatar, status, and inbox-relay list; relay operators may retain published data. Turn off World visibility any time. Chat contents stay private; extra profile details and read receipts stay off unless enabled separately."; color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                            PlainText { width: parent.width; text: "New profiles are visible to configured public relays by default while online. This shares your pseudonymous public key, handle, avatar, status, and inbox-relay list; relay operators may retain published data. Turn off World visibility any time. Chat contents stay private. Typing hints are encrypted to compatible friends in direct chats, use non-stored relay events, and can be turned off here. Read receipts and extra profile details are off unless enabled."; color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                             Flow {
                                                 width: parent.width
                                                 spacing: Style.space(5)
@@ -2595,6 +2652,7 @@ KeyboardPanel {
                                                 GlassPill { text: "Interests"; active: root.profile.privacy && root.profile.privacy.share_interests === true; onClicked: if (root.service) root.service.togglePrivacy("share_interests") }
                                                 GlassPill { text: "Room"; active: root.profile.privacy && root.profile.privacy.share_room === true; onClicked: if (root.service) root.service.togglePrivacy("share_room") }
                                                 GlassPill { text: "Read receipts"; active: root.profile.privacy && root.profile.privacy.share_read_receipts === true; onClicked: if (root.service) root.service.togglePrivacy("share_read_receipts") }
+                                                GlassPill { text: "Typing indicators"; active: root.profile.privacy && root.profile.privacy.share_typing === true; onClicked: if (root.service) root.service.togglePrivacy("share_typing") }
                                             }
                                         }
                                     }

@@ -83,6 +83,8 @@ Current Friends clients support NIP-17 replies, reactions, author-checked encryp
 
 Encrypted read receipts are optional and disabled by default. When enabled, opening a direct chat or group sends an encrypted receipt to compatible Friends peers; other NIP-17 clients may display the receipt as an ordinary short message.
 
+Typing indicators are enabled by default for direct chats with compatible, connected Friends peers and can be disabled in **Me → Privacy**. Each signal is NIP-44 encrypted inside a NIP-59 ephemeral gift wrap (kind 21059); its inner kind 20000 payload is held only in the user's volatile runtime directory for at most 12 seconds and never enters message history or notifications. Signals stop after inactivity, when sending, or when changing chats. Groups and older clients do not receive them. NIP-59 ephemeral events are required not to be stored by relays, but relays still see the recipient's public key and event timing while routing them.
+
 Chat rows show per-conversation unread counts using encrypted local read cursors. Opening a chat marks its current messages read on this device. This local unread tracking is separate from the optional encrypted read receipts described above.
 
 Pin up to 20 direct or group conversations from the chat header. Pins are stored in the encrypted local state and sort ahead of recent conversations; they are not synced to other devices.
