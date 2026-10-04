@@ -60,6 +60,16 @@ This state is deliberately separate from Chats so a busy request list cannot bur
 
 World is a discovery surface, not a social-media feed.
 
+New profiles are discoverable by default. Existing installs keep their saved
+visibility choice. While visible and online, your stable public key, generated
+handle, avatar, basic status/focus metadata and inbox-relay list are published
+to configured public relays. This profile is pseudonymous but linkable over
+time. You can hide it in **Me → Privacy**; relay operators or recipients may
+retain earlier events. Chat messages and history are never published to World.
+World only shows real Friends users with a fresh beacon on relays reachable by
+your install. If nobody appears while relays are healthy, there may simply be
+no other users online; use **Copy invite** to connect directly.
+
 - **All** — everyone currently visible.
 - **New** — people you have not already connected with.
 - **Building** — people sharing a current project.

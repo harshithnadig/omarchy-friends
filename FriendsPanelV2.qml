@@ -115,14 +115,16 @@ KeyboardPanel {
         if (root.world.length > 0)
             return "No builders match your search. Clear the search to see everyone online."
         if (root.globalConnectionText === "Checking relays")
-            return "Checking the configured relays for people online now. Refresh in a moment if this takes too long."
+            return "Connecting to your configured relays. World only lists real Friends users who are online, visible and reachable through a shared relay."
         if (root.globalConnectionText === "Presence not accepted")
-            return "Relays answered, but they did not confirm your World presence. Retry or check relay status. World visibility is on by default for new profiles; turn it off in Me any time."
+            return "Your relays are reachable, but none confirmed your public World beacon. Retry or check relay status. New profiles are discoverable by default; existing privacy choices are preserved."
         if (root.globalConnectionText === "Relay check failed" || root.globalConnectionText === "Offline" || root.globalConnectionText === "Reconnecting" || root.globalConnectionText === "No relay connection")
-            return "World could not confirm a current relay connection, so this list may be out of date. Retry or check your network and relay status."
+            return "World needs a working relay connection to find people. Check your network and configured relays, then refresh. Your private chats stay available while World is offline."
         if (root.worldStatus.visible === false)
-            return "World shows users with fresh presence while they use Friends. Your profile is hidden, so others cannot find you; you can still browse. Join World to be discoverable or invite someone privately."
-        return "World visibility is enabled for your profile. Other users appear here only when they are online with fresh presence. Invite someone or check back later."
+            return "Your profile is hidden from public discovery, but you can still browse World and use private chats. Turn on Visible in World in Me → Privacy, or copy your invite to connect directly."
+        if (!root.selfPresenceIsLive())
+            return "World visibility is on, but your latest beacon is not confirmed yet. Refresh and check relay status. Only your public profile beacon is shared; messages and chat history are never published here."
+        return "Your profile is discoverable and its beacon is live. No other visible Friends users are online on your reachable relays right now. Copy your invite to bring someone in; they will appear when they are online."
     }
 
     function friendsList() {

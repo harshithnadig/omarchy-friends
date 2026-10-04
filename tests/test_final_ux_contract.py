@@ -222,7 +222,8 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('root.globalConnectionText === "Relay check failed"', friends)
         self.assertIn('root.globalConnectionText === "Reconnecting"', friends)
         self.assertIn("you can still browse", friends)
-        self.assertIn("World visibility is enabled for your profile", friends)
+        self.assertIn("Your profile is discoverable and its beacon is live", friends)
+        self.assertIn("shared relay", friends)
         presence = friends.split("function selfPresenceIsLive()", 1)[1].split("function worldEmptyMessage()", 1)[0]
         self.assertIn("root.worldRelaysConnected", presence)
         self.assertIn("root.worldLastPublish", presence)

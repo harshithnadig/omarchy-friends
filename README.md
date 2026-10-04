@@ -50,7 +50,7 @@ The Build Network is the workshop layer:
 
 Public World / Circles / Build Network data is intentionally public and relay-readable. Do not put passwords, private URLs, secrets, personal addresses or sensitive logs into public cards.
 
-New profiles join World by default so people can find each other without setup. While online, a profile publishes its stable pseudonymous public key, handle, avatar, status and inbox-relay list to configured public relays. Users can switch **Visible in World** off in Me at any time. Existing saved visibility choices are preserved when upgrading.
+New profiles are discoverable in World by default so people can find each other without setup. While online, the app publishes a stable public key, generated handle, avatar, status and inbox-relay list to configured public relays; this is pseudonymous but linkable over time, not anonymous. Relay operators or other recipients may retain published data after visibility is turned off. Users can switch **Visible in World** off in Me → Privacy at any time. Existing saved visibility choices, including hidden profiles, are preserved when upgrading. World shows only real Friends installations with fresh presence and compatible relay reachability; an empty list does not mean your account or chats are missing. Chat contents and history are never part of World presence.
 
 Hiding your own beacon does not turn off World browsing or your private inbox. Friends continues syncing incoming messages and connection events while hidden; only your periodic discovery presence stops.
 

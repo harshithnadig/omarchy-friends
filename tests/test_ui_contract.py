@@ -451,7 +451,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
 
     def test_world_cards_keep_one_clear_primary_connection_action(self):
         panel = self.read("FriendsPanelV3.qml")
-        self.assertIn("Your profile is hidden, so others cannot find you", panel)
+        self.assertIn("Your profile is hidden from public discovery", panel)
         world = panel.split("// WORLD", 1)[1].split("// CIRCLES", 1)[0]
         self.assertIn('return "Message"', panel)
         self.assertIn('return "Connect"', panel)
@@ -477,6 +477,10 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertNotIn("This is what other Omarchy users see when you choose to share it.", profile)
         self.assertIn('"World visibility on · turn off anytime"', profile)
         self.assertIn('"Hidden from World · turn on anytime"', profile)
+        self.assertIn("Your profile is discoverable and its beacon is live.", panel)
+        self.assertIn("No other visible Friends users are online on your reachable relays right now.", panel)
+        self.assertIn("existing privacy choices are preserved", panel)
+        self.assertIn("messages and chat history are never published here", panel)
         self.assertIn("relay operators may retain published data", profile)
         self.assertIn('readonly property string globalConnectionText:', panel)
         self.assertIn('"Presence not accepted"', panel)
