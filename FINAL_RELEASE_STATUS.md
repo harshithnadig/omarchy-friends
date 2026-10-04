@@ -21,6 +21,12 @@
   health check pass. Omarchy plugin validation and QML lint were not rerun in
   this environment; their previous candidate results do not verify this turn's
   live UI behavior.
+- The separately pinned Rust MLS experiment now checks a stale pre-removal
+  account snapshot against post-removal ciphertext on a distinct loopback
+  relay; the one-test suite passes locally and has been added as a PR CI job.
+  SQLCipher memory locking failed in this sandbox (`mlock()` returned ENOMEM),
+  so that property remains unverified. The experiment is test-only and does not
+  change production NIP-17/NIP-44 chats.
 - Rendered UI, live public relay interoperability, and an actual two-user
   typing exchange have not been verified. Candidate is on
   `fix/accurate-world-status` and draft PR #8; it has not been installed or

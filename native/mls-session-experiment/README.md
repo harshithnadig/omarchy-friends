@@ -10,10 +10,17 @@ Bob is fully stopped while Alice creates the group. Bob then reopens the same
 account and receives the pending Welcome from the relay before joining.
 
 The test closes and reopens both account runtimes, restores the same external
-signers, verifies persisted history, retransmits an identical signed MLS relay
-event without creating a duplicate timeline row, removes a member, and confirms
-the removed member's timeline does not show post-removal plaintext. This does
-not directly test decryption failure against the raw ciphertext.
+signers, verifies persisted history, and retransmits an identical signed MLS
+relay event without creating a duplicate timeline row. For removal, it copies
+Bob's account only after closing the runtime, then delivers the exact
+post-removal ciphertext through a separate loopback relay to that stale
+pre-removal session; the stale timeline does not expose the plaintext. The
+test does not call a lower-level decrypt API with the raw ciphertext and is not
+a formal cryptographic audit.
+
+The local test host logged SQLCipher `mlock()` failures (`ENOMEM`) while still
+passing the protocol flow. Memory locking is therefore not established by this
+experiment and must be validated on the target runtime before production use.
 
 The test creates fresh identities in memory and temporary account databases.
 It does not read the installed Friends identity, write Friends state, advertise

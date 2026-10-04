@@ -1,5 +1,7 @@
 use std::collections::HashSet;
+use std::fs;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -106,6 +108,25 @@ impl ExternalAccountSignerFfi for LocalSigner {
     }
 }
 
+fn copy_account_tree(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let target = destination.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_account_tree(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), target)?;
+        } else {
+            return Err(std::io::Error::other(
+                "unexpected non-regular entry in isolated MDK account store",
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn two_external_signers_exchange_mls_message_over_local_relay() {
     let replay_audit = ReplayAudit::default();
@@ -141,17 +162,17 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         }
     }
 
-    let new_client = |name: &str| {
+    let new_client = |name: &str, client_relays: Vec<String>| {
         Marmot::new_with_options(
             temp.path().join(name).to_string_lossy().into_owned(),
-            relay_urls.clone(),
+            client_relays,
             RelayPolicyFfi::AllowLoopback,
             None,
         )
         .unwrap()
     };
-    let alice = new_client("alice");
-    let bob = new_client("bob");
+    let alice = new_client("alice", relay_urls.clone());
+    let bob = new_client("bob", relay_urls.clone());
     alice.start().await.unwrap();
     bob.start().await.unwrap();
 
@@ -207,7 +228,7 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         "MLS message sent while Bob is offline should reach the relay"
     );
 
-    let bob = new_client("bob");
+    let bob = new_client("bob", relay_urls.clone());
     bob.start().await.unwrap();
     bob.register_external_signer(
         bob_account.account_id_hex.clone(),
@@ -282,8 +303,8 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
     // Reopen both accounts from their original private data roots. The only
     // restored credential is the same external signer; no new identity or
     // group is created during recovery.
-    let alice = new_client("alice");
-    let bob = new_client("bob");
+    let alice = new_client("alice", relay_urls.clone());
+    let bob = new_client("bob", relay_urls.clone());
     alice.start().await.unwrap();
     bob.start().await.unwrap();
     alice
@@ -295,7 +316,7 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         .unwrap();
     bob.register_external_signer(
         bob_account.account_id_hex.clone(),
-        Arc::new(LocalSigner(bob_keys)),
+        Arc::new(LocalSigner(bob_keys.clone())),
     )
     .await
     .unwrap();
@@ -408,6 +429,53 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         "replaying a signed MLS relay event must not duplicate the message"
     );
 
+    // Copy Bob's encrypted account while it is closed. The duplicate keeps
+    // the pre-removal epoch state and will never receive the removal commit.
+    bob.shutdown_and_close().await.unwrap();
+    copy_account_tree(&temp.path().join("bob"), &temp.path().join("bob-stale")).unwrap();
+    let bob = new_client("bob", relay_urls.clone());
+    bob.start().await.unwrap();
+    bob.register_external_signer(
+        bob_account.account_id_hex.clone(),
+        Arc::new(LocalSigner(bob_keys.clone())),
+    )
+    .await
+    .unwrap();
+
+    let stale_relay = LocalRelay::new(RelayBuilder::default());
+    stale_relay.run().await.unwrap();
+    let stale_relay_url = stale_relay.url().await.to_string();
+    let stale_client = new_client("bob-stale", vec![stale_relay_url.clone()]);
+    stale_client.start().await.unwrap();
+    stale_client
+        .register_external_signer(
+            bob_account.account_id_hex.clone(),
+            Arc::new(LocalSigner(bob_keys.clone())),
+        )
+        .await
+        .unwrap();
+    assert!(
+        stale_client
+            .group_members(bob_account.account_id_hex.clone(), group_id.clone())
+            .await
+            .unwrap()
+            .iter()
+            .any(|member| member.member_id_hex == bob_account.account_id_hex),
+        "the copied session must still contain Bob before the removal commit"
+    );
+
+    let before_removal: HashSet<String> = observer
+        .fetch_events_from(
+            [relay_url.clone()],
+            Filter::new().kind(Kind::MlsGroupMessage),
+            Duration::from_secs(3),
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|event| event.id.to_hex())
+        .collect();
+
     alice
         .remove_members(
             alice_account.account_id_hex.clone(),
@@ -443,12 +511,62 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
         .await
         .unwrap();
     assert!(after_removal.published > 0);
+
+    let post_removal_event = timeout(Duration::from_secs(20), async {
+        loop {
+            let events = observer
+                .fetch_events_from(
+                    [relay_url.clone()],
+                    Filter::new().kind(Kind::MlsGroupMessage),
+                    Duration::from_secs(3),
+                )
+                .await
+                .unwrap();
+            if let Some(event) = events.iter().find(|event| {
+                !before_removal.contains(&event.id.to_hex())
+                    && event.tags.iter().any(|tag| {
+                        let parts = tag.as_slice();
+                        parts.len() >= 2 && parts[0] == "h" && parts[1] == group_route_id
+                    })
+            }) {
+                break event.clone();
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("the post-removal MLS ciphertext should be visible on Alice's relay");
+
+    // Deliver the exact post-removal event to a relay used only by Bob's stale
+    // pre-removal session. It cannot observe or process the removal commit.
+    let stale_delivery = NostrSdkClient::builder().build();
+    stale_delivery.add_relay(&stale_relay_url).await.unwrap();
+    stale_delivery.connect().await;
+    stale_delivery
+        .send_event(&post_removal_event)
+        .await
+        .unwrap();
+    let stale_relay_events = stale_delivery
+        .fetch_events_from(
+            [stale_relay_url.clone()],
+            Filter::new().kind(Kind::MlsGroupMessage),
+            Duration::from_secs(3),
+        )
+        .await
+        .unwrap();
+    assert!(
+        stale_relay_events
+            .iter()
+            .any(|event| event.id == post_removal_event.id),
+        "the stale-session relay must retain the exact post-removal ciphertext"
+    );
+
     sleep(Duration::from_secs(2)).await;
-    let removed_member_history = bob
+    let removed_member_history = stale_client
         .timeline_messages(
             bob_account.account_id_hex.clone(),
             TimelineMessageQueryFfi {
-                group_id_hex: Some(group_id),
+                group_id_hex: Some(group_id.clone()),
                 limit: Some(20),
                 ..Default::default()
             },
@@ -463,5 +581,7 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
 
     alice.shutdown_and_close().await.unwrap();
     bob.shutdown_and_close().await.unwrap();
+    stale_client.shutdown_and_close().await.unwrap();
     observer.shutdown().await;
+    stale_delivery.shutdown().await;
 }
