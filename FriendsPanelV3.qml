@@ -110,6 +110,8 @@ KeyboardPanel {
     property bool privateSafetyCodeLoading: false
     property bool syncingPrivateHistory: false
     property string draftConversationKey: ""
+    property string draftAccountKey: ""
+    property bool restoringComposerDraft: false
     property int pendingSendCount: 0
     property var optimisticMessages: []
     property bool creatingGroup: false
@@ -162,6 +164,12 @@ KeyboardPanel {
     onSelectedGroupIdChanged: { rebuildConversationRows(); syncTypingPeer() }
     onPageChanged: syncTypingPeer()
     onCommunityChanged: updateCommunityMessageItems()
+    onMessageDraftChanged: saveComposerDraft()
+    onMediaDraftChanged: saveComposerDraft()
+    onAttachmentDraftPathChanged: saveComposerDraft()
+    onAttachmentDraftIsFolderChanged: saveComposerDraft()
+    onReplyDraftChanged: saveComposerDraft()
+    onEditingMessageChanged: saveComposerDraft()
     onMessagesChanged: {
         rebuildMessageIndex()
         rebuildMessageSearchIndex()
@@ -172,6 +180,8 @@ KeyboardPanel {
         Qt.callLater(restoreConversationAfterStatusRefresh)
     }
     onProfileChanged: {
+        if (root.draftConversationKey && root.draftAccountKey !== String(root.profile.public_key || ""))
+            root.prepareDraftForConversation(root.draftConversationKey)
         rebuildMessageIndex()
         rebuildMessageSearchIndex()
         rebuildConversationRows()
@@ -857,16 +867,43 @@ KeyboardPanel {
         return "Start the group conversation"
     }
 
+    function composerDraftKey(key) {
+        return String(root.profile.public_key || "") + ":" + key
+    }
+
+    function saveComposerDraft() {
+        if (root.restoringComposerDraft || !root.draftConversationKey || !root.service) return
+        var drafts = Object.assign({}, root.service.conversationDrafts || ({}))
+        var key = root.draftAccountKey + ":" + root.draftConversationKey
+        if (root.messageDraft || root.mediaDraft || root.attachmentDraftPath || root.replyDraft || root.editingMessage) {
+            drafts[key] = {
+                text: root.messageDraft, media: root.mediaDraft,
+                attachmentPath: root.attachmentDraftPath,
+                attachmentIsFolder: root.attachmentDraftIsFolder,
+                reply: root.replyDraft, edit: root.editingMessage
+            }
+        } else delete drafts[key]
+        root.service.conversationDrafts = drafts
+    }
+
     function prepareDraftForConversation(key) {
-        if (root.draftConversationKey && root.draftConversationKey !== key) {
-            root.messageDraft = ""
-            root.mediaDraft = ""
-            root.attachmentDraftPath = ""
-            root.attachmentDraftIsFolder = false
-            root.replyDraft = null
-            root.editingMessage = null
-        }
+        var accountKey = String(root.profile.public_key || "")
+        if (root.draftConversationKey === key && root.draftAccountKey === accountKey) return
+        root.saveComposerDraft()
+        var drafts = root.service ? root.service.conversationDrafts || ({}) : ({})
+        var draft = drafts[root.composerDraftKey(key)] || ({})
+        // Property handlers run synchronously: prevent partial restoration
+        // from overwriting the saved contents of either conversation.
+        root.restoringComposerDraft = true
         root.draftConversationKey = key
+        root.draftAccountKey = accountKey
+        root.messageDraft = draft.text || ""
+        root.mediaDraft = draft.media || ""
+        root.attachmentDraftPath = draft.attachmentPath || ""
+        root.attachmentDraftIsFolder = draft.attachmentIsFolder === true
+        root.replyDraft = draft.reply || null
+        root.editingMessage = draft.edit || null
+        root.restoringComposerDraft = false
     }
 
     function startReply(message) {

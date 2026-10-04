@@ -168,8 +168,8 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         self.assertIn("function prepareDraftForConversation(key)", panel)
         self.assertIn('root.prepareDraftForConversation("friend:"', panel)
         self.assertIn('root.prepareDraftForConversation("group:"', panel)
-        self.assertIn('root.draftConversationKey !== key', panel)
-        self.assertIn('root.messageDraft = ""', panel)
+        self.assertIn('root.draftConversationKey === key && root.draftAccountKey === accountKey', panel)
+        self.assertIn('root.messageDraft = draft.text || ""', panel)
 
     def test_failed_private_sends_and_group_creation_preserve_user_input(self):
         panel = self.read("FriendsPanelV3.qml")
