@@ -54,7 +54,7 @@ KeyboardPanel {
         return root.worldRelayCount > 0 ? "Connected to relays" : "No relay connection"
     }
     readonly property color globalConnectionColor: root.worldRelaysConnected ? root.success : (root.globalConnectionText === "Checking relays" ? root.mutedInk : root.warning)
-    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.16.2", latest: "4.16.2" })
+    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.17.0", latest: "4.17.0" })
 
     property string page: "chats"
     property string worldQuery: ""
@@ -117,12 +117,12 @@ KeyboardPanel {
         if (root.globalConnectionText === "Checking relays")
             return "Checking the configured relays for people online now. Refresh in a moment if this takes too long."
         if (root.globalConnectionText === "Presence not accepted")
-            return "Relays answered, but they did not confirm your World presence. Retry or check relay status. Your profile is still private unless you opted in."
+            return "Relays answered, but they did not confirm your World presence. Retry or check relay status. World visibility is on by default for new profiles; turn it off in Me any time."
         if (root.globalConnectionText === "Relay check failed" || root.globalConnectionText === "Offline" || root.globalConnectionText === "Reconnecting" || root.globalConnectionText === "No relay connection")
             return "World could not confirm a current relay connection, so this list may be out of date. Retry or check your network and relay status."
         if (root.worldStatus.visible === false)
-            return "World only shows Omarchy Friends users who are online and opted in. Your hidden setting controls whether others can find you; it does not affect who you can see. You are hidden right now. Share your profile if you want, or invite someone privately."
-        return "No other Omarchy Friends users have a fresh World presence right now. People appear here only while they use the plugin, are online, and have opted in. Invite someone or check back later."
+            return "World shows users with fresh presence while they use Friends. Your profile is hidden, so others cannot find you; you can still browse. Join World to be discoverable or invite someone privately."
+        return "World visibility is enabled for your profile. Other users appear here only when they are online with fresh presence. Invite someone or check back later."
     }
 
     function friendsList() {
@@ -386,7 +386,7 @@ KeyboardPanel {
     }
 
     function formatVersion() {
-        return root.updateInfo.current || "4.16.2"
+        return root.updateInfo.current || "4.17.0"
     }
 
     Item {
@@ -1130,7 +1130,7 @@ KeyboardPanel {
                                     Row {
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         spacing: Style.space(8)
-                                        GlassButton { visible: root.world.length === 0 && root.worldStatus.visible === false; text: "Show me in World"; icon: "◎"; compact: true; primary: true; onClicked: if (root.service) root.service.togglePrivacy("share_global") }
+                                        GlassButton { visible: root.world.length === 0 && root.worldStatus.visible === false; text: "Join World"; icon: "◎"; compact: true; primary: true; onClicked: if (root.service) root.service.togglePrivacy("share_global") }
                                         GlassButton { text: "Copy invite"; icon: "↗"; compact: true; primary: root.world.length === 0 && root.worldStatus.visible !== false; onClicked: root.copyInvite() }
                                         GlassButton { text: "Refresh"; icon: "↻"; compact: true; onClicked: if (root.service) root.service.refreshGlobal() }
                                     }
@@ -1350,6 +1350,10 @@ KeyboardPanel {
                                                 }
                                             }
                                         }
+                                        Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+                                        PlainText { text: "World visibility"; color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                                        PlainText { width: parent.width; text: "New profiles appear to other online Friends users by default. This shares your pseudonymous profile with public relays; chat contents stay private. Turn it off any time."; color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                        GlassPill { text: root.profile.privacy && root.profile.privacy.share_global === true ? "Visible in World" : "Hidden from World"; active: root.profile.privacy && root.profile.privacy.share_global === true; accentColor: root.success; onClicked: if (root.service) root.service.togglePrivacy("share_global") }
                                     }
                                 }
                             }

@@ -221,7 +221,8 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('root.globalConnectionText === "Checking relays"', friends)
         self.assertIn('root.globalConnectionText === "Relay check failed"', friends)
         self.assertIn('root.globalConnectionText === "Reconnecting"', friends)
-        self.assertIn("does not affect who you can see", friends)
+        self.assertIn("you can still browse", friends)
+        self.assertIn("World visibility is enabled for your profile", friends)
         presence = friends.split("function selfPresenceIsLive()", 1)[1].split("function worldEmptyMessage()", 1)[0]
         self.assertIn("root.worldRelaysConnected", presence)
         self.assertIn("root.worldLastPublish", presence)

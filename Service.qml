@@ -24,7 +24,7 @@ Item {
         avatar: "👾",
         code: "OMAR-0000-000",
         public_key: "",
-        global_visible: false,
+        global_visible: true,
         status: "coding",
         status_name: "In The Zone",
         status_emoji: "🚀",
@@ -39,7 +39,7 @@ Item {
         project_url: "",
         interests: [],
         room: "",
-        privacy: { share_window: false, share_music: false, share_lan: false, share_project: false, share_theme: false, share_interests: false, share_room: false, share_global: false }
+        privacy: { share_window: false, share_music: false, share_lan: false, share_project: false, share_theme: false, share_interests: false, share_room: false, share_global: true }
     })
     property var matchedPeer: null
     property var friends: []

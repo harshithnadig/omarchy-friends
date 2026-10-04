@@ -40,8 +40,8 @@ class RuntimeContractTests(unittest.TestCase):
             self.assertEqual(actual.group(1).lower(), expected.group(1).lower(), key)
         self.assertIn("share_lan: false", service)
         self.assertIn('"share_lan": False', defaults.group(1))
-        self.assertIn('"share_global": False', defaults.group(1))
-        self.assertIn("share_global: false", service)
+        self.assertIn('"share_global": True', defaults.group(1))
+        self.assertIn("share_global: true", service)
 
     def test_build_panel_friends_handoffs_exist(self):
         panel = read("BuildNetworkPanelV3.qml")

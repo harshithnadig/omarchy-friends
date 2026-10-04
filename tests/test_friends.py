@@ -86,10 +86,10 @@ class TestFriendsEngine(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.engine = friends_module.FriendsEngine(state_dir=self.test_dir)
-        # Most engine tests exercise World requests/public posts, so act as an
-        # explicitly opted-in user. The dedicated default test below covers
-        # the fresh-profile privacy posture separately.
-        self.engine.toggle_privacy("share_global")
+        # Most engine tests exercise World requests/public posts, so act as a
+        # visible user. The dedicated migration tests cover hidden profiles.
+        if not self.engine.state["profile"]["privacy"]["share_global"]:
+            self.engine.toggle_privacy("share_global")
 
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
@@ -763,7 +763,7 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertNotIn("project_name", private_payload)
         self.assertNotIn("interests", private_payload)
 
-    def test_new_profile_detail_sharing_is_opt_in_and_migration_preserves_choices(self):
+    def test_new_profile_world_discovery_is_on_but_detail_sharing_is_opt_in(self):
         fresh_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, fresh_dir, ignore_errors=True)
         fresh_engine = friends_module.FriendsEngine(state_dir=fresh_dir)
@@ -771,21 +771,48 @@ class TestFriendsEngine(unittest.TestCase):
         self.assertFalse(profile["privacy"]["share_lan"])
         for key in ("share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertFalse(profile["privacy"][key])
-        self.assertFalse(profile["privacy"]["share_global"])
+        self.assertTrue(profile["privacy"]["share_global"])
         public_event = fresh_engine._global_presence_content()
         for key in ("activity", "music", "project_name", "project_desc", "project_url", "interests", "room"):
             self.assertNotIn(key, public_event)
+
+    def test_fresh_profile_sync_publishes_world_presence_by_default(self):
+        fresh_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, fresh_dir, ignore_errors=True)
+        fresh_engine = friends_module.FriendsEngine(state_dir=fresh_dir)
+        result = {
+            "published": True,
+            "acknowledged": True,
+            "dm_relay_published": False,
+            "presence": [],
+            "pings": [],
+            "messages": [],
+            "community": [],
+        }
+        with patch.object(fresh_engine, "_global_relay_sync", return_value=result) as relay_sync, patch.object(
+            fresh_engine, "_refresh_update_status"
+        ):
+            ok, message = fresh_engine.sync_global()
+        self.assertTrue(ok, message)
+        published_event = relay_sync.call_args.args[1]
+        self.assertIsNotNone(published_event)
+        self.assertTrue(friends_module.verify_event(published_event))
+        self.assertTrue(fresh_engine.state["profile"]["privacy"]["share_global"])
 
         migrated = self.engine._migrate_state({"profile": {"privacy": {"share_window": True}}})
         self.assertTrue(migrated["profile"]["privacy"]["share_window"])
         self.assertFalse(migrated["profile"]["privacy"]["share_music"])
         self.assertFalse(migrated["profile"]["privacy"]["share_project"])
         self.assertFalse(migrated["profile"]["privacy"]["share_lan"])
-        self.assertFalse(migrated["profile"]["privacy"]["share_global"])
+        # A profile missing a saved World choice gets the new default, while
+        # an existing explicit opt-out must remain private after upgrade.
+        self.assertTrue(migrated["profile"]["privacy"]["share_global"])
         opted_in = self.engine._migrate_state({"profile": {"privacy": {"share_lan": True}}})
         self.assertTrue(opted_in["profile"]["privacy"]["share_lan"])
         explicitly_visible = self.engine._migrate_state({"profile": {"privacy": {"share_global": True}}})
         self.assertTrue(explicitly_visible["profile"]["privacy"]["share_global"])
+        explicitly_hidden = self.engine._migrate_state({"profile": {"privacy": {"share_global": False}}})
+        self.assertFalse(explicitly_hidden["profile"]["privacy"]["share_global"])
 
     def test_new_profile_does_not_send_lan_signals_until_opted_in(self):
         self.prime_peer()

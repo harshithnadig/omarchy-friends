@@ -119,6 +119,7 @@ class MultiRelayListenerTests(unittest.TestCase):
 
     def test_idle_first_relay_cannot_starve_second_inbox(self):
         first, second = friends.NIP17_DM_RELAYS[:2]
+        self.bob.state["profile"]["privacy"]["share_global"] = False
         FakeRelay.delivery_urls = {second}
         with patch.object(friends, "WebSocketClient", FakeRelay):
             self.bob._listen_on_relays((first, second), max_cycles=2)

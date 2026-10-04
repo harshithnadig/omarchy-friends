@@ -4,7 +4,7 @@
 
 Omarchy Friends is built specifically for Omarchy. It combines a lightweight social/messaging layer with the **Build Network**, a collaboration surface for ideas, projects, setups, testing, human help, solutions, events and community shipping.
 
-There are no hosted Friends accounts and no fake users. Public discovery is pseudonymous and federated over Nostr relays; private social state stays local unless a user explicitly sends or publishes something.
+There are no hosted Friends accounts and no fake users. World discovery is pseudonymous and federated over Nostr relays, with minimal presence enabled by default for new profiles while online. Private chat content stays local unless a user sends it to a conversation.
 
 ## Two surfaces, one product
 
@@ -50,7 +50,7 @@ The Build Network is the workshop layer:
 
 Public World / Circles / Build Network data is intentionally public and relay-readable. Do not put passwords, private URLs, secrets, personal addresses or sensitive logs into public cards.
 
-New profiles start hidden from World. A user must turn on **Visible in World** in Me before their pseudonymous public key appears in discovery; saved visibility choices are preserved when upgrading.
+New profiles join World by default so people can find each other without setup. While online, a profile publishes its stable pseudonymous public key, handle, avatar, status and inbox-relay list to configured public relays. Users can switch **Visible in World** off in Me at any time. Existing saved visibility choices are preserved when upgrading.
 
 Hiding your own beacon does not turn off World browsing or your private inbox. Friends continues syncing incoming messages and connection events while hidden; only your periodic discovery presence stops.
 
@@ -113,11 +113,12 @@ When a DM activity record exists but its message bodies are missing locally, the
 
 World presence uses signed Nostr events with a locally generated secp256k1 identity. Presence expires quickly so World behaves like a live lobby rather than a permanent fake-online list.
 
-World only lists people who have Omarchy Friends installed, explicitly enabled
-World visibility, and published a recent presence. New profiles are hidden by
-default. If the directory is empty while relays are healthy, there may simply
-be no other opted-in users online yet; use the invite action to bring someone
-in. You can browse World while keeping your own profile hidden.
+World lists people who have Omarchy Friends installed, have World visibility
+on, and published a recent presence. New profiles are visible by default while
+online; existing profiles keep their saved visibility choice after upgrading.
+If the directory is empty while relays are healthy, there may simply be no
+other users online yet; use the invite action to bring someone in. You can
+browse World with your own profile hidden.
 
 Default relays:
 
@@ -131,7 +132,7 @@ wss://relay.damus.io
 
 Advanced users can override the set with `OMARCHY_FRIENDS_RELAYS`.
 
-New profiles are hidden from global discovery by default. After **Visible in World** is explicitly enabled, the generated pseudonymous handle, basic avatar/status/focus metadata and signed inbox-relay list are public to configured relays. Active-app name, music, project details/URL, interests and room remain **off until separately enabled** in **Me → Privacy**. Previously saved privacy choices are preserved during migration. Turning sharing off stops future publication but cannot guarantee removal of information already received or retained by relays; do not publish sensitive project details or links.
+New profiles are visible to configured public relays by default while online. Their stable pseudonymous public key, generated handle, basic avatar/status/focus metadata and signed inbox-relay list are public. Relay operators or other recipients may retain published data after visibility is turned off. Existing profiles keep their saved privacy choice on upgrade, including an explicit hidden setting. Active-app name, music, project details/URL, interests and room remain **off until separately enabled** in **Me → Privacy**. Chat contents are never part of World presence. Do not publish sensitive project details or links.
 
 Local Radar/LAN presence is **off on new profiles** because discovery uses unauthenticated UDP broadcast visible to devices on the local network. Enable **Me → Privacy → LAN sharing** only on networks where you want nearby Omarchy users to discover this profile. Existing saved LAN-sharing choices are preserved during migration.
 
