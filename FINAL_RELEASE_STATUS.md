@@ -37,9 +37,12 @@
   change production NIP-17/NIP-44 chats.
 - Rendered UI and live public-relay interoperability have not been verified.
   The two-client typing exchange is covered only by the isolated localhost
-  relay test. Candidate is on
-  `fix/accurate-world-status` and draft PR #8; it has not been installed or
-  published to the marketplace and is not release-cleared.
+  relay test. The candidate source is merged to `main` at `a746023` after
+  explicit authorization to merge PRs #8 and #9. PR #9 adds only an isolated
+  MDK bridge and signer smoke; production conversations still use NIP-17 and
+  NIP-44, and no Friends chat data or profile was migrated. The current
+  installed plugin version and marketplace publication were not verifiable
+  from this session. The candidate is not release-cleared.
 
 ## v4.17.0 historical candidate (2026-10-04; superseded by v4.18.0)
 
