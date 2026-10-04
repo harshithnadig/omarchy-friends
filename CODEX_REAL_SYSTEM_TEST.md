@@ -1,23 +1,26 @@
 # Codex real-system validation — Omarchy Friends v4.18.0 candidate
 
-Branch: `fix/accurate-world-status`
+Source: `main` at the exact release-candidate commit under test.
 
 This checklist validates the v4.18.0 candidate, including the previous v4.17, v4.16 and v4.15 feature sets. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
 
-Do not merge into `main` unless Harshu explicitly asks.
+Merging source into `main` does not clear a marketplace release. This
+candidate's PRs #8 and #9 were merged after explicit user authorization; the
+real-machine and public-relay gates below remain required before publication.
 
 ## 1. Checkout the release candidate
 
 ```bash
 git fetch origin
-git switch fix/accurate-world-status
+git switch main
 git pull --ff-only
 git status --short
 git rev-parse --abbrev-ref HEAD
 git log -1 --oneline
 ```
 
-Confirm the branch is exactly `fix/accurate-world-status` and the worktree is clean before testing.
+Confirm the worktree is clean and record the exact commit under test. Do not
+install or publish until every required real-system gate below passes.
 
 ## 2. Run the release gate first
 
