@@ -21,7 +21,9 @@ use nostr_relay_builder::prelude::{Event as RelayEvent, Kind as RelayKind};
 use nostr_relay_builder::{LocalRelay, RelayBuilder};
 use nostr_sdk::prelude::{Client as NostrSdkClient, SignerAuthenticator};
 use tokio::time::{Instant, sleep, timeout};
-use transport_nostr_adapter::{NostrRelayClient, NostrSdkRelayClient};
+use transport_nostr_adapter::{
+    NostrRelayClient, NostrSdkRelayClient, sign_transport_event_for_publish,
+};
 use transport_nostr_peeler::NostrTransportEvent;
 
 #[derive(Clone)]
@@ -222,12 +224,15 @@ async fn two_external_signers_exchange_mls_message_over_local_relay() {
                 .build(),
         );
         for (kind, tag_name) in [(10002, "r"), (10050, "relay")] {
-            let event = NostrTransportEvent::new_unsigned(
+            let unsigned_event = NostrTransportEvent::new_unsigned(
                 keys.public_key().to_hex(),
                 kind,
                 vec![vec![tag_name.to_owned(), relay_url.clone()]],
                 String::new(),
             );
+            let event = sign_transport_event_for_publish(Arc::new(keys.clone()), &unsigned_event)
+                .await
+                .unwrap();
             relay_client
                 .publish_event(&[TransportEndpoint(relay_url.clone())], &event, 1)
                 .await
