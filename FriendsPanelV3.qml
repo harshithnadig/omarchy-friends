@@ -153,7 +153,6 @@ KeyboardPanel {
         Qt.callLater(rebuildConversationRows)
     }
 
-    onOpenChanged: if (!root.open) root.stopTypingSignal()
     onFriendshipsChanged: rebuildConversationRows()
     onMemoryChanged: rebuildConversationRows()
     onGroupsChanged: rebuildConversationRows()
@@ -162,7 +161,6 @@ KeyboardPanel {
     onSelectedFriendKeyChanged: { rebuildConversationRows(); syncTypingPeer() }
     onSelectedGroupIdChanged: { rebuildConversationRows(); syncTypingPeer() }
     onPageChanged: syncTypingPeer()
-    onProfileChanged: syncTypingPeer()
     onCommunityChanged: updateCommunityMessageItems()
     onMessagesChanged: {
         rebuildMessageIndex()
@@ -177,6 +175,7 @@ KeyboardPanel {
         rebuildMessageIndex()
         rebuildMessageSearchIndex()
         rebuildConversationRows()
+        syncTypingPeer()
     }
     Component.onCompleted: {
         connectServiceSignals()
@@ -1451,7 +1450,10 @@ KeyboardPanel {
     onOpenChanged: {
         root.statusNowSecond = Math.floor(Date.now() / 1000)
         if (root.service && typeof root.service.setUiOpen === "function") root.service.setUiOpen(root.open)
-        if (root.open) Qt.callLater(root.restoreConversationAfterStatusRefresh)
+        if (root.open) {
+            Qt.callLater(root.restoreConversationAfterStatusRefresh)
+            Qt.callLater(root.syncTypingPeer)
+        } else root.stopTypingSignal()
     }
     onServiceStatusRevisionChanged: {
         Qt.callLater(root.rebuildConversationRows)

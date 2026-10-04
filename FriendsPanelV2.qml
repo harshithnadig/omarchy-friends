@@ -98,7 +98,6 @@ KeyboardPanel {
     }
 
     onServiceChanged: connectServiceSignals()
-    onOpenChanged: if (!root.open) root.stopTypingSignal()
     onPageChanged: root.syncTypingPeer()
     onProfileChanged: root.syncTypingPeer()
     Component.onCompleted: connectServiceSignals()
@@ -455,7 +454,10 @@ KeyboardPanel {
 
     onOpenChanged: {
         root.statusNowSecond = Math.floor(Date.now() / 1000)
-        if (root.open) Qt.callLater(root.ensureConversation)
+        if (root.open) {
+            Qt.callLater(root.ensureConversation)
+            Qt.callLater(root.syncTypingPeer)
+        } else root.stopTypingSignal()
     }
 
     // Full product-owned visual shell. We intentionally do not inherit the active Omarchy

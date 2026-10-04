@@ -374,8 +374,11 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         fallback = self.read("FriendsPanelV2.qml")
         self.assertIn('onEdited: root.updateTypingSignal(text)', fallback)
         self.assertIn('root.service.setTypingPeer(key)', fallback)
-        self.assertIn('onOpenChanged: if (!root.open) root.stopTypingSignal()', panel)
-        self.assertIn('onOpenChanged: if (!root.open) root.stopTypingSignal()', fallback)
+        self.assertEqual(panel.count("onOpenChanged:"), 1)
+        self.assertEqual(panel.count("onProfileChanged:"), 1)
+        self.assertIn("} else root.stopTypingSignal()", panel)
+        self.assertEqual(fallback.count("onOpenChanged:"), 1)
+        self.assertIn("} else root.stopTypingSignal()", fallback)
 
     def test_chat_search_indexes_loaded_messages_in_memory_and_opens_matching_message(self):
         panel = self.read("FriendsPanelV3.qml")
