@@ -265,13 +265,8 @@ KeyboardPanel {
         // messages look deleted. This only synthesizes list metadata; it does
         // not change friendship state or message storage.
         var ownKey = root.profile && root.profile.public_key ? String(root.profile.public_key) : ""
-        var hasUnlinkedMessages = false
-        for (var u = 0; u < root.messages.length; u++) {
-            if (root.messages[u] && root.messages[u].legacy_unlinked === true) {
-                hasUnlinkedMessages = true
-                break
-            }
-        }
+        var unlinkedMessages = root.messagesByConversation["unlinked:local"] || []
+        var hasUnlinkedMessages = unlinkedMessages.length > 0
         if (hasUnlinkedMessages && ownKey) {
             out.push({
                 public_key: ownKey,
@@ -292,12 +287,15 @@ KeyboardPanel {
             })
             included[ownKey] = true
         }
-        for (var i = root.messages.length - 1; i >= 0; i--) {
-            var message = root.messages[i]
-            if (!message || message.group_id) continue
-            // Outgoing DMs are authored by us; conversation_key identifies the peer.
-            var peerKey = String(message.conversation_key || message.public_key || "")
-            if (!peerKey || peerKey === ownKey || included[peerKey]) continue
+        for (var conversationKey in root.messagesByConversation) {
+            if (conversationKey.indexOf("friend:") !== 0) continue
+            var peerKey = conversationKey.slice(7)
+            if (!/^[0-9a-f]{64}$/i.test(peerKey)
+                || peerKey === ownKey
+                || included[peerKey]) continue
+            var conversationMessages = root.messagesByConversation[conversationKey]
+            if (!Array.isArray(conversationMessages) || conversationMessages.length === 0) continue
+            var message = conversationMessages[conversationMessages.length - 1]
 
             var savedFriend = root.friendships[peerKey] || ({})
             var savedMemory = root.memory[peerKey] || ({})
@@ -323,14 +321,7 @@ KeyboardPanel {
 
             var indexedFriend = root.friendships[indexedPeerKey] || ({})
             var indexedMemory = root.memory[indexedPeerKey] || ({})
-            var indexedSummary = null
-            for (var summaryIndex = 0; summaryIndex < root.messages.length; summaryIndex++) {
-                var summary = root.messages[summaryIndex]
-                if (summary && String(summary.conversation_key || summary.public_key || "") === indexedPeerKey) {
-                    indexedSummary = summary
-                    break
-                }
-            }
+            var indexedSummary = root.latestMessageForFriend(indexedPeerKey)
             var recoveredFriend = Object.assign({}, indexedFriend)
             recoveredFriend.public_key = indexedPeerKey
             recoveredFriend.handle = recoveredFriend.handle
@@ -450,6 +441,11 @@ KeyboardPanel {
         return index === undefined ? -1 : index
     }
 
+    function latestMessageForFriend(publicKey) {
+        var index = root.lastMessageIndexForFriend(publicKey)
+        return index >= 0 && index < root.messages.length ? root.messages[index] : null
+    }
+
     function lastMessageIndexForGroup(groupId) {
         var index = root.latestMessageIndices["group:" + String(groupId || "")]
         return index === undefined ? -1 : index
@@ -546,14 +542,7 @@ KeyboardPanel {
                 || included[peerKey] || Number(root.messageCounts[conversationKey] || 0) <= 0) continue
             var saved = root.friendships[peerKey] || ({})
             var savedMemory = root.memory[peerKey] || ({})
-            var preview = null
-            for (var j = 0; j < root.messages.length; j++) {
-                var candidate = root.messages[j]
-                if (candidate && String(candidate.conversation_key || candidate.public_key || "") === peerKey) {
-                    preview = candidate
-                    break
-                }
-            }
+            var preview = root.latestMessageForFriend(peerKey)
             var recovered = Object.assign({}, saved)
             recovered.public_key = peerKey
             recovered.handle = recovered.handle || savedMemory.handle || (preview && preview.handle) || "Saved conversation"
@@ -588,14 +577,8 @@ KeyboardPanel {
             var friend = root.friendships[publicKey] || ({})
             var saved = root.memory[publicKey] || ({})
             var handle = friend.handle || saved.handle || "Saved conversation"
-            var preview = ""
-            for (var m = root.messages.length - 1; m >= 0; m--) {
-                var message = root.messages[m]
-                if (message && String(message.conversation_key || message.public_key || "") === publicKey) {
-                    preview = String(message.text || "")
-                    break
-                }
-            }
+            var latest = root.latestMessageForFriend(publicKey)
+            var preview = latest ? String(latest.text || "") : ""
             if ((handle + " " + preview).toLowerCase().indexOf(query) < 0
                 && !root.latestMessageMatchForFriend(publicKey)) continue
             var recovered = Object.assign({}, friend)

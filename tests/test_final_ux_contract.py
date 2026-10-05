@@ -233,7 +233,9 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn('readonly property var memory: service && service.globalMemory', friends)
         friend_list = friends[friends.index("function friendsList()"):friends.index("function incomingFriendRequests()")]
         self.assertIn("var ownKey = root.profile && root.profile.public_key", friend_list)
-        self.assertIn("for (var i = root.messages.length - 1; i >= 0; i--)", friend_list)
+        self.assertIn("for (var conversationKey in root.messagesByConversation)", friend_list)
+        self.assertNotIn("for (var u = 0; u < root.messages.length", friend_list)
+        self.assertNotIn("for (var i = root.messages.length - 1;", friend_list)
         self.assertIn("savedItem.saved_history_only = true", friend_list)
         self.assertIn("function directHasConversationRecord(publicKey)", friends)
         self.assertIn("root.directHasConversationRecord(friend.public_key)", friends)
@@ -242,6 +244,20 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("is_message_history", engine)
         self.assertIn("MAX_REMOTE_ATTACHMENT_BYTES = 100 * 1024 * 1024", engine)
         self.assertIn("MAX_RELAY_DM_MESSAGES = 500", engine)
+
+    def test_recovered_chat_rows_use_constant_time_message_summary_lookup(self):
+        friends = read("FriendsPanelV3.qml")
+        self.assertIn("function latestMessageForFriend(publicKey)", friends)
+        for name, next_name in (
+            ("friendsList", "incomingFriendRequests"),
+            ("buildConversationFriends", "rebuildConversationRows"),
+            ("allConversationFriends", "conversationGroups"),
+        ):
+            body = friends.split(f"function {name}()", 1)[1].split(f"function {next_name}()", 1)[0]
+            self.assertIn("root.latestMessageForFriend(", body)
+            self.assertNotIn("for (var summaryIndex = 0;", body)
+            self.assertNotIn("for (var j = 0; j < root.messages.length", body)
+            self.assertNotIn("for (var m = root.messages.length - 1;", body)
 
     def test_message_views_use_cached_per_conversation_index(self):
         friends = read("FriendsPanelV3.qml")
