@@ -99,6 +99,7 @@ Item {
     property bool uiOnlyFallback: false
     property bool uiOpen: false
     property int statusRevision: 0
+    property string statusError: ""
 
     signal eventReceived(var event)
     signal friendInteracted(string action, string targetCode)
@@ -108,6 +109,9 @@ Item {
 
     function refresh() {
         if (!statusProc.running) {
+            statusProc.statusRevisionAtStart = root.statusRevision
+            root.statusError = ""
+            statusProc.responseReceived = false
             statusProc.running = true
         }
     }
@@ -844,12 +848,21 @@ Item {
 
     Process {
         id: statusProc
+        property int statusRevisionAtStart: 0
+        property bool responseReceived: false
         command: [root.binPath, "status-ui"]
         stdout: StdioCollector {
             onStreamFinished: {
-                if (!this.text || this.text.trim() === "") return
+                statusProc.responseReceived = true
                 try {
+                    if (!this.text || this.text.trim() === "") {
+                        throw new Error("empty Friends status response")
+                    }
                     var data = JSON.parse(this.text)
+                    if (!data || typeof data !== "object" || Array.isArray(data)
+                        || data.ok === false || !data.profile || typeof data.profile !== "object") {
+                        throw new Error("invalid Friends status response")
+                    }
                     if (data.profile) root.profile = data.profile
                     if (data.matched_peer !== undefined) root.matchedPeer = data.matched_peer
                     if (data.friends) root.friends = data.friends
@@ -888,10 +901,17 @@ Item {
                     if (data.available_statuses) root.availableStatuses = data.available_statuses
                     if (data.available_avatars) root.availableAvatars = data.available_avatars
                     if (data.available_interests) root.availableInterests = data.available_interests
+                    root.statusError = ""
                     root.statusRevision += 1
                 } catch (e) {
                     console.log("FriendsService status parse error:", e)
                 }
+            }
+        }
+        onExited: function(exitCode) {
+            if (root.statusRevision === statusProc.statusRevisionAtStart
+                || exitCode !== 0 || !statusProc.responseReceived) {
+                root.statusError = "Could not load saved conversations. Check Friends and retry."
             }
         }
     }

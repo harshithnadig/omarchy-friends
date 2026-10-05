@@ -134,6 +134,12 @@ KeyboardPanel {
     // misses status updates if the shell service becomes available afterward.
     readonly property int serviceStatusRevision: root.service ? root.service.statusRevision : 0
 
+    function chatListEmptyState() {
+        if (root.serviceStatusRevision > 0) return "empty"
+        if (root.service && root.service.statusError) return "error"
+        return "loading"
+    }
+
     contentWidth: root.fittedContentWidth(Style.space(820))
     contentHeight: root.fittedContentHeight(Style.space(690))
 
@@ -1828,8 +1834,35 @@ KeyboardPanel {
                                             width: parent.width
                                             spacing: Style.space(8)
                                             topPadding: Style.space(26)
-                                            PlainText { width: parent.width; text: "No chats yet"; color: root.ink; horizontalAlignment: Text.AlignHCenter; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
-                                            PlainText { width: parent.width; text: "Pick a friend to start chatting."; color: root.mutedInk; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
+                                            PlainText {
+                                                width: parent.width
+                                                text: root.chatListEmptyState() === "empty" ? "No chats yet"
+                                                    : (root.chatListEmptyState() === "error" ? "Saved chats could not load" : "Loading saved conversations…")
+                                                color: root.ink
+                                                horizontalAlignment: Text.AlignHCenter
+                                                font.family: root.uiFontFamily
+                                                font.pixelSize: Style.font.bodySmall
+                                                font.bold: true
+                                            }
+                                            PlainText {
+                                                width: parent.width
+                                                text: root.chatListEmptyState() === "empty" ? "Pick a friend to start chatting."
+                                                    : (root.chatListEmptyState() === "error"
+                                                        ? "Check the Friends service, then retry."
+                                                        : "Reading your saved chat list…")
+                                                color: root.mutedInk
+                                                horizontalAlignment: Text.AlignHCenter
+                                                wrapMode: Text.WordWrap
+                                                font.family: root.uiFontFamily
+                                                font.pixelSize: Style.font.caption
+                                            }
+                                            GlassButton {
+                                                anchors.horizontalCenter: parent.horizontalCenter
+                                                visible: root.chatListEmptyState() === "error" && !!root.service
+                                                text: "Retry"
+                                                icon: "↻"
+                                                onClicked: if (root.service) root.service.refresh()
+                                            }
                                             GlassButton { anchors.horizontalCenter: parent.horizontalCenter; text: "New chat"; icon: "+"; primary: true; onClicked: root.newChatOpen = true }
                                         }
                                     }
