@@ -249,7 +249,7 @@ Item {
             if (callback) callback(true, [])
             return
         }
-        var searchProcess = runAction([root.binPath, "search-messages", search], function(output) {
+        var searchProcess = runAction([root.binPath, "search-messages", "-"], function(output) {
             if (serial !== root.searchRequestSerial) return
             root.activeSearchProcess = null
             var result = {}
@@ -261,7 +261,7 @@ Item {
             }
             root.globalSearchResults = result.messages
             if (callback) callback(true, result.messages)
-        })
+        }, JSON.stringify(search))
         // runAction returns the child process so the next debounced search can
         // stop this full encrypted-journal scan instead of stacking workers.
         root.activeSearchProcess = searchProcess
@@ -546,11 +546,11 @@ Item {
 
     function sendDm(publicKey, text, mediaUrl, callback, attachmentPath, attachmentIsFolder, replyTo) {
         var payload = JSON.stringify({ text: text || "", media_url: mediaUrl || "", attachment_path: attachmentPath || "", attachment_is_folder: attachmentIsFolder === true, reply_to: replyTo || null })
-        runAction([root.binPath, "send-dm", publicKey, payload], function(output) {
+        runAction([root.binPath, "send-dm", publicKey, "-"], function(output) {
             var result = root.reportResult(output, "Private message sent")
             if (callback) callback(result.ok === true, result)
             root.refresh()
-        })
+        }, payload)
     }
 
     function getPrivateSafetyCode(publicKey, callback) {
@@ -564,20 +564,20 @@ Item {
 
     function createGroup(name, members, callback) {
         var payload = JSON.stringify({ name: name || "", members: members || [] })
-        runAction([root.binPath, "create-group", payload], function(output) {
+        runAction([root.binPath, "create-group", "-"], function(output) {
             var result = root.reportResult(output, "Group could not be created")
             root.refresh()
             if (callback) callback(result.ok === true, result)
-        })
+        }, payload)
     }
 
     function sendGroupMessage(groupId, text, mediaUrl, callback, attachmentPath, attachmentIsFolder, replyTo) {
         var payload = JSON.stringify({ text: text || "", media_url: mediaUrl || "", attachment_path: attachmentPath || "", attachment_is_folder: attachmentIsFolder === true, reply_to: replyTo || null })
-        runAction([root.binPath, "send-group", groupId, payload], function(output) {
+        runAction([root.binPath, "send-group", groupId, "-"], function(output) {
             var result = root.reportResult(output, "Group message could not be sent")
             if (callback) callback(result.ok === true, result)
             root.refresh()
-        })
+        }, payload)
     }
 
     function forwardMessage(messageId, targetKind, targetId, callback) {
@@ -677,11 +677,11 @@ Item {
     }
 
     function editMessage(messageId, text, callback) {
-        runAction([root.binPath, "edit-message", messageId || "", text || ""], function(output) {
+        runAction([root.binPath, "edit-message", messageId || "", "-"], function(output) {
             var result = root.reportResult(output, "Message could not be edited")
             if (callback) callback(result.ok === true, result)
             root.refresh()
-        })
+        }, JSON.stringify(text || ""))
     }
 
     function setConversationPinned(kind, identifier, pinned) {
@@ -782,8 +782,14 @@ Item {
         copyProc.running = true
     }
 
-    function runAction(cmdArgs, callback) {
-        var proc = actionComponent.createObject(root, { command: cmdArgs, callback: callback })
+    function runAction(cmdArgs, callback, privatePayload) {
+        var hasPrivatePayload = privatePayload !== undefined && privatePayload !== null
+        var proc = actionComponent.createObject(root, {
+            command: cmdArgs,
+            callback: callback,
+            privateInput: hasPrivatePayload ? String(privatePayload) + "\n" : "",
+            privateInputEnabled: hasPrivatePayload
+        })
         if (!proc) {
             var unavailable = JSON.stringify({ ok: false, message: "Friends could not start this action" })
             root.reportResult(unavailable, "Friends could not start this action")
@@ -811,6 +817,9 @@ Item {
             property var callback: null
             property string resultText: ""
             property string errorText: ""
+            property string privateInput: ""
+            property bool privateInputEnabled: false
+            stdinEnabled: privateInputEnabled
             stdout: StdioCollector {
                 onStreamFinished: actionProcess.resultText = this.text
             }
@@ -827,6 +836,12 @@ Item {
                 }
                 if (callback) callback(output, exitCode)
                 destroy()
+            }
+            onStarted: {
+                if (privateInputEnabled) {
+                    write(privateInput)
+                    privateInput = ""
+                }
             }
         }
     }

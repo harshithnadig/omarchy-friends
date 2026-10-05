@@ -574,13 +574,15 @@ class PrivateMessagingEngineTests(unittest.TestCase):
 
     def test_send_commands_return_saved_message_id_even_when_delivery_needs_retry(self):
         target_id = "a" * 64
+        calls = []
         engine = SimpleNamespace(
             last_sent_message_id=target_id,
             state={"global": {"messages": [{"id": target_id, "sendState": "Unconfirmed · retry"}]}},
-            send_dm=lambda *args: (False, "Delivery is unconfirmed; retry is available"),
+            send_dm=lambda *args: (calls.append(("dm", args)) or (False, "Delivery is unconfirmed; retry is available")),
             retry_pending_private_messages=lambda: (1, 1),
         )
         def fake_send_group(*args):
+            calls.append(("group", args))
             engine.state["global"]["messages"][0]["sendState"] = "Partial · retry"
             return False, "Delivery confirmed for 1 of 2 members; retry the rest"
         engine.send_group_message = fake_send_group
@@ -603,6 +605,8 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.assertFalse(group_result["ok"])
         self.assertEqual(group_result["message_id"], target_id)
         self.assertEqual(group_result["send_state"], "Partial · retry")
+        self.assertEqual(calls[0][1][1], "direct")
+        self.assertEqual(calls[1][1][1], "group")
 
         retry_output = StringIO()
         with patch.object(friends, "FriendsEngine", return_value=engine), \
@@ -3030,6 +3034,151 @@ class PrivateMessagingEngineTests(unittest.TestCase):
         self.assertEqual(opened["message_type"], "group_invite")
         self.assertEqual(opened["group_id"], group["id"])
         self.assertEqual(opened["group_name"], "Secret Ship Crew")
+
+    def test_existing_group_invite_cannot_silently_add_a_message_recipient(self):
+        self.make_friends(self.alice, self.bob)
+        self.make_friends(self.alice, self.carol)
+        outsider = friends.generate_keypair()["public_key"]
+        self.alice.state["global"]["friendships"][outsider] = {
+            "status": "friends", "handle": "Outsider", "avatar": "🦊"
+        }
+        with patch.object(self.alice, "_publish_global_event", return_value=(True, {})):
+            created, result = self.alice.create_group(
+                "Private team", [self.key(self.bob), self.key(self.carol)]
+            )
+        self.assertTrue(created, result)
+        group = next(iter(self.alice.state["global"]["groups"].values()))
+        original_members = set(group["members"])
+
+        forged_group = json.loads(json.dumps(group))
+        forged_group["created_by"] = self.key(self.bob)
+        forged_group["members"][outsider] = {
+            "public_key": outsider, "handle": "Outsider", "avatar": "🦊"
+        }
+        forged_invite = self.bob._legacy_private_event(
+            self.key(self.alice),
+            {"v": 2, "type": "group_invite", "group_id": group["id"], "group": forged_group},
+            [["g", group["id"]]],
+        )
+
+        self.assertFalse(self.alice._ingest_global_dm(forged_invite))
+        self.assertEqual(
+            set(self.alice.state["global"]["groups"][group["id"]]["members"]),
+            original_members,
+        )
+        with patch.object(
+            self.alice, "_legacy_private_event", wraps=self.alice._legacy_private_event
+        ) as build_event, patch.object(self.alice, "_publish_global_event", return_value=(True, {})):
+            sent, message = self.alice.send_group_message(group["id"], "still private")
+        self.assertTrue(sent, message)
+        sent_recipients = {call.args[0] for call in build_event.call_args_list}
+        self.assertEqual(sent_recipients, original_members - {self.key(self.alice)})
+
+    def test_group_creator_cannot_change_existing_roster_without_consent_flow(self):
+        self.make_friends(self.alice, self.bob)
+        self.make_friends(self.alice, self.carol)
+        outsider = friends.generate_keypair()["public_key"]
+        self.bob.state["global"]["friendships"][outsider] = {
+            "status": "friends", "handle": "Outsider", "avatar": "🦊"
+        }
+        with patch.object(self.alice, "_publish_global_event", return_value=(True, {})):
+            created, result = self.alice.create_group(
+                "Private team", [self.key(self.bob), self.key(self.carol)]
+            )
+        self.assertTrue(created, result)
+        group = next(iter(self.alice.state["global"]["groups"].values()))
+        original_group = self.bob._normalize_group(group["id"], group)
+        self.bob.state["global"]["groups"][group["id"]] = original_group
+
+        changed_group = json.loads(json.dumps(group))
+        changed_group["members"][outsider] = {
+            "public_key": outsider, "handle": "Outsider", "avatar": "🦊"
+        }
+        update_event = self.alice._legacy_private_event(
+            self.key(self.bob),
+            {"v": 2, "type": "group_invite", "group_id": group["id"], "group": changed_group},
+            [["g", group["id"]]],
+        )
+
+        self.assertFalse(self.bob._ingest_global_dm(update_event))
+        self.assertEqual(
+            set(self.bob.state["global"]["groups"][group["id"]]["members"]),
+            set(original_group["members"]),
+        )
+
+    def test_group_member_cannot_take_over_creator_identity(self):
+        self.make_friends(self.alice, self.bob)
+        self.make_friends(self.alice, self.carol)
+        with patch.object(self.alice, "_publish_global_event", return_value=(True, {})):
+            created, result = self.alice.create_group(
+                "Private team", [self.key(self.bob), self.key(self.carol)]
+            )
+        self.assertTrue(created, result)
+        group = next(iter(self.alice.state["global"]["groups"].values()))
+        original_creator = group["created_by"]
+        self.bob.state["global"]["groups"][group["id"]] = self.bob._normalize_group(
+            group["id"], group
+        )
+
+        forged_group = json.loads(json.dumps(group))
+        forged_group["created_by"] = self.key(self.bob)
+        forged_invite = self.bob._legacy_private_event(
+            self.key(self.alice),
+            {"v": 2, "type": "group_invite", "group_id": group["id"], "group": forged_group},
+            [["g", group["id"]]],
+        )
+
+        self.assertFalse(self.alice._ingest_global_dm(forged_invite))
+        self.assertEqual(
+            self.alice.state["global"]["groups"][group["id"]]["created_by"],
+            original_creator,
+        )
+
+    def test_private_dm_cli_payload_is_read_from_stdin(self):
+        observed = {}
+
+        class FakeEngine:
+            last_sent_message_id = ""
+            state = {"global": {"messages": []}}
+
+            def send_dm(self, peer, text, media, attachment, is_folder, reply):
+                observed.update(
+                    peer=peer, text=text, media=media, attachment=attachment,
+                    is_folder=is_folder, reply=reply,
+                )
+                return True, "Private message sent"
+
+        payload_text = "private message with newline\nand Unicode ☺"
+        peer_key = "b" * 64
+        output = StringIO()
+        with patch.object(
+            friends.sys, "argv", ["omarchy-friends", "send-dm", peer_key, "-"]
+        ), patch.object(
+            friends.sys, "stdin", StringIO(json.dumps({"text": payload_text}) + "\n")
+        ), patch.object(
+            friends, "FriendsEngine", return_value=FakeEngine()
+        ), redirect_stdout(output):
+            friends.main()
+
+        result = json.loads(output.getvalue())
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(observed["text"], payload_text)
+        self.assertNotIn(payload_text, ["omarchy-friends", "send-dm", peer_key, "-"])
+
+    def test_private_dm_cli_rejects_oversized_stdin_payload(self):
+        output = StringIO()
+        payload = json.dumps({"text": "x" * (friends.MAX_PRIVATE_CLI_PAYLOAD_BYTES + 1)})
+        with patch.object(
+            friends.sys, "argv", ["omarchy-friends", "send-dm", "b" * 64, "-"]
+        ), patch.object(
+            friends.sys, "stdin", StringIO(payload + "\n")
+        ), patch.object(
+            friends, "FriendsEngine", side_effect=AssertionError("must fail before engine startup")
+        ), redirect_stdout(output):
+            friends.main()
+        result = json.loads(output.getvalue())
+        self.assertFalse(result["ok"])
+        self.assertIn("too large", result["message"])
 
 
 if __name__ == "__main__":

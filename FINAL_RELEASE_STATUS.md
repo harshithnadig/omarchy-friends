@@ -1,4 +1,22 @@
-# Omarchy Friends v4.18.1 — release status
+# Omarchy Friends v4.18.2 — release status
+
+## v4.18.2 security hotfix candidate (not published)
+
+- Moves private message, edit, group setup/send, and search payloads from the
+  process command line into a bounded stdin pipe. Legacy CLI argument forms
+  remain supported.
+- Rejects group-invite updates from anyone other than the recorded creator and
+  rejects any membership change to an established group until a recipient
+  consent flow exists. This prevents silent audience changes without changing
+  saved chat history.
+- The canonical release gate passes all 360 tests, `omarchy plugin validate`,
+  and QML lint against installed Omarchy imports. Three hundred sixty
+  tests include local relay integration; these do not prove public relay
+  interoperability or rendered desktop behavior.
+- This candidate is not yet pushed or marketplace-validated. The installed
+  plugin and live desktop have not been modified. Native CUA exposes no desktop
+  app surface in this session, so the panel, chooser, and interactive process
+  stdin behavior remain unverified. Do not call this release-cleared.
 
 ## v4.18.1 forwarding-label security hotfix (merged)
 
@@ -7,18 +25,8 @@
   popup rows with `PlainText`, closing the Marketplace finding that a
   peer-controlled private-group name could otherwise be interpreted as rich
   text and request a remote image.
-- The manifest, Friends engine, and Build Network version are aligned at
-  `4.18.1`. The canonical release gate passes all 354 tests, Omarchy plugin
-  validation, and QML lint on the exact merged source tree. GitHub PR checks
-  passed. Marketplace update validation for this exact commit passed Quattro
-  compatibility; its automated security baseline reports no code findings but
-  requires maintainer review of the documented `sudo pacman` dependency setup.
-- The published Marketplace catalog and installed plugin still report
-  `4.18.0`; no update has been published. The current desktop shell responds to
-  IPC and Friends is enabled, but the Friends panel is not open and CUA exposes
-  no native app surface. Rendered UI, current public-relay interoperability,
-  real two-device attachment exchange, and the full live interaction checklist
-  remain unverified. Do not call this release-cleared.
+- The v4.18.1 source passed its release checks. Its separate marketplace
+  validation and publication state must not be inferred from this candidate.
 
 ## v4.18.0 previous main release (2026-10-04; superseded by v4.18.1)
 
