@@ -787,6 +787,136 @@ class PrivateMessagingEngineTests(unittest.TestCase):
                         self.assertNotIn("group payload stays private", serialized)
                         self.assertNotIn(group["id"], serialized)
 
+    def test_forward_copies_full_content_into_a_fresh_encrypted_direct_message(self):
+        self.make_friends(self.alice, self.carol)
+        self.advertise_modern(self.alice, self.carol)
+        content = b"forwarded file bytes"
+        source = {
+            "id": "a" * 64, "public_key": self.key(self.bob), "incoming": True,
+            "text": "x" * 2000,
+            "media": [{"url": "https://example.org/a.png", "kind": "image"},
+                      {"url": "https://example.org/b.mp4", "kind": "video"}],
+            "attachments": [{"name": "file.txt", "data": base64.b64encode(content).decode(),
+                             "sha256": hashlib.sha256(content).hexdigest()}],
+            "reply_to": {"id": "b" * 64, "text": "private quote"},
+            "group_id": "original-private-group", "group_name": "private source name",
+        }
+        self.alice.state["global"]["messages"].append(source)
+        original = json.loads(json.dumps(source))
+        sent = []
+        with patch.object(self.alice, "_publish_event_to_relays", side_effect=lambda event, relays: (sent.append(event) or True, {})), \
+                patch.object(self.alice, "_prepare_private_attachment", side_effect=AssertionError("must use saved content")):
+            ok, message = self.alice.forward_private_message(source["id"], "friend", self.key(self.carol))
+        self.assertTrue(ok, message)
+        received = self.carol._global_dm_from_event(sent[0])
+        self.assertEqual(received["text"], source["text"])
+        self.assertEqual(received["media"], source["media"])
+        self.assertEqual(base64.b64decode(received["attachments"][0]["data"]), content)
+        self.assertEqual(received["public_key"], self.key(self.alice))
+        self.assertNotEqual(received["id"], source["id"])
+        self.assertFalse(received.get("reply_to"))
+        self.assertFalse(received.get("group_id"))
+        self.assertEqual(source, original)
+        for event in sent:
+            self.assertNotIn("original-private-group", json.dumps(event))
+            self.assertNotIn("private quote", json.dumps(event))
+
+    def test_forward_attachment_only_to_group_keeps_the_encrypted_blob(self):
+        self.make_friends(self.alice, self.bob)
+        self.make_friends(self.alice, self.carol)
+        self.advertise_modern(self.alice, self.bob)
+        self.advertise_modern(self.alice, self.carol)
+        group_id = "forward-target-group"
+        self.alice.state["global"]["groups"][group_id] = {
+            "id": group_id, "name": "Target", "members": {
+                self.key(self.alice): {}, self.key(self.bob): {}, self.key(self.carol): {}}}
+        attachment = {
+            "transport": "blossom", "name": "folder.zip", "content_type": "application/zip",
+            "size": 32, "cipher_size": 48, "sha256": "c" * 64, "plain_sha256": "d" * 64,
+            "url": "https://example.org/encrypted", "is_archive": True,
+            "key": base64.urlsafe_b64encode(b"k" * 32).decode().rstrip("="),
+            "nonce": base64.urlsafe_b64encode(b"n" * 12).decode().rstrip("="),
+        }
+        self.alice.state["global"]["messages"].append({
+            "id": "e" * 64, "text": "", "attachments": [attachment]})
+        sent = []
+        with patch.object(self.alice, "_publish_event_to_relays", side_effect=lambda event, relays: (sent.append(event) or True, {})), \
+                patch.object(self.alice, "_upload_private_attachment", side_effect=AssertionError("must not upload again")):
+            ok, message = self.alice.forward_private_message("e" * 64, "group", group_id)
+        self.assertTrue(ok, message)
+        self.assertEqual(len(sent), 2)
+        outgoing = next(item for item in self.alice.state["global"]["messages"] if item["id"] == self.alice.last_sent_message_id)
+        self.assertEqual(outgoing["group_id"], group_id)
+        self.assertEqual(outgoing["attachments"][0]["key"], attachment["key"])
+        self.assertTrue(outgoing["attachments"][0]["is_archive"])
+
+    def test_forward_rejects_missing_deleted_or_invalid_sources_without_publishing(self):
+        self.make_friends(self.alice, self.bob)
+        self.alice.state["global"]["messages"].extend([
+            {"id": "a" * 64, "text": "deleted", "deleted": True},
+            {"id": "e" * 64, "text": "hidden"},
+            {"id": "b" * 64, "text": "caption", "attachments": [{"data": "invalid"}]},
+            {"id": "c" * 64, "text": "content"},
+            {"id": "d" * 64, "text": "bad file", "attachments": [{
+                "transport": "blossom", "url": "https://example.org/blob",
+                "size": -1, "cipher_size": 16, "sha256": "a" * 64, "plain_sha256": "b" * 64,
+                "key": base64.urlsafe_b64encode(b"k" * 32).decode().rstrip("="),
+                "nonce": base64.urlsafe_b64encode(b"n" * 12).decode().rstrip("="),
+            }]},
+        ])
+        self.alice.state["global"]["locally_hidden_message_ids"] = ["e" * 64]
+        with patch.object(self.alice, "_publish_global_event", side_effect=AssertionError("must not send")), \
+                patch.object(self.alice, "_publish_event_to_relays", side_effect=AssertionError("must not send")):
+            for source, kind, target in [("f" * 64, "friend", self.key(self.bob)),
+                                         ("a" * 64, "friend", self.key(self.bob)),
+                                         ("e" * 64, "friend", self.key(self.bob)),
+                                         ("b" * 64, "friend", self.key(self.bob)),
+                                         ("d" * 64, "friend", self.key(self.bob)),
+                                         ("c" * 64, "unknown", self.key(self.bob)),
+                                         ("c" * 64, "friend", self.key(self.carol))]:
+                ok, _ = self.alice.forward_private_message(source, kind, target)
+                self.assertFalse(ok)
+                self.assertEqual(self.alice.last_sent_message_id, "")
+
+    def test_identical_direct_and_group_sends_in_one_second_have_distinct_ids(self):
+        self.make_friends(self.alice, self.bob)
+        self.advertise_modern(self.alice, self.bob)
+        group_id = "same-second-group"
+        self.alice.state["global"]["groups"][group_id] = {
+            "id": group_id, "name": "Target", "members": {
+                self.key(self.alice): {}, self.key(self.bob): {}}}
+        sent = []
+        ids = []
+        frozen_time = friends.now_seconds()
+        with patch.object(friends.time, "time", return_value=frozen_time), \
+                patch.object(self.alice, "_publish_event_to_relays", side_effect=lambda event, relays: (sent.append(event) or True, {})):
+            for send in (lambda: self.alice.send_dm(self.key(self.bob), "same text"),
+                         lambda: self.alice.send_group_message(group_id, "same text")):
+                for _ in range(2):
+                    ok, message = send()
+                    self.assertTrue(ok, message)
+                    ids.append(self.alice.last_sent_message_id)
+        self.assertEqual(len(set(ids)), 4)
+        outgoing = [item for item in self.alice.state["global"]["messages"] if item["id"] in ids]
+        self.assertEqual(len(outgoing), 4)
+        self.assertEqual({item["text"] for item in outgoing}, {"same text"})
+
+    def test_forward_keeps_old_peer_compatibility_and_cli_returns_exact_new_id(self):
+        self.make_friends(self.alice, self.bob)
+        self.alice.state["global"]["messages"].append({"id": "a" * 64, "text": "forwarded text"})
+        sent = []
+        output = StringIO()
+        with patch.object(friends, "FriendsEngine", return_value=self.alice), \
+                patch.object(friends.sys, "argv", ["omarchy-friends", "forward-message", "a" * 64, "friend", self.key(self.bob)]), \
+                patch.object(self.alice, "_publish_global_event", side_effect=lambda event: (sent.append(event) or True, {})), \
+                redirect_stdout(output):
+            friends.main()
+        result = json.loads(output.getvalue())
+        self.assertTrue(result["ok"], result["message"])
+        self.assertEqual(result["message_id"], self.alice.last_sent_message_id)
+        self.assertEqual(result["send_state"], "Sent")
+        self.assertEqual(self.bob._global_dm_from_event(sent[0])["text"], "forwarded text")
+
     def make_friends(self, left, right):
         lkey, rkey = self.key(left), self.key(right)
         left.state["global"]["friendships"][rkey] = {

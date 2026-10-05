@@ -666,7 +666,7 @@ def normalize_private_attachments(value):
                 or (not standard_nip17 and not re.fullmatch(r"[0-9a-f]{64}", plain_checksum))
                 or (standard_nip17 and plain_checksum and not re.fullmatch(r"[0-9a-f]{64}", plain_checksum))
                 or len(key) != 32 or len(nonce) != 12 or cipher_size < 16
-                or cipher_size > MAX_REMOTE_ATTACHMENT_BYTES + 16 or size > MAX_REMOTE_ATTACHMENT_BYTES
+                or cipher_size > MAX_REMOTE_ATTACHMENT_BYTES + 16 or size < 0 or size > MAX_REMOTE_ATTACHMENT_BYTES
             ):
                 continue
             result.append({
@@ -4551,7 +4551,45 @@ class FriendsEngine:
             "text": trim_text(target.get("text") or "Attachment", 240),
         }
 
-    def send_dm(self, public_key, text, media_url="", attachment_path="", attachment_is_folder=False, reply_to=None):
+    def forward_private_message(self, message_id, target_kind, target_id):
+        """Forward saved content through a fresh encrypted send, without attribution."""
+        self.last_sent_message_id = ""
+        message_id = trim_text(message_id, 64).lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", message_id):
+            return False, "Choose a saved message to forward"
+        hidden_ids = set(self.state.get("global", {}).get("locally_hidden_message_ids", []))
+        if message_id in hidden_ids:
+            return False, "That message is no longer available"
+        source = next((item for item in self.state.get("global", {}).get("messages", [])
+                       if isinstance(item, dict) and item.get("id") == message_id), None)
+        if not source or source.get("deleted"):
+            return False, "That message is no longer available"
+        text = trim_text(source.get("text"), 2000)
+        media = normalize_media_items(source.get("media"))
+        attachments = normalize_private_attachments(source.get("attachments"))
+        if source.get("attachments") and not attachments:
+            return False, "That attachment cannot be forwarded"
+        if not text and not media and not attachments:
+            return False, "That message has no content to forward"
+        if target_kind == "friend":
+            return self.send_dm(target_id, text, media, _forward_attachments=attachments)
+        if target_kind == "group":
+            group = self.state.get("global", {}).get("groups", {}).get(trim_text(target_id, 40).lower())
+            if not group or self._global_identity()["public_key"] not in group.get("members", {}):
+                return False, "That group is no longer available"
+            return self.send_group_message(target_id, text, media, _forward_attachments=attachments)
+        return False, "Choose a direct chat or private group"
+
+    def _attachments_for_send(self, attachment_path, attachment_is_folder, forwarded_attachments):
+        if forwarded_attachments is not None:
+            return normalize_private_attachments(forwarded_attachments)
+        attachment = self._prepare_private_attachment(attachment_path, attachment_is_folder)
+        return [attachment] if attachment else []
+
+    def send_dm(
+        self, public_key, text, media_url="", attachment_path="",
+        attachment_is_folder=False, reply_to=None, *, _forward_attachments=None,
+    ):
         self.last_sent_message_id = ""
         public_key = trim_text(public_key, 64).lower()
         if self.state.setdefault("global", {}).setdefault("friendships", {}).get(public_key, {}).get("status") != "friends":
@@ -4562,10 +4600,9 @@ class FriendsEngine:
         text = trim_text(text, 2000)
         media = normalize_media_items(media_url)
         try:
-            attachment = self._prepare_private_attachment(attachment_path, attachment_is_folder)
+            attachments = self._attachments_for_send(attachment_path, attachment_is_folder, _forward_attachments)
         except ValueError as error:
             return False, str(error)
-        attachments = [attachment] if attachment else []
         if not text and not media and not attachments:
             return False, "Write a message or add a media link first"
         wire_text = text or ("Shared " + attachments[0]["name"] if attachments else "")
@@ -4574,7 +4611,7 @@ class FriendsEngine:
         delivered = False
         try:
             if self._supports_nip17(public_key):
-                envelope = {"v": 3, "type": "direct", "text": wire_text, "media": media, "attachments": attachments, "reply_to": reply}
+                envelope = {"v": 3, "type": "direct", "text": wire_text, "media": media, "attachments": attachments, "reply_to": reply, "client_message_id": uuid.uuid4().hex}
                 file_message = bool(attachments and attachments[0].get("transport") == "blossom" and self._supports_nip17_file_messages(public_key))
                 rumor = create_nip17_rumor(
                     identity["secret_key"],
@@ -5456,7 +5493,10 @@ class FriendsEngine:
         self.save_state()
         return True, f"Group {name} created"
 
-    def send_group_message(self, group_id, text, media_url="", attachment_path="", attachment_is_folder=False, reply_to=None):
+    def send_group_message(
+        self, group_id, text, media_url="", attachment_path="",
+        attachment_is_folder=False, reply_to=None, *, _forward_attachments=None,
+    ):
         self.last_sent_message_id = ""
         group_id = trim_text(group_id, 40).lower()
         group = self.state.setdefault("global", {}).setdefault("groups", {}).get(group_id)
@@ -5468,10 +5508,9 @@ class FriendsEngine:
         text = trim_text(text, 2000)
         media = normalize_media_items(media_url)
         try:
-            attachment = self._prepare_private_attachment(attachment_path, attachment_is_folder)
+            attachments = self._attachments_for_send(attachment_path, attachment_is_folder, _forward_attachments)
         except ValueError as error:
             return False, str(error)
-        attachments = [attachment] if attachment else []
         if not text and not media and not attachments:
             return False, "Write a message or add a media link first"
         wire_text = text or ("Shared " + attachments[0]["name"] if attachments else "")
@@ -5494,6 +5533,7 @@ class FriendsEngine:
         envelope = {
             "v": 3,
             "type": "group_message",
+            "client_message_id": uuid.uuid4().hex,
             "group_id": group_id,
             "text": wire_text,
             "media": media,
@@ -8516,6 +8556,13 @@ def main():
     elif command == "accept-friend" and len(sys.argv) >= 3:
         ok, message = engine.accept_friend_request(sys.argv[2])
         print_result(ok, message)
+    elif command == "forward-message" and len(sys.argv) == 5:
+        ok, message = engine.forward_private_message(sys.argv[2], sys.argv[3], sys.argv[4])
+        message_id = engine.last_sent_message_id
+        message_state = next((item.get("sendState", "")
+                              for item in engine.state.get("global", {}).get("messages", [])
+                              if item.get("id") == message_id), "") if message_id else ""
+        print_result(ok, message, message_id=message_id, send_state=message_state)
     elif command == "send-dm" and len(sys.argv) >= 4:
         raw_message = " ".join(sys.argv[3:])
         message_text = raw_message

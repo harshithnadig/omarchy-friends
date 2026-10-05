@@ -576,6 +576,14 @@ Item {
         })
     }
 
+    function forwardMessage(messageId, targetKind, targetId, callback) {
+        runAction([root.binPath, "forward-message", messageId || "", targetKind || "", targetId || ""], function(output) {
+            var result = root.reportResult(output, "Message could not be forwarded")
+            if (callback) callback(result.ok === true, result)
+            root.refresh()
+        })
+    }
+
     function saveAttachment(messageId, index) {
         runAction([root.binPath, "save-attachment", messageId || "", String(index || 0)], function(output) {
             root.reportResult(output, "Attachment saved to Downloads")
