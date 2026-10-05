@@ -1,5 +1,22 @@
 # Omarchy Friends v4.18.0 — release candidate status
 
+## v4.18.1 forwarding-label security hotfix candidate (PR #19)
+
+- Friends V3's forwarding target selector renders both its selected value and
+  popup rows with `PlainText`. This addresses the Marketplace review finding
+  that a peer-controlled private-group name could otherwise be interpreted as
+  rich text and request a remote image. The change does not read or alter chat
+  storage.
+- The manifest, Friends engine, and Build Network version are aligned at
+  `4.18.1`. The release gate passed all 354 tests, Omarchy plugin validation,
+  and QML lint on the candidate; the focused plain-text, chat-startup, and
+  large-chat-list regressions also pass.
+- This is an unmerged candidate. The installed plugin remains `4.18.0` and the
+  Marketplace listing has not been updated. Marketplace request #8165 still
+  requires maintainer security review. CUA has no attached Omarchy window, so
+  rendered forwarding-menu behavior and the full real-system release checklist
+  remain unverified. Do not call this release-cleared or publish it yet.
+
 ## v4.18.0 current candidate (2026-10-04)
 
 - Adds direct-chat typing indicators for connected, compatible Friends peers.
