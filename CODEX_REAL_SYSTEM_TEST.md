@@ -1,8 +1,8 @@
-# Codex real-system validation — Omarchy Friends v4.18.0 candidate
+# Codex real-system validation — Omarchy Friends v4.18.1 candidate
 
 Source: `main` at the exact release-candidate commit under test.
 
-This checklist validates the v4.18.0 candidate, including the previous v4.17, v4.16 and v4.15 feature sets. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
+This checklist validates the v4.18.1 candidate, including the previous v4.18.0, v4.17, v4.16 and v4.15 feature sets. Fix only concrete issues demonstrated on the actual Omarchy machine, public relay behavior, or rendered QML.
 
 Merging source into `main` does not clear a marketplace release. This
 candidate's PRs #8 and #9 were merged after explicit user authorization; the
@@ -75,6 +75,7 @@ This is a release gate, not cosmetic preference.
 - Accepting a request opens that person's private chat after state refresh.
 - Message composer has one primary field and one attachment icon. Opening it offers file, folder and link choices; file/folder selections come from the system picker and appear staged in the composer before sending.
 - In a direct chat, **More → Verify security code** displays a stable pairwise code; independently open it on both sides and confirm it matches through a separate trusted channel. Changing either identity key must change the code.
+- Forward to a disposable private group whose name contains an `<img src="http://127.0.0.1:<test-port>/probe">` string. The selected target and popup row must display the name literally, and a local probe server must receive no request.
 - Separate `Link`, `File` and `Folder` buttons are absent from the chat composer; the input expands to use their freed space.
 - Focus and Build-together actions stay in the selected conversation header, not repeated on every World card.
 
@@ -162,7 +163,7 @@ python3 bin/build_network_app_v4.py register-uri | python3 -m json.tool
 
 ## 6. Two-current-client private messaging / inbox-relay test — REQUIRED
 
-Use two isolated v4.18.0 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
+Use two isolated v4.18.1 Friends installations/state homes, A and B. A third current instance C is useful for the group test.
 
 ### 6.1 Prove NIP-17 inbox metadata on real relays
 
