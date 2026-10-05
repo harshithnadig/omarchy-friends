@@ -71,7 +71,7 @@ from omarchy_friends_private import (  # noqa: E402
 
 BROADCAST_PORT = 42424
 PROTOCOL_VERSION = "omarchy-friends/v2"
-PLUGIN_VERSION = "4.18.0"
+PLUGIN_VERSION = "4.18.1"
 OFFICIAL_MANIFEST_URL = "https://raw.githubusercontent.com/harshithnadig/omarchy-friends/main/manifest.json"
 OFFICIAL_RELEASE_CHECK_SECONDS = 6 * 60 * 60
 OFFICIAL_RELEASE_RETRY_SECONDS = 30 * 60
