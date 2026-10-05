@@ -3071,6 +3071,27 @@ KeyboardPanel {
                     textRole: "label"
                     onCurrentIndexChanged: root.forwardTargetIndex = currentIndex
                     displayText: currentIndex >= 0 && currentIndex < count ? textAt(currentIndex) : "Choose a chat"
+                    contentItem: PlainText {
+                        leftPadding: Style.space(12)
+                        rightPadding: Style.space(12)
+                        text: forwardTargetPicker.displayText
+                        color: root.ink
+                        font.family: root.uiFontFamily
+                        font.pixelSize: Style.font.caption
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+                    delegate: ItemDelegate {
+                        width: forwardTargetPicker.width
+                        contentItem: PlainText {
+                            text: modelData.label
+                            color: root.ink
+                            font.family: root.uiFontFamily
+                            font.pixelSize: Style.font.caption
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                        }
+                    }
                 }
                 Row {
                     width: parent.width
