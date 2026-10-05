@@ -31,7 +31,11 @@ class ModernFriendsUiContractTests(unittest.TestCase):
     def test_chat_header_and_empty_state_keep_copy_compact(self):
         panel = self.read("FriendsPanelV3.qml")
         self.assertIn('text: "Opened conversations"', panel)
-        self.assertIn('text: "Pick a friend to start chatting."', panel)
+        self.assertIn('"Pick a friend to start chatting."', panel)
+        self.assertIn('chatListEmptyState() === "empty"', panel)
+        self.assertIn('chatListEmptyState() === "error"', panel)
+        self.assertIn('"Loading saved conversations…"', panel)
+        self.assertIn('"No chats yet"', panel)
         self.assertIn('visible: root.selectedFriend() !== null && !root.selectedFriend().legacy_archive; width: visible ? implicitWidth : 0;', panel)
         self.assertIn('visible: (root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null; width: visible ? implicitWidth : 0;', panel)
         self.assertIn('id: chatMoreButton', panel)
