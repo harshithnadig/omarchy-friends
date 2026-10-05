@@ -422,7 +422,7 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         panel = self.read("FriendsPanelV3.qml")
         service = self.read("Service.qml")
         engine = self.read("bin/omarchy-friends")
-        self.assertIn('root.messages[u].legacy_unlinked === true', panel)
+        self.assertIn('root.messagesByConversation["unlinked:local"]', panel)
         self.assertIn('handle: "Recovered messages"', panel)
         self.assertIn('"Recipient unavailable · saved on this device"', panel)
         self.assertIn('root.service.loadConversationHistory(historyKind, historyId, targetOffset', panel)
