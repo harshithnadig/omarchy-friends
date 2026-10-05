@@ -920,14 +920,11 @@ KeyboardPanel {
     }
 
     function beginForward(message) {
-        var mediaUrl = message && message.media && message.media.length
-            ? String(message.media[0].url || message.media[0].href || "")
-            : ""
-        if (!message || message.deleted || (!String(message.text || "").trim() && !mediaUrl)) {
-            root.showNotice("Only messages with text or a shared link can be forwarded")
+        if (!message || message.deleted || !/^[0-9a-f]{64}$/i.test(String(message.id || ""))) {
+            root.showNotice("Choose a saved message to forward")
             return
         }
-        root.forwardDraft = { text: String(message.text || "").trim(), mediaUrl: mediaUrl }
+        root.forwardDraft = { messageId: String(message.id) }
         root.forwardTargetIndex = 0
         root.forwardDialog.open()
     }
@@ -951,14 +948,16 @@ KeyboardPanel {
         var targets = root.forwardTargets()
         if (root.forwardTargetIndex < 0 || root.forwardTargetIndex >= targets.length) return
         var target = targets[root.forwardTargetIndex]
-        var text = root.forwardDraft.text ? "Forwarded:\n" + root.forwardDraft.text : ""
-        var mediaUrl = root.forwardDraft.mediaUrl || ""
         root.forwardingMessage = true
-        function onForwarded(ok) {
+        function onForwarded(ok, result) {
             root.forwardingMessage = false
-            root.forwardDialog.close()
-            root.forwardDraft = null
-            root.showNotice(ok ? "Message forwarded" : "Forward was not confirmed; check the target chat before retrying")
+            if (ok || (result && result.message_id)) {
+                root.forwardDialog.close()
+                root.forwardDraft = null
+            }
+            var notice = ok ? "Message forwarded"
+                : (result && result.message ? result.message : "Forward was not confirmed; check the target chat before retrying")
+            root.showNotice(notice)
             if (ok && target.kind === "friend") {
                 for (var i = 0; i < root.friendsList().length; i++) {
                     if (root.friendsList()[i].public_key === target.id) { root.chooseFriend(root.friendsList()[i]); break }
@@ -969,8 +968,7 @@ KeyboardPanel {
                 }
             }
         }
-        if (target.kind === "friend") root.service.sendDm(target.id, text, mediaUrl, onForwarded)
-        else root.service.sendGroupMessage(target.id, text, mediaUrl, onForwarded)
+        root.service.forwardMessage(root.forwardDraft.messageId, target.kind, target.id, onForwarded)
     }
 
     function chooseFriend(friend, keepSearchTarget, historyOffset) {
@@ -2065,7 +2063,7 @@ KeyboardPanel {
                                                         }
                                                         MenuItem {
                                                             text: "Forward…"
-                                                            visible: !modelData.deleted && (!!String(modelData.text || "").trim() || (modelData.media && modelData.media.length > 0)) && String(modelData.id || "").indexOf("local_") !== 0
+                                                            visible: !modelData.deleted && (!!String(modelData.text || "").trim() || (modelData.media && modelData.media.length > 0) || (modelData.attachments && modelData.attachments.length > 0)) && String(modelData.id || "").indexOf("local_") !== 0
                                                             onTriggered: root.beginForward(messageDelegate.modelData)
                                                         }
                                                         MenuItem {
@@ -3044,7 +3042,7 @@ KeyboardPanel {
                 spacing: Style.space(10)
                 PlainText {
                     width: parent.width
-                    text: "Choose an existing chat. Text and shared links are copied; attached files and the original sender are not included."
+                    text: "Choose an existing chat. Text, media links and attachments are shared. Reply context and original sender details are omitted."
                     color: root.mutedInk
                     wrapMode: Text.WordWrap
                     font.family: root.uiFontFamily
