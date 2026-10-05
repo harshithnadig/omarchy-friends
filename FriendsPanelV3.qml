@@ -74,7 +74,7 @@ KeyboardPanel {
         return root.worldRelayCount > 0 ? "Connected to relays" : "No relay connection"
     }
     readonly property color globalConnectionColor: root.worldRelaysConnected ? root.success : (root.globalConnectionText === "Checking relays" ? root.mutedInk : root.warning)
-    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.18.0", latest: "4.18.0" })
+    readonly property var updateInfo: service && service.updateInfo ? service.updateInfo : ({ available: false, current: "4.18.2", latest: "4.18.2" })
     readonly property string reportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20report"
     readonly property string featureIdeaUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Feature%20idea"
     readonly property string bugReportUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20bug"
@@ -1434,7 +1434,7 @@ KeyboardPanel {
     }
 
     function formatVersion() {
-        return root.updateInfo.current || "4.18.0"
+        return root.updateInfo.current || "4.18.2"
     }
 
     Item {

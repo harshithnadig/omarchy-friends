@@ -144,4 +144,4 @@ Use the visible **Update** action when you choose to update. The active service 
 
 ## If something looks wrong
 
-For the v4.18.0 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility, attachments and invite handling.
+For the v4.18.2 release candidate, use `CODEX_REAL_SYSTEM_TEST.md`. It contains the real-machine checklist for Chats, Requests, World, Circles, Me, Build Network, relay interoperability, private messaging, legacy compatibility, attachments and invite handling.

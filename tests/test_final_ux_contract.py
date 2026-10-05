@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import os
 import unittest
 
@@ -141,6 +142,13 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertNotIn("onRejected:", friends)
         self.assertIn("id: modernPanelLoader\n        active: true", bar)
         self.assertNotIn("FolderListModel", friends)
+
+    def test_chat_version_fallback_matches_current_release(self):
+        friends = read("FriendsPanelV3.qml")
+        manifest = json.loads((ROOT / "manifest.json").read_text())
+        version = manifest["version"]
+        self.assertIn(f'current: "{version}", latest: "{version}"', friends)
+        self.assertIn(f'return root.updateInfo.current || "{version}"', friends)
 
     def test_private_groups_remain_visible_before_first_message(self):
         friends = read("FriendsPanelV3.qml")

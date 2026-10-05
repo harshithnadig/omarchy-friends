@@ -10,7 +10,7 @@ This protects copied state data when the Secret Service is not included. It does
 
 ## Supported release
 
-Security fixes are targeted at the current `4.16.x` line once it is released. Older experimental/demo builds are not supported.
+Security fixes are targeted at the current `4.18.x` release line. Older experimental/demo builds are not supported.
 
 ## Important boundaries
 
