@@ -53,6 +53,8 @@ Item {
     property var globalMessages: []
     property var globalMessageSummaries: []
     property var globalMessageCounts: ({})
+    // Composer contents are private, session-only UI state, never relay data.
+    property var conversationDrafts: ({})
     property var activeHistoryMessages: []
     property string activeHistoryKey: ""
     property int activeHistoryTotal: 0

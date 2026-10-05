@@ -87,6 +87,8 @@ Typing indicators are enabled by default for direct chats with compatible, conne
 
 Chat rows show per-conversation unread counts using encrypted local read cursors. Opening a chat marks its current messages read on this device. This local unread tracking is separate from the optional encrypted read receipts described above.
 
+The V3 composer keeps a separate draft for each conversation, including text, media links, attachments, replies and edits. Switching chats or recreating the panel restores that conversation's draft during the current shell session. Drafts remain in memory; restarting the shell clears them.
+
 Pin up to 20 direct or group conversations from the chat header. Pins are stored in the encrypted local state and sort ahead of recent conversations; they are not synced to other devices.
 
 Mute a direct or group conversation from its header to suppress new-message notifications on this device. Messages remain in the chat and still count as unread; mute preferences stay in encrypted local state and are not synced.
