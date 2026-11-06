@@ -6,13 +6,15 @@ import "."
 Item {
     id: root
 
+    FriendsPalette { id: palette }
+
     property alias text: input.text
     property string placeholder: ""
     property string accessibleName: ""
     property bool multiline: false
     property bool readOnly: false
-    property color accentColor: "#8b7cff"
-    property color coolTint: "#55d9ff"
+    property color accentColor: palette.primary
+    property color coolTint: palette.tertiary
     signal accepted()
     signal edited(string value)
 
@@ -20,12 +22,12 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Style.space(10)
-        color: input.activeFocus ? "#18232d" : "#101820"
+        radius: Style.space(16)
+        color: input.activeFocus ? palette.surfaceContainerHighest : palette.surfaceContainerHigh
         border.width: 1
         border.color: input.activeFocus
             ? root.accentColor
-            : "#2a3641"
+            : palette.outlineVariant
     }
 
     TextInput {
@@ -34,9 +36,9 @@ Item {
         Accessible.name: root.accessibleName || root.placeholder || "Text field"
         anchors.fill: parent
         anchors.margins: Style.space(11)
-        color: "#f2f5ff"
+        color: palette.onSurface
         selectionColor: root.accentColor
-        selectedTextColor: "white"
+        selectedTextColor: palette.onColor(root.accentColor)
         font.family: "sans-serif"
         font.pixelSize: Style.font.caption
         readOnly: root.readOnly
@@ -49,7 +51,7 @@ Item {
             visible: input.text === "" && !input.activeFocus
             anchors.verticalCenter: parent.verticalCenter
             text: root.placeholder
-            color: "#7c859f"
+            color: palette.onSurfaceVariant
             font.family: "sans-serif"
             font.pixelSize: Style.font.caption
         }
@@ -63,9 +65,9 @@ Item {
         anchors.margins: Style.space(5)
         text: root.multiline ? input.text : ""
         onTextChanged: if (root.multiline && input.text !== text) input.text = text
-        color: "#f2f5ff"
+        color: palette.onSurface
         placeholderText: root.placeholder
-        placeholderTextColor: "#7c859f"
+        placeholderTextColor: palette.onSurfaceVariant
         wrapMode: TextArea.Wrap
         background: null
         font.family: "sans-serif"

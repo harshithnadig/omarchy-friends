@@ -133,7 +133,7 @@ BarWidget {
         bar: root.bar
         horizontalMargin: 6
         active: (root.service && root.service.cowork && root.service.cowork.active) || (root.service && root.service.globalFocus && root.service.globalFocus.active)
-        activeColor: "#7c6cff"
+        activeColor: Color.accent
         text: {
             if (root.service && root.service.cowork && root.service.cowork.active) {
                 var s = root.service.cowork.remaining_seconds || 0

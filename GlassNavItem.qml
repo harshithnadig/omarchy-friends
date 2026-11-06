@@ -5,14 +5,16 @@ import "."
 Item {
     id: root
 
+    FriendsPalette { id: palette }
+
     property string text: ""
     property string icon: ""
     property string badge: ""
     property string accessibleName: ""
     property bool selected: false
     property bool enabled: true
-    property color accentColor: "#8b7cff"
-    property color coolTint: "#55d9ff"
+    property color accentColor: palette.primary
+    property color coolTint: palette.tertiary
     signal clicked()
 
     implicitHeight: Style.space(42)
@@ -31,21 +33,14 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Style.space(10)
-        color: root.selected ? "#222a35" : (root.activeFocus || hover.hovered ? "#1a232d" : "transparent")
+        radius: Style.space(18)
+        color: root.selected
+            ? palette.mix(palette.surfaceContainer, root.accentColor, 0.18)
+            : root.activeFocus || hover.hovered
+                ? palette.surfaceContainerHigh
+                : "transparent"
         border.width: root.activeFocus ? 2 : (root.selected ? 1 : 0)
-        border.color: root.activeFocus ? root.coolTint : root.accentColor
-
-        Rectangle {
-            visible: root.selected
-            width: Style.space(3)
-            height: parent.height - Style.space(14)
-            radius: width / 2
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(4)
-            anchors.verticalCenter: parent.verticalCenter
-            color: root.accentColor
-        }
+        border.color: root.activeFocus ? root.coolTint : root.selected ? root.accentColor : palette.outlineVariant
     }
 
     Row {
@@ -60,7 +55,7 @@ Item {
             width: Style.space(20)
             horizontalAlignment: Text.AlignHCenter
             text: root.icon
-            color: root.selected || root.activeFocus ? "#f3f1ff" : "#aab5bf"
+            color: root.selected || root.activeFocus ? root.accentColor : palette.onSurfaceVariant
             font.family: "sans-serif"
             font.pixelSize: Style.font.bodySmall
         }
@@ -68,7 +63,7 @@ Item {
         PlainText {
             width: parent.width - Style.space(20) - badgeBox.width - Style.space(18)
             text: root.text
-            color: root.selected || root.activeFocus ? "#f5f6f8" : "#c2cbd3"
+            color: root.selected || root.activeFocus ? palette.onSurface : palette.onSurfaceVariant
             font.family: "sans-serif"
             font.pixelSize: Style.font.caption
             font.bold: root.selected || root.activeFocus
@@ -81,14 +76,14 @@ Item {
             width: visible ? Math.max(Style.space(22), badgeText.implicitWidth + Style.space(10)) : 0
             height: Style.space(22)
             radius: height / 2
-            color: root.selected ? root.accentColor : "#29333e"
+            color: root.selected ? root.accentColor : palette.surfaceContainerHighest
             border.width: 1
-            border.color: root.selected ? root.accentColor : "#394550"
+            border.color: root.selected ? root.accentColor : palette.outlineVariant
             PlainText {
                 id: badgeText
                 anchors.centerIn: parent
                 text: root.badge
-                color: "white"
+                color: root.selected ? palette.onColor(root.accentColor) : palette.onSurface
                 font.family: "sans-serif"
                 font.pixelSize: Style.font.caption
                 font.bold: true

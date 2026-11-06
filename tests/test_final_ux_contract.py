@@ -308,13 +308,18 @@ class FinalUxContractTests(unittest.TestCase):
     def test_primary_glass_actions_are_keyboard_reachable(self):
         for path in ("GlassButton.qml", "GlassNavItem.qml", "GlassPill.qml"):
             text = read(path)
-            self.assertIn("activeFocusOnTab: root.enabled || root.activeFocus", text, path)
+            if path == "GlassPill.qml":
+                self.assertIn("activeFocusOnTab: (root.enabled && !root.displayOnly) || root.activeFocus", text, path)
+                self.assertIn("Accessible.role: root.displayOnly ? Accessible.StaticText : Accessible.Button", text, path)
+            else:
+                self.assertIn("activeFocusOnTab: root.enabled || root.activeFocus", text, path)
             self.assertIn("Keys.onPressed", text, path)
             self.assertIn("Qt.Key_Return", text, path)
             self.assertIn("Qt.Key_Enter", text, path)
             self.assertIn("Qt.Key_Space", text, path)
             self.assertIn("root.forceActiveFocus()", text, path)
-            self.assertIn("Accessible.role: Accessible.Button", text, path)
+            if path != "GlassPill.qml":
+                self.assertIn("Accessible.role: Accessible.Button", text, path)
             self.assertIn("Accessible.name:", text, path)
 
     def test_popup_surfaces_prime_keyboard_focus_for_every_fallback(self):
@@ -346,7 +351,8 @@ class FinalUxContractTests(unittest.TestCase):
         self.assertIn("visible: root.activeFocus", button)
         self.assertIn("border.width: 2", button)
         self.assertIn("border.color: root.coolTint", button)
-        self.assertIn("border.width: root.activeFocus ? 2 : 1", pill)
+        self.assertIn("border.width: root.activeFocus ? 2", pill)
+        self.assertIn("border.color: root.activeFocus ? root.coolTint", pill)
 
     def test_build_tabs_use_keyboard_accessible_shared_control(self):
         build = read("BuildNetworkPanelV3.qml")

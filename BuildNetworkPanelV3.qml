@@ -8,6 +8,8 @@ import "."
 KeyboardPanel {
     id: root
 
+    FriendsPalette { id: palette }
+
     readonly property string uiFontFamily: "sans-serif"
     property var hostWidget: null
     anchorItem: hostWidget && hostWidget.button ? hostWidget.button : null
@@ -16,15 +18,12 @@ KeyboardPanel {
     open: hostWidget ? hostWidget.buildCardOpen === true : false
     focusTarget: syncButton
 
-    // Friends owns a stable cool product palette instead of inheriting every
-    // Omarchy theme hue. This keeps Build Network visually consistent with
-    // FriendsPanelV2 even on red/gold/green desktop themes.
-    readonly property color fg: "#f3f5ff"
-    readonly property color bg: "#070b14"
-    readonly property color accent: "#7c6cff"
-    readonly property color muted: "#98a2ba"
-    readonly property color faint: "#68738d"
-    readonly property color glassLine: Qt.rgba(0.84, 0.87, 1.0, 0.10)
+    readonly property color fg: palette.onSurface
+    readonly property color bg: palette.surface
+    readonly property color accent: palette.primary
+    readonly property color muted: palette.onSurfaceVariant
+    readonly property color faint: palette.outline
+    readonly property color glassLine: palette.outlineVariant
     readonly property var friendsService: hostWidget && hostWidget.service ? hostWidget.service : null
     readonly property string suggestFeatureUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=enhancement&title=Omarchy%20Friends%20feature%20suggestion"
     readonly property string reportBugUrl: "https://github.com/harshithnadig/omarchy-friends/issues/new?labels=bug&title=Omarchy%20Friends%20bug%20report"
@@ -40,6 +39,8 @@ KeyboardPanel {
     property string updateResult: "working"
     property string notice: ""
     property bool useDetectedEnvironment: true
+    property bool includeDetectedSetup: true
+    property bool includeOsProfile: false
 
     // v4.14-final: promise-complete UI wiring
     property string componentSetupId: ""
@@ -156,6 +157,7 @@ KeyboardPanel {
     function repoPulls(url) { return url && url.indexOf("https://github.com/") === 0 ? url.replace(/\/$/, "") + "/pulls" : "" }
 
     function setupRecipe(item) {
+        var environment = root.environmentDetails(item.environment || ({}))
         return [
             "Omarchy Setup Card: " + (item.title || "Setup"),
             "By: " + (item.author || "OmarchyBuilder"),
@@ -165,9 +167,57 @@ KeyboardPanel {
             "Shell: " + (item.shell || "—"),
             "Terminal: " + (item.terminal || "—"),
             "Editor: " + (item.editor || "—"),
+            environment.length ? "OS profile: " + environment.join(" · ") : "",
             "Repo: " + (item.repo_url || "—"),
             "Notes: " + (item.notes || "")
-        ].join("\n")
+        ].filter(function(line) { return line !== "" }).join("\n")
+    }
+
+    function openSetupComposer() {
+        root.tab = "create"
+        root.createKind = "setup"
+        root.includeDetectedSetup = true
+        root.includeOsProfile = false
+        if (!build.setupReady) build.inspectSetup()
+        if (!build.environmentReady) build.inspectEnvironment()
+    }
+
+    function detectedSetupDetails(setup) {
+        if (!setup || typeof setup !== "object") return []
+        var details = []
+        if (setup.theme) details.push("Theme · " + setup.theme)
+        if (setup.shell) details.push("Shell · " + setup.shell)
+        if (setup.terminal) details.push("Terminal · " + setup.terminal)
+        if (setup.editor) details.push("Editor · " + setup.editor)
+        if (setup.plugins && setup.plugins.length) {
+            var plugins = setup.plugins.slice(0, 6).join(", ")
+            if (setup.plugins.length > 6) plugins += " + " + (setup.plugins.length - 6)
+            details.push("Plugins · " + plugins)
+        }
+        if (setup.components && setup.components.length) details.push("System · " + setup.components.join(" · "))
+        return details
+    }
+
+    function setupCardDetails(setup) {
+        if (!setup || typeof setup !== "object") return []
+        var details = []
+        if (setup.shell) details.push("Shell · " + setup.shell)
+        if (setup.terminal) details.push("Terminal · " + setup.terminal)
+        if (setup.editor) details.push("Editor · " + setup.editor)
+        if (setup.components && setup.components.length) details.push("Components · " + setup.components.join(" · "))
+        return details
+    }
+
+    function environmentDetails(environment) {
+        if (!environment || typeof environment !== "object") return []
+        var details = []
+        var os = [environment.os_name, environment.os_version].filter(function(value) { return !!value }).join(" ")
+        if (os) details.push("OS · " + os)
+        if (environment.omarchy_version) details.push("Omarchy · " + environment.omarchy_version)
+        if (environment.kernel) details.push("Kernel · " + environment.kernel)
+        if (environment.architecture) details.push("Architecture · " + environment.architecture)
+        if (environment.gpu_vendor) details.push("GPU · " + environment.gpu_vendor)
+        return details
     }
 
     function comparisonText() {
@@ -195,7 +245,7 @@ KeyboardPanel {
     }
 
     function createDraftSnapshot() {
-        return JSON.stringify([root.titleDraft, root.bodyDraft, root.urlDraft, root.tagsDraft, root.extraDraft])
+        return JSON.stringify([root.titleDraft, root.bodyDraft, root.urlDraft, root.tagsDraft, root.extraDraft, root.includeDetectedSetup, root.includeOsProfile])
     }
 
     function submitCreate() {
@@ -209,12 +259,22 @@ KeyboardPanel {
             noticeTimer.restart()
             return
         }
+        if (root.createKind === "setup" && root.includeDetectedSetup && !build.setupReady) {
+            root.notice = "Your setup preview is still loading"
+            noticeTimer.restart()
+            return
+        }
+        if (root.createKind === "setup" && root.includeOsProfile && !build.environmentReady) {
+            root.notice = "Your OS profile is still loading"
+            noticeTimer.restart()
+            return
+        }
         if (root.createSubmitting) return
         var submittedSnapshot = root.createDraftSnapshot()
         root.createSubmitting = true
         if (root.createKind === "idea") build.createIdea(title, body, tags, submittedSnapshot)
         else if (root.createKind === "room") build.createRoom(title, body, url, tags, [], "", submittedSnapshot)
-        else if (root.createKind === "setup") build.createSetup(title || "My Omarchy setup", url, "", body, true, submittedSnapshot)
+        else if (root.createKind === "setup") build.createSetup(title || "My Omarchy setup", url, "", body, root.includeDetectedSetup, root.includeOsProfile, root.includeOsProfile ? build.detectedEnvironment : ({}), submittedSnapshot)
         else if (root.createKind === "test") build.createTest(title, url, extra, tags, body, "", submittedSnapshot)
         else if (root.createKind === "help") build.createHelp(title, body, extra, tags, root.useDetectedEnvironment, submittedSnapshot)
         else if (root.createKind === "solution") build.createSolution(title, extra, body, tags, url, submittedSnapshot)
@@ -249,6 +309,7 @@ KeyboardPanel {
     }
 
     function fieldHint() {
+        if (root.createKind === "setup") return "Public notes for this setup"
         if (root.createKind === "solution") return "The fix, clearly explained"
         if (root.createKind === "help") return "What is actually broken?"
         if (root.createKind === "challenge") return "What should builders make?"
@@ -291,7 +352,7 @@ KeyboardPanel {
                     anchors.rightMargin: Style.space(80)
                     anchors.top: parent.top
                     anchors.topMargin: -Style.space(62)
-                    color: Qt.rgba(0.35, 0.55, 1.0, 0.055)
+                    color: Qt.rgba(palette.secondary.r, palette.secondary.g, palette.secondary.b, 0.055)
                 }
 
                 GlassSurface {
@@ -676,6 +737,34 @@ KeyboardPanel {
                 PlainText { text: "Share the good parts"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.heading; font.bold: true }
                 PlainText { width: parent.width; text: "Setups are metadata and review plans — never remote install scripts."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
 
+                GlassSurface {
+                    width: parent.width
+                    height: Math.max(Style.space(76), shareSetupSummary.implicitHeight + Style.space(28))
+                    radius: Style.space(22)
+                    fillOpacity: 1
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: Style.space(14)
+                        spacing: Style.space(12)
+                        Column {
+                            id: shareSetupSummary
+                            width: parent.width - shareSetupButton.width - Style.space(12)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(2)
+                            PlainText { text: "Show your Omarchy setup"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
+                            PlainText { text: "Choose the theme, tools and OS details people can see."; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                        }
+                        GlassButton {
+                            id: shareSetupButton
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Share setup"
+                            icon: "◫"
+                            primary: true
+                            onClicked: root.openSetupComposer()
+                        }
+                    }
+                }
+
                 Repeater {
                     model: build.setups
                     GlassSurface {
@@ -698,7 +787,26 @@ KeyboardPanel {
                                     PlainText { text: (modelData.author || "Builder") + " · " + (modelData.theme || "No theme name"); color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                                 }
                             }
+                            PlainText { visible: !!modelData.notes; width: parent.width; text: modelData.notes || ""; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 4; elide: Text.ElideRight }
                             PlainText { width: parent.width; text: "Plugins · " + ((modelData.plugins || []).join ? modelData.plugins.join(" · ") : "None shared"); color: Qt.rgba(fg.r, fg.g, fg.b, 0.72); font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 3; elide: Text.ElideRight }
+                            Flow {
+                                visible: root.setupCardDetails(setupCard.setupItem).length > 0
+                                width: parent.width
+                                spacing: Style.space(6)
+                                Repeater {
+                                    model: root.setupCardDetails(setupCard.setupItem)
+                                    GlassPill { text: modelData; displayOnly: true; compact: true }
+                                }
+                            }
+                            Flow {
+                                visible: root.environmentDetails(setupCard.setupItem.environment || ({})).length > 0
+                                width: parent.width
+                                spacing: Style.space(6)
+                                Repeater {
+                                    model: root.environmentDetails(setupCard.setupItem.environment || ({}))
+                                    GlassPill { text: modelData; displayOnly: true; compact: true }
+                                }
+                            }
                             Flow {
                                 width: parent.width
                                 spacing: Style.space(7)
@@ -1208,6 +1316,100 @@ KeyboardPanel {
                 }
 
                 Column {
+                    visible: root.createKind === "setup"
+                    width: parent.width
+                    spacing: Style.space(7)
+
+                    PlainText { text: "Choose what goes on the public card"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+                    GlassSurface {
+                        width: parent.width
+                        height: setupPreview.implicitHeight + Style.space(24)
+                        radius: Style.space(18)
+                        fillOpacity: 1
+                        Column {
+                            id: setupPreview
+                            anchors.fill: parent
+                            anchors.margins: Style.space(12)
+                            spacing: Style.space(8)
+
+                            PlainText { text: "Live public card"; color: faint; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+                            PlainText { width: parent.width; text: root.titleDraft.trim() || "My Omarchy setup"; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true; wrapMode: Text.WordWrap }
+                            PlainText { visible: root.bodyDraft.trim() !== ""; width: parent.width; text: root.bodyDraft; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap; maximumLineCount: 4; elide: Text.ElideRight }
+                            PlainText { visible: root.urlDraft.trim() !== ""; width: parent.width; text: "Dotfiles / setup link · " + root.urlDraft; color: accent; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WrapAnywhere; maximumLineCount: 2; elide: Text.ElideMiddle }
+
+                            Flow {
+                                width: parent.width
+                                spacing: Style.space(7)
+                                GlassPill {
+                                    text: root.includeDetectedSetup ? "✓ Theme and tools" : "Theme and tools"
+                                    active: root.includeDetectedSetup
+                                    accessibleName: "Include detected theme and tools in this public setup card"
+                                    onClicked: root.includeDetectedSetup = !root.includeDetectedSetup
+                                }
+                                GlassPill {
+                                    text: root.includeOsProfile ? "✓ OS profile" : build.environmentReady ? "OS profile" : "OS profile · checking"
+                                    active: root.includeOsProfile
+                                    enabled: build.environmentReady
+                                    accessibleName: "Include detected operating system details in this public setup card"
+                                    onClicked: root.includeOsProfile = !root.includeOsProfile
+                                }
+                            }
+
+                            PlainText {
+                                width: parent.width
+                                text: !root.includeDetectedSetup
+                                    ? "Theme and installed tools stay private"
+                                    : build.setupReady
+                                        ? "Theme, installed plugins, shell, terminal and editor"
+                                        : "Checking your theme and installed tools…"
+                                color: muted
+                                font.family: root.uiFontFamily
+                                font.pixelSize: Style.font.caption
+                                wrapMode: Text.WordWrap
+                            }
+                            Flow {
+                                visible: root.includeDetectedSetup && build.setupReady
+                                width: parent.width
+                                spacing: Style.space(6)
+                                Repeater {
+                                    model: root.detectedSetupDetails(build.detectedSetup)
+                                    GlassPill { text: modelData; displayOnly: true; compact: true }
+                                }
+                            }
+
+                            PlainText {
+                                width: parent.width
+                                visible: root.includeOsProfile || !build.environmentReady
+                                text: !build.environmentReady
+                                    ? "Checking OS details; sharing stays off until you turn it on."
+                                    : "Only these detected, non-identifying labels are included:"
+                                color: muted
+                                font.family: root.uiFontFamily
+                                font.pixelSize: Style.font.caption
+                                wrapMode: Text.WordWrap
+                            }
+                            Flow {
+                                visible: root.includeOsProfile && build.environmentReady
+                                width: parent.width
+                                spacing: Style.space(6)
+                                Repeater {
+                                    model: root.environmentDetails(build.detectedEnvironment)
+                                    GlassPill { text: modelData; displayOnly: true; compact: true }
+                                }
+                            }
+                            PlainText {
+                                width: parent.width
+                                text: "Detected fields exclude hostnames, usernames, IPs, serials, files and local paths. Notes and links you enter are public."
+                                color: faint
+                                font.family: root.uiFontFamily
+                                font.pixelSize: Style.font.caption
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+                }
+
+                Column {
                     width: parent.width
                     spacing: Style.space(6)
                     PlainText { text: root.createKind === "update" ? "Title (optional)" : "Title"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
@@ -1230,15 +1432,16 @@ KeyboardPanel {
                 Column {
                     width: parent.width
                     spacing: Style.space(6)
-                    PlainText { text: "Link"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
+                    PlainText { text: root.createKind === "setup" ? "Dotfiles / setup link" : "Link"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
                     GlassSurface {
                         width: parent.width; height: Style.space(44); radius: Style.space(14); fillOpacity: 0.50
                         TextInput { anchors.fill: parent; anchors.margins: Style.space(12); text: root.urlDraft; onTextChanged: root.urlDraft = text; color: fg; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; verticalAlignment: TextInput.AlignVCenter }
                     }
-                    PlainText { text: "Optional HTTPS repo, artifact, event or source URL"; color: faint; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
+                    PlainText { text: root.createKind === "setup" ? "Optional HTTPS link to dotfiles or a public setup page" : "Optional HTTPS repo, artifact, event or source URL"; color: faint; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                 }
 
                 Column {
+                    visible: root.createKind !== "setup"
                     width: parent.width
                     spacing: Style.space(6)
                     PlainText { text: root.createKind === "event" ? "Location" : "Tags / roles / environments"; color: muted; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true }
@@ -1249,6 +1452,7 @@ KeyboardPanel {
                 }
 
                 Column {
+                    visible: root.createKind !== "setup"
                     width: parent.width
                     spacing: Style.space(6)
                     PlainText {

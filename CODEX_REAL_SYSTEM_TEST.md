@@ -39,7 +39,7 @@ omarchy plugin validate .
 
 qmllint -I "$OMARCHY_PATH/shell" \
   BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml Service.qml \
-  BuildNetworkPanelV3.qml BuildNetworkService.qml \
+  BuildNetworkPanelV3.qml BuildNetworkService.qml FriendsPalette.qml \
   GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
   GlassNavItem.qml GlassAvatar.qml
 ```
@@ -52,7 +52,7 @@ Verify the normal Friends widget first:
 
 - left-click opens the **new `FriendsPanelV3.qml` shell**;
 - if V3 fails to load, V2 appears as a compatibility fallback; only if both fail may `Panel.qml` load;
-- the shell uses the midnight/violet product palette even when the desktop theme is red/gold/green;
+- the shell and active widget state follow the current Omarchy theme in both light and dark palettes;
 - left-click opens Friends;
 - the visible `Build` button opens Build Network;
 - middle-click also opens Build Network;

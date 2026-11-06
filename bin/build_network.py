@@ -180,6 +180,7 @@ class SetupCard:
     author: str = ""
     id: str = field(default_factory=lambda: new_id("setup"))
     created_at: int = field(default_factory=lambda: int(time.time()))
+    environment: dict[str, str] = field(default_factory=dict)
 
     def normalize(self) -> "SetupCard":
         self.title = _clean_text(self.title, MAX_TITLE)
@@ -189,6 +190,20 @@ class SetupCard:
         self.shell = _clean_text(self.shell, 80)
         self.terminal = _clean_text(self.terminal, 80)
         self.editor = _clean_text(self.editor, 80)
+        source_environment = self.environment if isinstance(self.environment, dict) else {}
+        limits = {
+            "os_name": 80,
+            "os_version": 32,
+            "omarchy_version": 32,
+            "architecture": 32,
+            "gpu_vendor": 24,
+            "kernel": 64,
+        }
+        self.environment = {
+            key: cleaned
+            for key, limit in limits.items()
+            if (cleaned := _clean_text(source_environment.get(key), limit))
+        }
         self.wallpaper_url = _clean_url(self.wallpaper_url)
         self.repo_url = _clean_url(self.repo_url)
         self.notes = _clean_text(self.notes, MAX_NOTE)

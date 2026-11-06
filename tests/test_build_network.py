@@ -193,7 +193,7 @@ class BuildNetworkTests(unittest.TestCase):
 
     def test_safe_environment_has_no_identifying_fields(self):
         payload = app_v2.safe_environment()
-        self.assertEqual(set(payload), {"tags", "omarchy_version", "architecture", "gpu_vendor", "kernel"})
+        self.assertEqual(set(payload), {"tags", "os_name", "os_version", "omarchy_version", "architecture", "gpu_vendor", "kernel"})
         serialized = repr(payload).lower()
         for forbidden in ("hostname", "username", "ip_address", "serial", "home/"):
             self.assertNotIn(forbidden, serialized)

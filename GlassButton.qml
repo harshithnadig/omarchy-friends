@@ -5,6 +5,8 @@ import "."
 Item {
     id: root
 
+    FriendsPalette { id: palette }
+
     property string text: ""
     property string icon: ""
     property string accessibleName: ""
@@ -12,12 +14,12 @@ Item {
     property bool selected: false
     property bool enabled: true
     property bool compact: false
-    property color accentColor: "#8b7cff"
-    property color coolTint: "#55d9ff"
+    property color accentColor: palette.primary
+    property color coolTint: palette.tertiary
     signal clicked()
 
-    implicitWidth: labelRow.implicitWidth + Style.space(root.compact ? 18 : 26)
-    implicitHeight: Style.space(root.compact ? 32 : 40)
+    implicitWidth: labelRow.implicitWidth + Style.space(root.compact ? 24 : 30)
+    implicitHeight: Style.space(root.compact ? 38 : 44)
     opacity: root.enabled ? 1 : 0.48
     scale: tap.pressed ? 0.98 : 1
     activeFocusOnTab: root.enabled || root.activeFocus
@@ -36,7 +38,7 @@ Item {
         visible: root.activeFocus
         anchors.fill: parent
         anchors.margins: -Style.space(2)
-        radius: Style.space(root.compact ? 10 : 12)
+        radius: height / 2
         color: "transparent"
         border.width: 2
         border.color: root.coolTint
@@ -44,16 +46,16 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: Style.space(root.compact ? 8 : 10)
+        radius: height / 2
         color: root.primary
             ? root.accentColor
-            : (root.selected || hover.hovered || root.activeFocus ? "#273341" : "#1b252f")
-        border.width: 1
-        border.color: root.primary
-            ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.92)
-            : (root.selected || root.activeFocus
-               ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.70)
-               : "#303c48")
+            : root.selected
+                ? palette.mix(palette.surfaceContainer, root.accentColor, 0.20)
+                : hover.hovered || root.activeFocus
+                    ? palette.surfaceContainerHigh
+                    : palette.surfaceContainerLow
+        border.width: root.primary ? 0 : 1
+        border.color: root.selected || root.activeFocus ? root.accentColor : palette.outlineVariant
     }
 
     Row {
@@ -63,13 +65,13 @@ Item {
         PlainText {
             visible: root.icon !== ""
             text: root.icon
-            color: "#eef1f6"
+            color: root.primary ? palette.onColor(root.accentColor) : palette.onSurfaceVariant
             font.family: "sans-serif"
             font.pixelSize: Style.font.caption
         }
         PlainText {
             text: root.text
-            color: root.primary ? "white" : "#e4eaf0"
+            color: root.primary ? palette.onColor(root.accentColor) : palette.onSurface
             font.family: "sans-serif"
             font.pixelSize: Style.font.caption
             font.bold: root.primary || root.selected

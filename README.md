@@ -4,6 +4,8 @@
 
 Omarchy Friends is built specifically for Omarchy. It combines a lightweight social/messaging layer with the **Build Network**, a collaboration surface for ideas, projects, setups, testing, human help, solutions, events and community shipping.
 
+The interface follows the active Omarchy theme and uses Material You-inspired tonal surfaces and rounded controls, so Friends stays at home in both light and dark setups.
+
 There are no hosted Friends accounts and no fake users. World discovery is pseudonymous and federated over Nostr relays, with minimal presence enabled by default for new profiles while online. Private chat content stays local unless a user sends it to a conversation.
 
 ## Two surfaces, one product
@@ -29,7 +31,7 @@ The Build Network is the workshop layer:
 - **Discover** — recent useful community work rather than a generic engagement feed.
 - **Ideas → Build Rooms** — show interest, form a team, declare roles, track tasks, move from building → testing → shipped.
 - **GitHub links/activity** — keep GitHub as the code source of truth while Friends coordinates the humans around it.
-- **Setup Cards** — share shallow setup metadata, compare it with your machine, and share individual components such as themes, plugins, bars, fonts, wallpapers and keybindings.
+- **Setup Cards** — preview and share your theme, plugins, shell, terminal, editor, notes and dotfiles link; optionally add an OS profile. Compare cards with your machine and share individual components such as themes, plugins, bars, fonts, wallpapers and keybindings.
 - **Test Network** — request hardware/environment testers and collect signed pass/issue results.
 - **Human Help** — post what is broken plus a short summary of what you or your AI already tried.
 - **Can Help / Pair** — builders can advertise short-lived availability; matching uses skills/environment overlap rather than follower counts.
@@ -59,8 +61,9 @@ Friends deliberately applies several hard boundaries:
 - shared URLs must be HTTP(S);
 - remote community data is treated as metadata/text, never shell code;
 - Setup Cards and components **never auto-install or overwrite dotfiles**;
-- safe environment sharing is limited to coarse labels such as Omarchy version, architecture, GPU vendor and kernel version;
-- hostname, username, IP address, serial numbers and file contents are not part of Build Network environment sharing;
+- detected context on Help Requests, Test Results and Update Reports is limited to short labels such as Omarchy version, architecture, GPU vendor and kernel version;
+- Setup Card OS profiles are a separate, off-by-default choice limited to OS name/version, Omarchy version, kernel version, architecture and GPU vendor;
+- detected hostnames, usernames, IP addresses, device serials, local paths and file contents are excluded; notes and links users type are public;
 - existing Friends blocks are honored by the release-hardened Build Network status layer;
 - failed Build Network publishes are kept locally and retried on a later sync;
 - `Can Help / Pair` availability expires instead of creating stale forever-online helpers;

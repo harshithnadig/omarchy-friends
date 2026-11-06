@@ -9,6 +9,8 @@ import "."
 KeyboardPanel {
     id: root
 
+    FriendsPalette { id: palette }
+
     // Omarchy's shared keyboard-panel layer is blurred by default. Give Friends
     // its own namespace so opening chat leaves the rest of the desktop crisp.
     layerNamespace: "omarchy-friends"
@@ -20,18 +22,23 @@ KeyboardPanel {
     open: hostWidget ? hostWidget.cardOpen === true : false
     focusTarget: chatsNav
 
-    readonly property color canvas: "#070b14"
-    readonly property color panel: "#0b1120"
-    readonly property color panel2: "#111a2f"
-    readonly property color ink: "#f3f5ff"
-    readonly property color mutedInk: "#98a2ba"
-    readonly property color faintInk: "#68738d"
-    readonly property color violet: "#7c6cff"
-    readonly property color blue: "#5b8cff"
-    readonly property color cyan: "#58d6ff"
-    readonly property color success: "#34d399"
-    readonly property color warning: "#fbbf24"
-    readonly property color danger: "#fb7185"
+    readonly property color canvas: palette.surface
+    readonly property color panel: palette.surfaceContainerLow
+    readonly property color panel2: palette.surfaceContainer
+    readonly property color glassLine: palette.outlineVariant
+    readonly property color ink: palette.onSurface
+    readonly property color mutedInk: palette.onSurfaceVariant
+    readonly property color faintInk: palette.outline
+    readonly property color violet: palette.primary
+    readonly property color blue: palette.secondary
+    readonly property color cyan: palette.tertiary
+    readonly property color success: palette.success
+    readonly property color warning: palette.warning
+    readonly property color danger: palette.error
+    readonly property color accentContainer: palette.primaryContainer
+    readonly property color onAccentContainer: palette.onPrimaryContainer
+    readonly property color tertiaryContainer: palette.tertiaryContainer
+    readonly property color onTertiaryContainer: palette.onTertiaryContainer
 
     // Resolve the canonical service from the shell when available. A private
     // fallback is only for panel hosts that don't expose plugin services.
@@ -1499,7 +1506,7 @@ KeyboardPanel {
         radius: Style.space(24)
         color: root.canvas
         border.width: 1
-        border.color: Qt.rgba(0.55, 0.60, 1.0, 0.22)
+        border.color: Qt.rgba(root.glassLine.r, root.glassLine.g, root.glassLine.b, 0.72)
         clip: true
 
         Rectangle {
@@ -1510,7 +1517,7 @@ KeyboardPanel {
             anchors.top: parent.top
             anchors.rightMargin: -Style.space(170)
             anchors.topMargin: -Style.space(210)
-            color: Qt.rgba(0.43, 0.35, 1.0, 0.085)
+            color: Qt.rgba(root.violet.r, root.violet.g, root.violet.b, 0.085)
         }
 
         Column {
@@ -1595,7 +1602,7 @@ KeyboardPanel {
                         width: parent.width - updateNowButton.width - Style.space(10)
                         anchors.verticalCenter: parent.verticalCenter
                         text: "A newer Friends build is available. Update to keep messaging and Build Network compatible."
-                        color: "#f7e6a7"
+                        color: root.warning
                         font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
@@ -1887,7 +1894,7 @@ KeyboardPanel {
                                     GlassButton { id: chatMoreButton; text: "More"; icon: "⋯"; compact: true; visible: (root.selectedFriend() !== null && !root.selectedFriend().legacy_archive) || root.selectedGroup() !== null; width: visible ? implicitWidth : 0; onClicked: chatActionsMenu.open() }
                                 }
 
-                                Rectangle { id: conversationDivider; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+                                Rectangle { id: conversationDivider; width: parent.width; height: 1; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.10) }
 
                                 Flickable {
                                     id: messageScroller
@@ -1928,6 +1935,7 @@ KeyboardPanel {
                                                 id: messageDelegate
                                                 required property var modelData
                                                 readonly property string messageKey: String(modelData.id || (modelData.timestamp + ":" + modelData.public_key + ":" + modelData.text))
+                                                readonly property bool searchTarget: String(modelData.id || "") === root.searchTargetMessageId
                                                 width: messageColumn.width
                                                 height: Math.max(bubble.implicitHeight, messageOptionsButton.implicitHeight) + Style.space(4)
                                                 objectName: "friend-message-" + messageKey
@@ -1938,9 +1946,9 @@ KeyboardPanel {
                                                     anchors.right: modelData.incoming ? undefined : parent.right
                                                     anchors.left: modelData.incoming ? parent.left : undefined
                                                     radius: Style.space(15)
-                                                    color: String(modelData.id || "") === root.searchTargetMessageId ? "#1980a0" : (modelData.incoming ? "#121a2c" : "#6258df")
+                                                    color: messageDelegate.searchTarget ? root.tertiaryContainer : (modelData.incoming ? root.panel2 : root.accentContainer)
                                                     border.width: 1
-                                                    border.color: modelData.incoming ? Qt.rgba(1, 1, 1, 0.07) : Qt.rgba(0.78, 0.75, 1.0, 0.30)
+                                                    border.color: modelData.incoming ? root.glassLine : Qt.rgba(root.violet.r, root.violet.g, root.violet.b, 0.30)
                                                     Column {
                                                         id: messageBody
                                                         width: Math.min(messageScroller.width * 0.70, Math.max(Style.space(44), replyQuote.implicitWidth, messageText.implicitWidth, mediaText.implicitWidth, attachmentText.implicitWidth, sendStateText.implicitWidth, reactionSummaryRow.implicitWidth, attachmentSaveButton.visible ? attachmentSaveButton.implicitWidth : 0, (!modelData.incoming && modelData.read_by && modelData.read_by.length > 0) ? Style.space(56) : 0))
@@ -1951,21 +1959,21 @@ KeyboardPanel {
                                                             width: parent.width
                                                             visible: !!modelData.reply_to
                                                             text: visible ? "↪ " + (modelData.reply_to.handle || "Message") + ": " + (modelData.reply_to.text || "Attachment") : ""
-                                                            color: modelData.incoming ? root.cyan : "#dedaff"
+                                                            color: messageDelegate.searchTarget ? root.onTertiaryContainer : (modelData.incoming ? root.cyan : root.onAccentContainer)
                                                             font.family: root.uiFontFamily
                                                             font.pixelSize: Style.font.caption
                                                             elide: Text.ElideRight
                                                         }
-                                                        PlainText { id: messageText; width: parent.width; text: modelData.text || ""; visible: text !== ""; color: "#f4f5ff"; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
-                                                        PlainText { width: parent.width; visible: !!modelData.edited; text: "Edited"; color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
-                                                        PlainText { id: sendStateText; width: parent.width; visible: !!modelData.sendState; text: modelData.sendState === "Sent" ? "Sent · relay" : (modelData.sendState === "Failed · retry" ? "Delivery unconfirmed · retry" : (modelData.sendState || "")); color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
-                                                        PlainText { width: parent.width; visible: !!(!modelData.incoming && modelData.read_by && modelData.read_by.length > 0); text: modelData.group_id ? "✓✓ Read by " + modelData.read_by.length : "✓✓ Read"; color: root.cyan; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
+                                                        PlainText { id: messageText; width: parent.width; text: modelData.text || ""; visible: text !== ""; color: messageDelegate.searchTarget ? root.onTertiaryContainer : (modelData.incoming ? root.ink : root.onAccentContainer); font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                                        PlainText { width: parent.width; visible: !!modelData.edited; text: "Edited"; color: modelData.incoming ? root.mutedInk : root.onAccentContainer; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
+                                                        PlainText { id: sendStateText; width: parent.width; visible: !!modelData.sendState; text: modelData.sendState === "Sent" ? "Sent · relay" : (modelData.sendState === "Failed · retry" ? "Delivery unconfirmed · retry" : (modelData.sendState || "")); color: modelData.incoming ? root.mutedInk : root.onAccentContainer; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
+                                                        PlainText { width: parent.width; visible: !!(!modelData.incoming && modelData.read_by && modelData.read_by.length > 0); text: modelData.group_id ? "✓✓ Read by " + modelData.read_by.length : "✓✓ Read"; color: root.onAccentContainer; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption }
                                                         PlainText {
                                                             id: attachmentText
                                                             width: parent.width
                                                             visible: modelData.attachments && modelData.attachments.length > 0
                                                             text: visible ? "📎 " + modelData.attachments[0].name + " · " + (Number(modelData.attachments[0].size || 0) >= 1048576 ? (Number(modelData.attachments[0].size) / 1048576).toFixed(1) + " MiB" : Math.max(1, Math.round(Number(modelData.attachments[0].size || 0) / 1024)) + " KiB") : ""
-                                                            color: modelData.incoming ? root.cyan : "#e8e5ff"
+                                                            color: messageDelegate.searchTarget ? root.onTertiaryContainer : (modelData.incoming ? root.cyan : root.onAccentContainer)
                                                             font.family: root.uiFontFamily
                                                             font.pixelSize: Style.font.caption
                                                             elide: Text.ElideMiddle
@@ -1997,7 +2005,7 @@ KeyboardPanel {
                                                             width: parent.width
                                                             visible: !modelData.deleted && modelData.media && modelData.media.length > 0
                                                             text: visible ? "↗ " + ((modelData.media[0].url || modelData.media[0].href || "Shared link")) : ""
-                                                            color: modelData.incoming ? root.cyan : "#e8e5ff"
+                                                            color: messageDelegate.searchTarget ? root.onTertiaryContainer : (modelData.incoming ? root.cyan : root.onAccentContainer)
                                                             font.family: root.uiFontFamily
                                                             font.pixelSize: Style.font.caption
                                                             elide: Text.ElideMiddle
@@ -2041,7 +2049,7 @@ KeyboardPanel {
                                                             color: root.panel
                                                             radius: Style.space(12)
                                                             border.width: 1
-                                                            border.color: Qt.rgba(0.65, 0.68, 1.0, 0.28)
+                                                            border.color: root.glassLine
                                                         }
                                                         delegate: MenuItem {
                                                             id: messageMenuItem
@@ -2054,7 +2062,7 @@ KeyboardPanel {
                                                             }
                                                             background: Rectangle {
                                                                 radius: Style.space(8)
-                                                                color: messageMenuItem.highlighted ? Qt.rgba(0.46, 0.43, 0.9, 0.32) : "transparent"
+                                                                color: messageMenuItem.highlighted ? root.accentContainer : "transparent"
                                                             }
                                                         }
                                                         MenuItem {
@@ -2511,16 +2519,16 @@ KeyboardPanel {
                                             Column {
                                                 width: parent.width - Style.space(45)
                                                 spacing: Style.space(4)
-                                                PlainText { width: parent.width; text: (modelData.handle || modelData.from_name || "Builder") + (modelData.mine ? " · you" : ""); color: modelData.mine ? "#dcd7ff" : root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                PlainText { width: parent.width; text: (modelData.handle || modelData.from_name || "Builder") + (modelData.mine ? " · you" : ""); color: modelData.mine ? root.onAccentContainer : root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
                                                 TextMetrics { id: circleTextMetrics; text: modelData.text || modelData.message || ""; font: circleText.font }
                                                 Rectangle {
                                                     width: Math.min(parent.width, Math.max(Style.space(150), circleTextMetrics.width + Style.space(20)))
                                                     height: circleText.implicitHeight + Style.space(16)
                                                     radius: Style.space(13)
-                                                    color: modelData.mine ? "#322d68" : "#11192a"
+                                                    color: modelData.mine ? root.accentContainer : root.panel2
                                                     border.width: 1
-                                                    border.color: Qt.rgba(1, 1, 1, 0.065)
-                                                    PlainText { id: circleText; width: parent.width - Style.space(18); anchors.centerIn: parent; text: circleTextMetrics.text; color: "#dfe3ef"; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                                    border.color: root.glassLine
+                                                    PlainText { id: circleText; width: parent.width - Style.space(18); anchors.centerIn: parent; text: circleTextMetrics.text; color: modelData.mine ? root.onAccentContainer : root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                                 }
                                             }
                                         }
@@ -2613,9 +2621,9 @@ KeyboardPanel {
                                             width: parent.width
                                             height: Style.space(70)
                                             radius: Style.space(12)
-                                            color: Qt.rgba(0.06, 0.08, 0.15, 0.72)
+                                            color: palette.surfaceContainerHigh
                                             border.width: 1
-                                            border.color: Qt.rgba(1, 1, 1, 0.09)
+                                            border.color: root.glassLine
                                             TextArea { textFormat: TextEdit.PlainText;
                                                 anchors.fill: parent
                                                 anchors.margins: Style.space(5)
@@ -3008,7 +3016,7 @@ KeyboardPanel {
                 color: root.panel
                 radius: Style.space(12)
                 border.width: 1
-                border.color: Qt.rgba(0.65, 0.68, 1.0, 0.28)
+                border.color: root.glassLine
             }
             delegate: MenuItem {
                 id: attachmentMenuItem
@@ -3021,7 +3029,7 @@ KeyboardPanel {
                 }
                 background: Rectangle {
                     radius: Style.space(8)
-                    color: attachmentMenuItem.highlighted ? Qt.rgba(0.46, 0.43, 0.9, 0.32) : "transparent"
+                    color: attachmentMenuItem.highlighted ? root.accentContainer : "transparent"
                 }
             }
             MenuItem { text: "Choose file…"; onTriggered: root.openAttachmentBrowser(false) }
