@@ -519,23 +519,31 @@ class ModernFriendsUiContractTests(unittest.TestCase):
         for privacy_key in ("share_global", "share_window", "share_music", "share_project", "share_interests", "share_room"):
             self.assertIn(f'root.service.togglePrivacy("{privacy_key}")', profile)
 
-    def test_modern_shell_owns_stable_midnight_palette(self):
+    def test_modern_shell_uses_omarchy_material_palette(self):
         panel = self.read("FriendsPanelV3.qml")
-        expected = {
-            'canvas': '#070b14',
-            'ink': '#f3f5ff',
-            'violet': '#7c6cff',
-            'cyan': '#58d6ff',
-        }
-        for name, value in expected.items():
-            self.assertIn(f'property color {name}: "{value}"', panel)
-        self.assertNotIn('readonly property color canvas: Color.background', panel)
+        fallback = self.read("FriendsPanelV2.qml")
+        palette = self.read("FriendsPalette.qml")
+        widget = self.read("BarWidget.qml")
+        self.assertIn('readonly property color canvas: palette.surface', panel)
+        self.assertIn('readonly property color ink: palette.onSurface', panel)
+        self.assertIn('readonly property color violet: palette.primary', panel)
+        self.assertIn('readonly property color cyan: palette.tertiary', panel)
+        self.assertIn('readonly property color seed: Color.accent', palette)
+        self.assertIn('readonly property color background: Color.background', palette)
+        self.assertIn('readonly property color foreground: Color.foreground', palette)
+        self.assertIn('readonly property color canvas: palette.surface', fallback)
+        self.assertIn('FriendsPalette { id: palette }', fallback)
+        self.assertIn('activeColor: Color.accent', widget)
+        self.assertNotIn('#070b14', panel)
+        self.assertNotIn('#7c6cff', panel)
+        self.assertNotIn('#070b14', fallback)
+        self.assertNotIn('#7c6cff', fallback)
 
-    def test_build_network_uses_same_product_palette(self):
+    def test_build_network_uses_same_theme_palette(self):
         panel = self.read("BuildNetworkPanelV3.qml")
-        self.assertIn('readonly property color fg: "#f3f5ff"', panel)
-        self.assertIn('readonly property color bg: "#070b14"', panel)
-        self.assertIn('readonly property color accent: "#7c6cff"', panel)
+        self.assertIn('readonly property color fg: palette.onSurface', panel)
+        self.assertIn('readonly property color bg: palette.surface', panel)
+        self.assertIn('readonly property color accent: palette.primary', panel)
 
     def test_update_path_is_visible_explicit_and_never_background_write(self):
         panel = self.read("FriendsPanelV3.qml")

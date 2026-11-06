@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -157,13 +158,70 @@ def inspect_local_setup():
     shell = Path(os.environ.get("SHELL", "")).name
     terminal = os.environ.get("TERM_PROGRAM", "") or os.environ.get("TERMINAL", "")
     editor = os.environ.get("VISUAL", "") or os.environ.get("EDITOR", "")
+    terminal_parts = str(terminal).split()
+    editor_parts = str(editor).split()
+    terminal_name = Path(terminal_parts[0]).name[:80] if terminal_parts else ""
+    editor_name = Path(editor_parts[0]).name[:80] if editor_parts else ""
+    theme = Path(_run_text(["omarchy-theme-current"]).strip()).name[:80]
     return {
-        "theme": _run_text(["omarchy-theme-current"]),
+        "theme": theme,
         "plugins": plugins,
-        "components": [item for item in [platform.machine(), platform.system()] if item],
+        # OS and architecture belong to the separate, explicitly shared
+        # environment profile, not the ordinary setup recipe.
+        "components": [],
         "shell": shell[:80],
-        "terminal": str(terminal)[:80],
-        "editor": Path(str(editor).split()[0]).name[:80] if editor else "",
+        "terminal": terminal_name,
+        "editor": editor_name,
+    }
+
+
+def inspect_local_environment():
+    """Return the small, non-identifying OS profile users can share."""
+    try:
+        os_release = platform.freedesktop_os_release()
+    except (AttributeError, OSError):
+        os_release = {}
+
+    architecture = platform.machine()[:32]
+    kernel_match = re.match(r"\d+(?:\.\d+){1,2}(?:[-+][A-Za-z0-9._+]+)?", platform.release())
+    kernel = kernel_match.group(0)[:64] if kernel_match else ""
+    omarchy_raw = _run_text(["omarchy", "--version"], timeout=1.0)
+    version_match = re.search(r"\d+(?:\.\d+){1,3}", str(omarchy_raw or ""))
+    omarchy_version = version_match.group(0)[:32] if version_match else ""
+    gpu_line = "\n".join(
+        line for line in _run_text(["lspci"], timeout=1.0).splitlines()
+        if any(kind in line.lower() for kind in ("vga compatible controller", "3d controller", "display controller"))
+    ).lower()
+    if "nvidia" in gpu_line:
+        gpu_vendor = "NVIDIA"
+    elif "amd" in gpu_line or "ati" in gpu_line:
+        gpu_vendor = "AMD"
+    elif "intel" in gpu_line and any(token in gpu_line for token in ("vga", "display", "3d controller")):
+        gpu_vendor = "Intel"
+    else:
+        gpu_vendor = ""
+
+    os_name = str(os_release.get("NAME") or os_release.get("ID") or "")[:80]
+    os_version = str(os_release.get("VERSION_ID") or "")[:32]
+    tags = []
+    for value in (
+        "Omarchy" + (" " + omarchy_version if omarchy_version else ""),
+        architecture,
+        gpu_vendor,
+        "Kernel " + kernel.split("-", 1)[0] if kernel else "",
+    ):
+        value = " ".join(str(value or "").split())[:40]
+        if value and value.casefold() not in {item.casefold() for item in tags}:
+            tags.append(value)
+
+    return {
+        "tags": tags[:12],
+        "os_name": os_name,
+        "os_version": os_version,
+        "omarchy_version": omarchy_version,
+        "architecture": architecture,
+        "gpu_vendor": gpu_vendor,
+        "kernel": kernel,
     }
 
 
@@ -423,7 +481,8 @@ def command_join_room():
 def command_create_setup():
     data = _json_arg()
     detected = inspect_local_setup() if data.get("use_detected", False) else {}
-    return _store_and_publish(SetupCard(title=data.get("title", "My Omarchy setup"), theme=data.get("theme", detected.get("theme", "")), plugins=data.get("plugins", detected.get("plugins", [])), components=data.get("components", detected.get("components", [])), shell=data.get("shell", detected.get("shell", "")), terminal=data.get("terminal", detected.get("terminal", "")), editor=data.get("editor", detected.get("editor", "")), wallpaper_url=data.get("wallpaper_url", ""), repo_url=data.get("repo_url", ""), notes=data.get("notes", ""), author=_handle()), "Setup Card shared")
+    environment = data.get("environment", {}) if data.get("include_os_profile", False) is True else {}
+    return _store_and_publish(SetupCard(title=data.get("title", "My Omarchy setup"), theme=data.get("theme", detected.get("theme", "")), plugins=data.get("plugins", detected.get("plugins", [])), components=data.get("components", detected.get("components", [])), shell=data.get("shell", detected.get("shell", "")), terminal=data.get("terminal", detected.get("terminal", "")), editor=data.get("editor", detected.get("editor", "")), environment=environment, wallpaper_url=data.get("wallpaper_url", ""), repo_url=data.get("repo_url", ""), notes=data.get("notes", ""), author=_handle()), "Setup Card shared")
 
 
 def command_create_test():

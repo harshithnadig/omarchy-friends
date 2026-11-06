@@ -65,39 +65,9 @@ def safe_environment():
 
     No hostname, username, IP address, serial number, file content or device ID
     is collected. These values stay local unless the user explicitly publishes
-    them in a help/test/update object.
+    them in a help/test/update object or Setup Card.
     """
-    arch = platform.machine()[:32]
-    kernel = platform.release()[:64]
-    omarchy_raw = core._run_text(["omarchy", "--version"], timeout=1.0)
-    omarchy_version = _safe_version(omarchy_raw)
-    gpu_line = core._run_text(["lspci"], timeout=1.0)
-    gpu = ""
-    lower = gpu_line.lower()
-    if "nvidia" in lower:
-        gpu = "NVIDIA"
-    elif "amd" in lower or "ati" in lower:
-        gpu = "AMD"
-    elif "intel" in lower and ("vga" in lower or "display" in lower or "3d controller" in lower):
-        gpu = "Intel"
-
-    tags = []
-    for value in (
-        "Omarchy" + (" " + omarchy_version if omarchy_version else ""),
-        arch,
-        gpu,
-        "Kernel " + kernel.split("-", 1)[0] if kernel else "",
-    ):
-        value = " ".join(str(value or "").split())[:40]
-        if value and value.casefold() not in {item.casefold() for item in tags}:
-            tags.append(value)
-    return {
-        "tags": tags[:12],
-        "omarchy_version": omarchy_version,
-        "architecture": arch,
-        "gpu_vendor": gpu,
-        "kernel": kernel,
-    }
+    return core.inspect_local_environment()
 
 
 def _find(object_id, kind=None):
@@ -113,6 +83,7 @@ def compare_setup(setup_id):
     if not card:
         raise ValueError("That Setup Card is not in your current cache")
     local = core.inspect_local_setup()
+    local_environment = safe_environment()
     local_plugins = {str(item).casefold(): str(item) for item in local.get("plugins", [])}
     remote_plugins = {str(item).casefold(): str(item) for item in card.get("plugins", [])}
     missing = [remote_plugins[key] for key in sorted(set(remote_plugins) - set(local_plugins))]
@@ -129,6 +100,20 @@ def compare_setup(setup_id):
             status = "match"
         else:
             status = "different"
+        fields.append({"field": key, "label": label, "current": current, "wanted": wanted, "status": status})
+
+    remote_environment = card.get("environment", {}) if isinstance(card.get("environment"), dict) else {}
+    for key, label in (
+        ("os_name", "Operating system"),
+        ("os_version", "OS version"),
+        ("omarchy_version", "Omarchy version"),
+        ("kernel", "Kernel"),
+        ("architecture", "Architecture"),
+        ("gpu_vendor", "GPU vendor"),
+    ):
+        current = str(local_environment.get(key, "") or "")
+        wanted = str(remote_environment.get(key, "") or "")
+        status = "unspecified" if not wanted else "match" if current.casefold() == wanted.casefold() else "different"
         fields.append({"field": key, "label": label, "current": current, "wanted": wanted, "status": status})
 
     return {

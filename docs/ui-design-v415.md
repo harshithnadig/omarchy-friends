@@ -1,33 +1,27 @@
-# Omarchy Friends v4.15 UI contract
+# Omarchy Friends UI direction
 
-This document freezes the visual and information-architecture direction for the v4.15 release candidate.
+This document describes the shared visual and information-architecture direction for Friends and Build Network.
 
 ## Product feeling
 
-Friends should feel like a native futuristic desktop product rather than a theme-colored utility panel: quiet midnight glass, crisp cool-white typography, violet/blue energy, generous negative space, and strong information hierarchy.
+Friends should feel like a native Omarchy community app: calm tonal surfaces, clear typography, expressive but restrained color, generous negative space, and a strong information hierarchy. Its shapes, color roles, and selected states take cues from Google Pixel's Material You / Material 3 interface.
 
-Reference mood: modern macOS / visionOS restraint + Arc-like product chrome, adapted to Omarchy rather than copied literally.
+The active Omarchy theme supplies the color seed and base surfaces. Friends derives primary, secondary, tertiary, container, outline, and semantic roles from those values so light and dark themes remain recognizable. The implementation uses the host theme values and its own small color helpers; it does not copy code or assets from other plugins.
 
 The product should behave like a real messaging/community app, not expose transport concepts or dump every possible action into every card.
 
 ## Palette
 
-Friends owns a stable product palette across Omarchy themes:
+Friends owns a semantic palette that adapts to the active Omarchy theme:
 
-- canvas: `#070b14`
-- primary glass: `#0a0f1d`
-- elevated glass: `#11192d`
-- primary text: `#f3f5ff`
-- secondary text: `#98a2ba`
-- faint text: `#68738d`
-- violet: `#7c6cff`
-- blue: `#5b8cff`
-- cyan: `#58d6ff`
-- success: `#34d399`
-- warning: `#fbbf24`
-- danger: `#fb7185`
+- seed: Omarchy `Color.accent`
+- surface: Omarchy `Color.background`, with tonal container levels mixed toward `Color.foreground`
+- on-surface: Omarchy `Color.foreground`, with secondary and outline roles derived from the surface pair
+- primary, secondary, tertiary and their containers: derived from the active accent hue
+- on-accent text: chosen between black and white using relative luminance contrast
+- success, warning and danger: semantic roles; danger follows Omarchy `Color.urgent`
 
-The active Omarchy theme may affect the surrounding desktop, but it should not turn Friends burgundy, gold, green, etc.
+Do not hard-code a midnight or violet default. Theme changes should carry through panels, controls, chat bubbles, highlights, and Build Network.
 
 ## Container model
 
@@ -51,7 +45,7 @@ Use these before inventing one-off rectangles:
 - `GlassNavItem.qml`
 - `GlassAvatar.qml`
 
-All interactive controls need hover/pressed/selected/disabled treatment. Primary actions use violet; destructive or warning states use semantic colors.
+All interactive controls need hover/pressed/selected/disabled treatment. Primary actions use the active theme accent; destructive and warning states use semantic colors. Setup cards preview detected metadata before publishing. OS profile sharing is a separate, off-by-default choice limited to OS name/version, Omarchy version, kernel, architecture, and GPU vendor.
 
 ## Friends shell
 
@@ -136,7 +130,7 @@ The user must be able to control World visibility, active-app sharing, music, pr
 
 ## Build Network
 
-`BuildNetworkPanelV3.qml` uses the same midnight/violet primitives. It should feel like another workspace in Friends, not another plugin.
+`BuildNetworkPanelV3.qml` uses the same theme-derived Material roles. It should feel like another workspace in Friends, not another plugin.
 
 Six tabs remain:
 
@@ -165,4 +159,4 @@ Use short 90–220 ms scale/color transitions. Motion should confirm hover, pres
 
 ## Release rule
 
-A future agent may make a small compatibility fix after real Omarchy testing, but should not collapse Requests back into Chats, repopulate Chats with every friend, restore repeated World action buttons, replace the room-style Circles layout, remove explicit privacy controls, replace the design language with active-theme colors, or hide Build navigation without an explicit new design decision.
+A future agent may make a small compatibility fix after real Omarchy testing, but should not collapse Requests back into Chats, repopulate Chats with every friend, restore repeated World action buttons, replace the room-style Circles layout, remove explicit privacy controls, replace the theme-derived Material palette with a hard-coded brand palette, or hide Build navigation without an explicit new design decision.

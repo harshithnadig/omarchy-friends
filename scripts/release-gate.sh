@@ -24,6 +24,7 @@ required=(
   ServiceModern.qml
   BuildNetworkPanelV3.qml
   BuildNetworkService.qml
+  FriendsPalette.qml
   GlassSurface.qml
   GlassPill.qml
   GlassButton.qml
@@ -145,7 +146,7 @@ if [[ "$CI_MODE" -eq 0 ]] && command -v qmllint >/dev/null 2>&1 && [[ -n "${OMAR
   qmllint -I "$OMARCHY_PATH/shell" \
     BarWidget.qml FriendsPanelV3.qml FriendsPanelV2.qml Panel.qml \
     ServiceModern.qml Service.qml \
-    BuildNetworkPanelV3.qml BuildNetworkService.qml \
+    BuildNetworkPanelV3.qml BuildNetworkService.qml FriendsPalette.qml \
     GlassSurface.qml GlassPill.qml GlassButton.qml GlassField.qml \
     GlassNavItem.qml GlassAvatar.qml PlainText.qml
   pass "QML lint against installed Omarchy imports"

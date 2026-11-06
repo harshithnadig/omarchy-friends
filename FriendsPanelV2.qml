@@ -8,6 +8,8 @@ import "."
 KeyboardPanel {
     id: root
 
+    FriendsPalette { id: palette }
+
     readonly property string uiFontFamily: "sans-serif"
     property var hostWidget: null
     anchorItem: hostWidget && hostWidget.button ? hostWidget.button : null
@@ -16,18 +18,21 @@ KeyboardPanel {
     open: hostWidget ? hostWidget.cardOpen === true : false
     focusTarget: chatsNav
 
-    readonly property color canvas: "#070b14"
-    readonly property color panel: "#0b1120"
-    readonly property color panel2: "#111a2f"
-    readonly property color ink: "#f3f5ff"
-    readonly property color mutedInk: "#98a2ba"
-    readonly property color faintInk: "#68738d"
-    readonly property color violet: "#7c6cff"
-    readonly property color blue: "#5b8cff"
-    readonly property color cyan: "#58d6ff"
-    readonly property color success: "#34d399"
-    readonly property color warning: "#fbbf24"
-    readonly property color danger: "#fb7185"
+    readonly property color canvas: palette.surface
+    readonly property color panel: palette.surfaceContainerLow
+    readonly property color panel2: palette.surfaceContainer
+    readonly property color glassLine: palette.outlineVariant
+    readonly property color ink: palette.onSurface
+    readonly property color mutedInk: palette.onSurfaceVariant
+    readonly property color faintInk: palette.outline
+    readonly property color violet: palette.primary
+    readonly property color blue: palette.secondary
+    readonly property color cyan: palette.tertiary
+    readonly property color success: palette.success
+    readonly property color warning: palette.warning
+    readonly property color danger: palette.error
+    readonly property color accentContainer: palette.primaryContainer
+    readonly property color onAccentContainer: palette.onPrimaryContainer
 
     readonly property var service: hostWidget && hostWidget.service ? hostWidget.service : null
     readonly property var profile: service && service.profile ? service.profile : ({ handle: "Omarchy Builder", avatar: "👾", status_name: "Ready", status_emoji: "🚀", project_name: "", project_desc: "", project_url: "", interests: [], privacy: ({}) })
@@ -460,14 +465,13 @@ KeyboardPanel {
         } else root.stopTypingSignal()
     }
 
-    // Full product-owned visual shell. We intentionally do not inherit the active Omarchy
-    // theme background here; Friends keeps a stable midnight/violet identity across themes.
+    // Compatibility shell with the same theme-derived color roles as Friends V3.
     Rectangle {
         anchors.fill: parent
         radius: Style.space(24)
         color: root.canvas
         border.width: 1
-        border.color: Qt.rgba(0.55, 0.60, 1.0, 0.24)
+        border.color: Qt.rgba(root.glassLine.r, root.glassLine.g, root.glassLine.b, 0.72)
         clip: true
 
         Rectangle {
@@ -478,7 +482,7 @@ KeyboardPanel {
             anchors.top: parent.top
             anchors.rightMargin: -Style.space(150)
             anchors.topMargin: -Style.space(190)
-            color: Qt.rgba(0.43, 0.35, 1.0, 0.10)
+            color: Qt.rgba(root.violet.r, root.violet.g, root.violet.b, 0.10)
         }
         Rectangle {
             width: Style.space(260)
@@ -488,7 +492,7 @@ KeyboardPanel {
             anchors.bottom: parent.bottom
             anchors.leftMargin: -Style.space(130)
             anchors.bottomMargin: -Style.space(150)
-            color: Qt.rgba(0.20, 0.55, 1.0, 0.07)
+            color: Qt.rgba(root.blue.r, root.blue.g, root.blue.b, 0.07)
         }
 
         Column {
@@ -576,7 +580,7 @@ KeyboardPanel {
                         width: parent.width - updateButton.width - Style.space(12)
                         anchors.verticalCenter: parent.verticalCenter
                         text: "A newer Friends build is available · update to keep modern DMs and Build Network compatible."
-                        color: "#f7e6a7"
+                        color: root.warning
                         font.family: root.uiFontFamily
                         font.pixelSize: Style.font.caption
                         elide: Text.ElideRight
@@ -926,7 +930,7 @@ KeyboardPanel {
                                         }
                                     }
 
-                                    Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+                                    Rectangle { width: parent.width; height: 1; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.10) }
 
                                     Flickable {
                                         id: messageScroller
@@ -960,11 +964,11 @@ KeyboardPanel {
                                                         anchors.left: modelData.incoming ? parent.left : undefined
                                                         radius: Style.space(15)
                                                         gradient: Gradient {
-                                                            GradientStop { position: 0; color: modelData.incoming ? "#131c30" : "#7566f5" }
-                                                            GradientStop { position: 1; color: modelData.incoming ? "#0f1627" : "#5a54d8" }
+                                                            GradientStop { position: 0; color: modelData.incoming ? root.panel2 : root.accentContainer }
+                                                            GradientStop { position: 1; color: modelData.incoming ? root.panel : root.accentContainer }
                                                         }
                                                         border.width: 1
-                                                        border.color: modelData.incoming ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0.76, 0.73, 1.0, 0.34)
+                                                        border.color: modelData.incoming ? root.glassLine : Qt.rgba(root.violet.r, root.violet.g, root.violet.b, 0.34)
 
                                                         Column {
                                                             anchors.fill: parent
@@ -975,7 +979,7 @@ KeyboardPanel {
                                                                 width: parent.width
                                                                 text: modelData.text || ""
                                                                 visible: text !== ""
-                                                                color: "#f4f5ff"
+                                                                color: modelData.incoming ? root.ink : root.onAccentContainer
                                                                 font.family: root.uiFontFamily
                                                                 font.pixelSize: Style.font.caption
                                                                 wrapMode: Text.WordWrap
@@ -985,7 +989,7 @@ KeyboardPanel {
                                                                 width: parent.width
                                                                 visible: modelData.media && modelData.media.length > 0
                                                                 text: visible ? "↗ " + ((modelData.media[0].url || modelData.media[0].href || "Shared link")) : ""
-                                                                color: modelData.incoming ? root.cyan : "#e3e1ff"
+                                                                color: modelData.incoming ? root.cyan : root.onAccentContainer
                                                                 font.family: root.uiFontFamily
                                                                 font.pixelSize: Style.font.caption
                                                                 elide: Text.ElideMiddle
@@ -1157,7 +1161,7 @@ KeyboardPanel {
                                             PlainText {
                                                 width: parent.width
                                                 text: modelData.project_name ? ("Building · " + modelData.project_name) : (modelData.activity || "Exploring Omarchy")
-                                                color: modelData.project_name ? "#d8d4ff" : root.mutedInk
+                                                color: modelData.project_name ? root.violet : root.mutedInk
                                                 font.family: root.uiFontFamily
                                                 font.pixelSize: Style.font.caption
                                                 elide: Text.ElideRight
@@ -1255,8 +1259,8 @@ KeyboardPanel {
                                             Column {
                                                 width: parent.width - Style.space(43)
                                                 spacing: Style.space(3)
-                                                PlainText { width: parent.width; text: (modelData.handle || modelData.from_name || "Builder") + (modelData.mine ? " · you" : ""); color: modelData.mine ? "#dcd7ff" : root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
-                                                PlainText { width: parent.width; text: modelData.text || modelData.message || ""; color: "#d7dbea"; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
+                                                PlainText { width: parent.width; text: (modelData.handle || modelData.from_name || "Builder") + (modelData.mine ? " · you" : ""); color: modelData.mine ? root.onAccentContainer : root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; font.bold: true; elide: Text.ElideRight }
+                                                PlainText { width: parent.width; text: modelData.text || modelData.message || ""; color: modelData.mine ? root.onAccentContainer : root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                             }
                                         }
                                     }
@@ -1345,9 +1349,9 @@ KeyboardPanel {
                                             width: parent.width
                                             height: Style.space(78)
                                             radius: Style.space(12)
-                                            color: Qt.rgba(0.06, 0.08, 0.15, 0.72)
+                                            color: palette.surfaceContainerHigh
                                             border.width: 1
-                                            border.color: Qt.rgba(1, 1, 1, 0.10)
+                                            border.color: root.glassLine
                                             TextArea { textFormat: TextEdit.PlainText;
                                                 anchors.fill: parent
                                                 anchors.margins: Style.space(5)
@@ -1390,7 +1394,7 @@ KeyboardPanel {
                                                 }
                                             }
                                         }
-                                        Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+                                        Rectangle { width: parent.width; height: 1; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.10) }
                                         PlainText { text: "Status"; color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                         Flow {
                                             width: parent.width
@@ -1404,7 +1408,7 @@ KeyboardPanel {
                                                 }
                                             }
                                         }
-                                        Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+                                        Rectangle { width: parent.width; height: 1; color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.10) }
                                         PlainText { text: "World visibility"; color: root.ink; font.family: root.uiFontFamily; font.pixelSize: Style.font.bodySmall; font.bold: true }
                                         PlainText { width: parent.width; text: "New profiles appear to other online Friends users by default. This shares your pseudonymous profile with public relays; chat contents stay private. Turn it off any time."; color: root.mutedInk; font.family: root.uiFontFamily; font.pixelSize: Style.font.caption; wrapMode: Text.WordWrap }
                                         GlassPill { text: root.profile.privacy && root.profile.privacy.share_global === true ? "Visible in World" : "Hidden from World"; active: root.profile.privacy && root.profile.privacy.share_global === true; accentColor: root.success; onClicked: if (root.service) root.service.togglePrivacy("share_global") }

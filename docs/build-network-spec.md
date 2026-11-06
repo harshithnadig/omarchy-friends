@@ -28,7 +28,8 @@ A compact view of useful recent public community work. There is no follower coun
 
 ### Share
 
-- Setup Cards with shallow, opt-in metadata.
+- Setup Cards with a reviewable preview of the theme, tools and notes before publishing.
+- Optional OS profile with OS name/version, Omarchy version, kernel, architecture and GPU vendor; off by default and excluded from the ordinary detected setup metadata.
 - Local review/comparison with the user's own machine.
 - Individual Setup Components such as plugins, themes, bars, fonts, wallpapers and keybinding references.
 - Test Requests and signed pass/issue Test Results.
@@ -69,7 +70,7 @@ Private DMs and private groups are a separate Friends transport. Current peers u
 - No arbitrary shell execution.
 - No automatic setup installation.
 - No silent upload of files, logs, configs, tokens or secrets.
-- Safe environment metadata is coarse and opt-in; hostname, username, IP address, device serials and file contents are excluded.
+- Setup-card OS metadata is an explicit opt-in and allowlisted to OS name/version, Omarchy version, kernel, architecture and GPU vendor. Detected fields exclude hostnames, usernames, IP addresses, device serials, local paths and file contents; notes and links that users enter are public.
 - Existing Friends blocks filter Build Network top-level and derived/nested activity locally.
 - Remote object types and fields are allowlisted, normalized and bounded.
 - Relay failure queues public publishes locally for bounded retry.
@@ -86,7 +87,7 @@ BarWidget.qml
   -> bin/build_network_app_v4.py
 ```
 
-The Build workspace shares the same midnight/violet Glass primitives as Friends V3. Obsolete Build Network V1/V2 panels are not active product paths.
+The Build workspace shares the same Omarchy-theme-derived Material color roles as Friends V3. Obsolete Build Network V1/V2 panels are not active product paths.
 
 ## Release rule
 

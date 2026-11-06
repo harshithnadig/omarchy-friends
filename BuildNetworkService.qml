@@ -44,7 +44,9 @@ Item {
     property int lastRefresh: 0
     property var lastErrors: []
     property var detectedSetup: ({ theme: "", plugins: [], components: [], shell: "", terminal: "", editor: "" })
-    property var detectedEnvironment: ({ tags: [], omarchy_version: "", architecture: "", gpu_vendor: "", kernel: "" })
+    property var detectedEnvironment: ({ tags: [], os_name: "", os_version: "", omarchy_version: "", architecture: "", gpu_vendor: "", kernel: "" })
+    property bool setupReady: false
+    property bool environmentReady: false
     property var setupComparison: ({})
     property bool busy: false
     property var actionQueue: []
@@ -84,7 +86,8 @@ Item {
         if (data.pairing) root.pairing = data.pairing
         if (data.setup_components) root.setupComponents = data.setup_components
         if (data.project_activity) root.projectActivity = data.project_activity
-        if (data.environment) root.detectedEnvironment = data.environment
+        if (data.setup) { root.detectedSetup = data.setup; root.setupReady = true }
+        if (data.environment) { root.detectedEnvironment = data.environment; root.environmentReady = true }
         if (data.release) root.releaseInfo = data.release
         if (data.github_snapshot) { root.githubSnapshot = data.github_snapshot; root.githubSnapshotReady(data.github_snapshot) }
         if (data.share_text !== undefined) { root.shareText = data.share_text; root.shareTextReady(data.share_text) }
@@ -130,8 +133,8 @@ Item {
             root.busy = false
             var data = root.parseOutput(output)
             root.applyStatus(data)
-            if (data.setup) root.detectedSetup = data.setup
-            if (data.environment) root.detectedEnvironment = data.environment
+            if (data.setup) { root.detectedSetup = data.setup; root.setupReady = true }
+            if (data.environment) { root.detectedEnvironment = data.environment; root.environmentReady = true }
             if (data.comparison) root.setupComparison = data.comparison
             var ok = data.ok === true && exitCode === 0
             var message = data.message || next.fallback || (ok ? "Done" : "Build Network action failed")
@@ -165,7 +168,7 @@ Item {
     function joinRoom(roomId, role, note) { run("join-room", { room_id: roomId, role: role || "Builder", note: note || "" }, "Joined Build Room") }
     function taskUpdate(roomId, task, status, note) { run("task-update", { room_id: roomId, task: task, status: status || "doing", note: note || "" }, "Task updated") }
     function updateRoom(roomId, status, repoUrl) { run("update-room", { room_id: roomId, status: status || "building", repo_url: repoUrl || "" }, "Build Room updated") }
-    function createSetup(title, repoUrl, wallpaperUrl, notes, useDetected, snapshot) { run("create-setup", { title: title, repo_url: repoUrl || "", wallpaper_url: wallpaperUrl || "", notes: notes || "", use_detected: useDetected !== false }, "Setup shared", true, snapshot) }
+    function createSetup(title, repoUrl, wallpaperUrl, notes, useDetected, includeOsProfile, environment, snapshot) { run("create-setup", { title: title, repo_url: repoUrl || "", wallpaper_url: wallpaperUrl || "", notes: notes || "", use_detected: useDetected !== false, include_os_profile: includeOsProfile === true, environment: includeOsProfile === true ? (environment || ({})) : ({}) }, "Setup shared", true, snapshot) }
     function shareComponent(type, name, sourceUrl, setupId, tags, notes) { run("share-component", { component_type: type || "other", name: name, source_url: sourceUrl || "", setup_id: setupId || "", tags: tags || [], notes: notes || "" }, "Component shared") }
     function createTest(title, artifactUrl, version, requestedTags, notes, roomId, snapshot) { run("create-test", { title: title, artifact_url: artifactUrl || "", version: version || "", requested_tags: requestedTags || [], notes: notes || "", build_room_id: roomId || "" }, "Test request shared", true, snapshot) }
     function submitTestResult(requestId, result, tags, note) { run("test-result", { request_id: requestId, result: result, environment_tags: tags || [], note: note || "" }, "Test result shared") }

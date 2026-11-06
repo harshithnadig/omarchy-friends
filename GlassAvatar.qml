@@ -5,12 +5,14 @@ import "."
 Item {
     id: root
 
+    FriendsPalette { id: palette }
+
     property string emoji: "👾"
     property bool online: false
     property bool selected: false
     property real size: Style.space(42)
-    property color accentColor: "#8b7cff"
-    property color coolTint: "#55d9ff"
+    property color accentColor: palette.primary
+    property color coolTint: palette.tertiary
 
     implicitWidth: size
     implicitHeight: size
@@ -18,9 +20,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: width / 2
-        color: root.selected ? "#292439" : "#1b252f"
+        color: root.selected ? palette.mix(palette.surfaceContainer, root.accentColor, 0.18) : palette.surfaceContainerHigh
         border.width: root.selected ? 2 : 1
-        border.color: root.selected ? root.accentColor : "#34414d"
+        border.color: root.selected ? root.accentColor : palette.outlineVariant
     }
 
     PlainText {
@@ -35,9 +37,9 @@ Item {
         width: Math.max(Style.space(9), root.size * 0.22)
         height: width
         radius: width / 2
-        color: "#34d399"
+        color: palette.success
         border.width: 2
-        border.color: "#101820"
+        border.color: palette.surfaceContainerLow
         anchors.right: parent.right
         anchors.bottom: parent.bottom
     }
